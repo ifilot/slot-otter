@@ -18,7 +18,7 @@ jobs:
         run: |
           sudo rm -f /var/lib/man-db/auto-update
           sudo apt-get update -qq
-          sudo apt-get install -y -qq --no-install-recommends dosbox xvfb make
+          sudo apt-get install -y -qq --no-install-recommends dosbox xvfb make mtools
 
       - name: Run DOSBox build (headless)
         run: |
@@ -31,18 +31,42 @@ jobs:
           echo "=== DOSBOX LOG OUTPUT ==="
           cat dosbox_build.log || echo "(no log file)"
 
+      - name: Create DOS floppy images
+        if: success()
+        run: |
+          mkdir -p floppies
+          EXE=$(basename src/*.EXE)
+          echo "Creating floppy images for $EXE ..."
+
+          # 360 KiB (5.25" DD)
+          mformat -f 360 -C -v SLOT360 -i floppies/floppy_360k.img ::
+          mcopy -i floppies/floppy_360k.img "src/$EXE" ::
+
+          # 720 KiB (3.5" DD)
+          mformat -f 720 -C -v SLOT720 -i floppies/floppy_720k.img ::
+          mcopy -i floppies/floppy_720k.img "src/$EXE" ::
+
+          # 1.44 MiB (3.5" HD)
+          mformat -f 1440 -C -v SLOT144 -i floppies/floppy_1440k.img ::
+          mcopy -i floppies/floppy_1440k.img "src/$EXE" ::
+
+          echo "Floppy images created:"
+          ls -lh floppies/
+
       - name: Upload build artifacts
         if: success()
         uses: actions/upload-artifact@v4
         with:
           name: slototter-build
-          path: src/*.EXE
+          path: |
+            src/*.EXE
+            floppies/*.img
 
   release:
-    # only run the release job if this push is a tag (starts with 'v')
     needs: build
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
+
     steps:
       - name: Download build artifact
         uses: actions/download-artifact@v4
@@ -58,8 +82,13 @@ jobs:
           body: |
             Automated release for **${{ github.ref_name }}**.
 
+            Includes:
+            - Compiled SLOTOTTER.EXE
+            - 360 KiB / 720 KiB / 1.44 MiB DOS floppy images (.img)
+
             Build produced by GitHub Actions using DOSBox.
           files: |
             release/*.EXE
+            release/*.img
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
