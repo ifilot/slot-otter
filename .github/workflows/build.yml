@@ -96,7 +96,7 @@ jobs:
 
             Build produced by GitHub Actions using DOSBox.
           files: |
-            release/*.EXE
-            release/*.img
+            release/src/*.EXE
+            release/floppies/*.img
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
