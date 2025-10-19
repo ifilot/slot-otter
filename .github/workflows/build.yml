@@ -13,8 +13,11 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y dosbox xvfb make
+      - name: Install dependencies fast
+        run: |
+          sudo rm -f /var/lib/man-db/auto-update   # disable automatic man-db runs
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends dosbox xvfb make
 
       - name: Run DOSBox build (headless)
         run: |
@@ -32,4 +35,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: slototter-build
-          path: src/*.exe
+          path: src/*.EXE
