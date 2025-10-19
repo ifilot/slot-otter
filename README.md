@@ -28,5 +28,6 @@ Get the latest pre-built files:
 
 
 These images can be written directly to physical floppy disks or used with
-floppy drive emulators such as **FlashFloppy**, **GoTek**, or **BitBeaver** for
+floppy drive emulators such as GoTek,
+[BitstreamBeaver](https://github.com/ifilot/bitstream-beaver) or FlashFloppy for
 easy installation on vintage systems.
