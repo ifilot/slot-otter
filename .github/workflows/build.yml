@@ -80,7 +80,7 @@ jobs:
       - name: Verify extracted files
         run: |
           echo "Contents of release folder:"
-          ls -lh release
+          find release -type f -printf "%p (%k KiB)\n" | sort
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
