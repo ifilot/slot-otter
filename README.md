@@ -14,3 +14,19 @@ and the system’s hard drive. The program is compiled from source using Borland
 Turbo Assembler v2.0.1 and Turbo C v2.0, classic MS-DOS development tools
 originally distributed by Borland Software Corporation. The binaries for these
 tools were obtained from [WinWorldPC](https://winworldpc.com/home).
+
+## Downloads
+
+Get the latest pre-built files:
+
+- [OTTERNAV.EXE](https://github.com/ifilot/slot-otter/releases/latest/download/OTTERNAV.EXE)
+- [floppy_360k.img](https://github.com/ifilot/slot-otter/releases/latest/download/floppy_360k.img)
+- [floppy_720k.img](https://github.com/ifilot/slot-otter/releases/latest/download/floppy_720k.img)
+- [floppy_1440k.img](https://github.com/ifilot/slot-otter/releases/latest/download/floppy_1440k.img)
+
+> You can also browse all releases on the [Releases page](https://github.com/ifilot/slot-otter/releases).
+
+
+These images can be written directly to physical floppy disks or used with
+floppy drive emulators such as **FlashFloppy**, **GoTek**, or **BitBeaver** for
+easy installation on vintage systems.
