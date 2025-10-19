@@ -1,0 +1,21 @@
+sdtest.exe: main.obj sd.obj sdcmds.obj helpers.obj crc16.obj
+    tcc -ms -eSDTEST.EXE main.obj sdcmds.obj helpers.obj sd.obj crc16.obj
+
+sdcmds.obj: sdcmds.asm
+    tasm /mx sdcmds.asm
+
+crc16.obj: crc16.asm
+    tasm /mx crc16.asm
+
+helpers.obj: helpers.c
+    tcc -ms -c helpers.c
+
+main.obj: main.c
+    tcc -ms -c main.c
+
+sd.obj: sd.c
+    tcc -ms -c sd.c
+
+clean:
+    del *.obj
+

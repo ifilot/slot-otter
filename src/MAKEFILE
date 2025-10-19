@@ -1,0 +1,28 @@
+otternav.exe: main.obj sd.obj sdcmds.obj helpers.obj fat32.obj sdnav.obj hdnav.obj
+    tcc -ms -eOTTERNAV.EXE main.obj sdcmds.obj helpers.obj fat32.obj sd.c sdnav.obj hdnav.obj
+
+sdcmds.obj: sdcmds.asm
+    tasm /mx sdcmds.asm
+
+helpers.obj: helpers.c
+    tcc -ms -c helpers.c
+
+fat32.obj: fat32.c fat32.h fatstruc.h
+    tcc -ms -c fat32.c
+
+sdnav.obj: sdnav.c sdnav.h version.h
+    tcc -ms -c sdnav.c
+
+hdnav.obj : hdnav.c hdnav.h
+    tcc -ms -c hdnav.c
+
+main.obj: main.c
+    tcc -ms -c main.c
+
+sd.obj: sd.c
+    tcc -ms -c sd.c
+
+clean:
+    del *.obj
+    del *.exe
+
