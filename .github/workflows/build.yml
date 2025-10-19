@@ -3,7 +3,7 @@ name: Build and Release
 on:
   push:
     branches: [ master ]
-    tags: [ 'v*' ]   # runs when you push a tag like v1.0, v2.0.1, etc.
+    tags: [ 'v*' ]
   pull_request:
 
 jobs:
