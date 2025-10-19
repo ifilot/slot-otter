@@ -77,6 +77,11 @@ jobs:
           name: slototter-build
           path: release
 
+      - name: Verify extracted files
+        run: |
+          echo "Contents of release folder:"
+          ls -lh release
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
