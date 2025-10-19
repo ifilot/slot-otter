@@ -1,0 +1,35 @@
+name: Build
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y dosbox xvfb make
+
+      - name: Run DOSBox build (headless)
+        run: |
+          chmod +x build.sh
+          xvfb-run -a ./build.sh
+
+      - name: Show DOSBox log
+        if: always()
+        run: |
+          echo "=== DOSBOX LOG OUTPUT ==="
+          cat dosbox_build.log || echo "(no log file)"
+
+      - name: Upload build artifacts
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: slototter-build
+          path: src/*.exe

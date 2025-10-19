@@ -1,0 +1,22 @@
+
+ Start  Stop   Length Name               Class
+
+ 00000H 001F9H 001FAH _TEXT              CODE
+ 001FAH 0023AH 00041H FIBO_TEXT          CODE
+ 00240H 003DBH 0019CH _DATA              DATA
+ 003DCH 003DFH 00004H _EMUSEG            DATA
+ 003E0H 003E1H 00002H _CRTSEG            DATA
+ 003E2H 003E2H 00000H _CVTSEG            DATA
+ 003E2H 003E2H 00000H _SCNSEG            DATA
+ 003E2H 003E2H 00000H _BSS               BSS
+ 003E2H 003E2H 00000H _BSSEND            STACK
+ 003F0H 0046FH 00080H _STACK             STACK
+
+Undefined symbol '__stklen' in module C0S
+Undefined symbol '__heaplen' in module C0S
+Undefined symbol '__setargv' in module C0S
+Undefined symbol '__setenvp' in module C0S
+Undefined symbol '_exit' in module C0S
+Undefined symbol '_printf' in module fibo.c
+Program entry point at 0000:0000
+

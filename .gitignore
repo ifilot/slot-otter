@@ -13,3 +13,4 @@ gerbers/
 *.lck
 \#auto_saved_files\#
 _autosave*
+*.log
