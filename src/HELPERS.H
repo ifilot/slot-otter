@@ -28,8 +28,12 @@
 
 #include "fatstruc.h"
 
-#define BLACKONWHITE 112
-#define WHITEONBLACK   7
+/* take colors from palette, shift by 4 to set background */
+#define BLACKONWHITE ((WHITE << 4) | BLACK)
+#define WHITEONBLACK ((BLACK << 4) | WHITE)
+#define WHITEONGREEN ((GREEN << 4) | WHITE)
+
+extern unsigned char display_mode;
 
 /*
  *  print_block - Print nicely formatted block of 512 bytes to screen
@@ -161,5 +165,10 @@ void enable_cursor();
  *      Result: "CONFIG.SYS"
  */
 void build_dos_filename(const struct FAT32File* f, char* path);
+
+/*
+ * Get the video mode
+ */
+unsigned char get_video_mode();
 
 #endif

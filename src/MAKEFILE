@@ -1,4 +1,4 @@
-otternav.exe: main.obj sd.obj sdcmds.obj helpers.obj fat32.obj sdnav.obj hdnav.obj
+otternav.exe: main.obj sd.obj sdcmds.obj helpers.obj fat32.obj sdnav.obj hdnav.obj cfg.obj
     tcc -ms -eOTTERNAV.EXE main.obj sdcmds.obj helpers.obj fat32.obj sd.c sdnav.obj hdnav.obj
 
 sdcmds.obj: sdcmds.asm
@@ -21,6 +21,9 @@ main.obj: main.c
 
 sd.obj: sd.c
     tcc -ms -c sd.c
+
+cfg.obj: cfg.c
+    tcc -ms -c cfg.c
 
 clean:
     del *.obj

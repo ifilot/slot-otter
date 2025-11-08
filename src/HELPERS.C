@@ -20,6 +20,7 @@
 #include "helpers.h"
 
 static char screenbuf[80*25*2];
+unsigned char display_mode = 0x03;
 
 /*
  *  print_block - Print nicely formatted block of 512 bytes to screen
@@ -126,16 +127,26 @@ void set_rect_attr(int left, int top, int right, int bottom, unsigned char attr)
  *  set_regular - Set normal text colors
  */
 void set_regular() {
-    textbackground(BLACK);
-    textcolor(LIGHTGRAY);
+    if(display_mode == 0x03) {
+	textbackground(BLACK);
+	textcolor(WHITE);
+    } else {
+	textbackground(BLACK);
+	textcolor(WHITE);
+    }
 }
 
 /*
  *  set_hl - Set highlight text colors
  */
 void set_hl() {
-    textbackground(WHITE);
-    textcolor(BLACK);
+    if(display_mode == 0x03) {
+	textbackground(WHITE);
+	textcolor(BLACK);
+    } else {
+	textbackground(BLUE);
+	textcolor(WHITE);
+    }
 }
 
 /*
@@ -185,7 +196,7 @@ void draw_textbox(int left, int top, int right, int bottom, const char *title) {
 int folder_exists(const char* path) {
     struct ffblk ff;
     if(findfirst(path, &ff, FA_DIREC) == 0) {
-    return (ff.ff_attrib & FA_DIREC) != 0;
+	return (ff.ff_attrib & FA_DIREC) != 0;
     }
     return 0;
 }
@@ -275,4 +286,24 @@ void build_dos_filename(const struct FAT32File* f, char *path) {
         strcat(path, ".");
     }
     strcat(path, ext);
+}
+
+/*
+ * Get the video mode
+ *
+ * 00 : EGA / VGA color
+ * 01 : CGA color 40 column
+ * 02 : CGA color 80 column
+ * 03 : Monochrome
+ * Other: unknown display mode
+ */
+unsigned char get_video_mode() {
+    union REGS regs;
+    unsigned equipment, display_bits;
+
+    int86(0x11, &regs, &regs);	/* interrupt */
+    equipment = regs.x.ax;
+    display_bits = (equipment >> 4) & 0x03;
+
+    return display_bits;
 }

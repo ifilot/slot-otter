@@ -48,12 +48,15 @@ int main() {
 
     /* try to boot the sd card */
     if(boot_sd_card() != 0) {
-    sddis(BASEPORT);
-    return -1;
+	sddis(BASEPORT);
+	return -1;
     }
 
     /* store current working directory */
     getcwd(cwd, CWDBUFLEN);
+
+    /* query display mode */
+    display_mode = get_video_mode();
 
     /* initialize view */
     sdnav_init();
@@ -85,10 +88,10 @@ int main() {
     /* disable SD card */
     sddis(BASEPORT);
 
-    /* close view */
+    /* close view and reset colors to MS-DOS default */
     window(1,1,80,25);
     textbackground(BLACK);
-    textcolor(WHITE);
+    textcolor(LIGHTGRAY);
     clrscr();
 
     /* restore starting cwd */

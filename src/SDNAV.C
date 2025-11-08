@@ -91,7 +91,8 @@ void sdnav_print_files() {
 void sdnav_set_cursor() {
     gotoxy(1, cursor_pos+2);
     putch('>');
-    set_rect_attr(1,cursor_pos+2,40,cursor_pos+2,BLACKONWHITE);
+    set_rect_attr(1,cursor_pos+2,40,cursor_pos+2,
+		  display_mode == 0x03 ? BLACKONWHITE : WHITEONGREEN);
 }
 
 /*

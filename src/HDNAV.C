@@ -133,12 +133,12 @@ void hdnav_print_files() {
 
     ctr = 0;
     for(i=start_pos; i<hdnav_nrfiles; ++i) {
-    hdnav_print_entry(++ctr, i);
+	hdnav_print_entry(++ctr, i);
 
-    /* print at most 22 entries */
-    if(ctr >= 22) {
-        break;
-    }
+	/* print at most 22 entries */
+	if(ctr >= 22) {
+	    break;
+	}
     }
 
     window(1,1,80,25);
@@ -150,7 +150,8 @@ void hdnav_print_files() {
 void hdnav_set_cursor() {
     gotoxy(41, cursor_pos+2);
     putch('>');
-    set_rect_attr(41,cursor_pos+2,80,cursor_pos+2,BLACKONWHITE);
+    set_rect_attr(41,cursor_pos+2,80,cursor_pos+2,
+		  display_mode == 0x03 ? BLACKONWHITE : WHITEONGREEN);
 }
 
 /*
