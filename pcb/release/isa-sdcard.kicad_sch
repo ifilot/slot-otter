@@ -10545,7 +10545,7 @@
 	)
 	(text "Connected \nto SD-CARD"
 		(exclude_from_sim no)
-		(at 302.26 83.82 0)
+		(at 302.26 77.47 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -10555,7 +10555,7 @@
 	)
 	(text "~{SDOUT_SET} -> MISO LOW\n~{SDOUT_RESET} -> MISO HIGH"
 		(exclude_from_sim no)
-		(at 280.67 19.558 0)
+		(at 277.368 56.388 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -10566,7 +10566,7 @@
 	)
 	(text "~{SDCS_SET} -> ~{CS} HIGH -> SD CARD disabled\n~{SDCS_RESET} -> ~{CS} LOW -> SD CARD active"
 		(exclude_from_sim no)
-		(at 260.858 112.268 0)
+		(at 260.604 104.394 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -10672,7 +10672,7 @@
 		(uuid "475a86cf-205d-4104-9373-1a0cc3c9e79a")
 	)
 	(junction
-		(at 292.1 87.63)
+		(at 292.1 81.28)
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "4dfe4230-6643-48fd-a5c3-1f36ad4e49a5")
@@ -10684,7 +10684,7 @@
 		(uuid "5b40f05a-3d9a-4ad3-8717-cf93c6f7f3a7")
 	)
 	(junction
-		(at 292.1 95.25)
+		(at 292.1 88.9)
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "5be56545-4595-47e2-97f9-691e4b574ecd")
@@ -10706,12 +10706,6 @@
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "70700885-a7e8-468a-9210-5aa9bf4c6ea3")
-	)
-	(junction
-		(at 266.7 76.2)
-		(diameter 0)
-		(color 0 0 0 0)
-		(uuid "7d682111-24a2-4942-a5a5-3f767a39b223")
 	)
 	(junction
 		(at 55.88 54.61)
@@ -10754,18 +10748,6 @@
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "9d7a2e4c-90ee-4a71-b841-91bf84ecd9dd")
-	)
-	(junction
-		(at 271.78 50.8)
-		(diameter 0)
-		(color 0 0 0 0)
-		(uuid "9e5d9686-0ed5-4c00-b745-390ed8c39728")
-	)
-	(junction
-		(at 271.78 46.99)
-		(diameter 0)
-		(color 0 0 0 0)
-		(uuid "9e6f5a7b-8789-4fd7-be03-cd02681ca338")
 	)
 	(junction
 		(at 228.6 257.81)
@@ -10832,12 +10814,6 @@
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "e302926b-4c71-429a-a73d-9d0f79c3ee1a")
-	)
-	(junction
-		(at 266.7 82.55)
-		(diameter 0)
-		(color 0 0 0 0)
-		(uuid "eafde017-4cc5-42e5-ba97-53854bc0a599")
 	)
 	(junction
 		(at 237.49 241.3)
@@ -11147,7 +11123,7 @@
 	)
 	(wire
 		(pts
-			(xy 270.51 87.63) (xy 274.32 87.63)
+			(xy 270.51 81.28) (xy 274.32 81.28)
 		)
 		(stroke
 			(width 0)
@@ -11307,7 +11283,7 @@
 	)
 	(wire
 		(pts
-			(xy 292.1 87.63) (xy 292.1 90.17)
+			(xy 292.1 81.28) (xy 292.1 83.82)
 		)
 		(stroke
 			(width 0)
@@ -11367,7 +11343,7 @@
 	)
 	(wire
 		(pts
-			(xy 269.24 95.25) (xy 274.32 95.25)
+			(xy 269.24 88.9) (xy 274.32 88.9)
 		)
 		(stroke
 			(width 0)
@@ -11457,7 +11433,7 @@
 	)
 	(wire
 		(pts
-			(xy 292.1 97.79) (xy 292.1 95.25)
+			(xy 292.1 91.44) (xy 292.1 88.9)
 		)
 		(stroke
 			(width 0)
@@ -11487,7 +11463,7 @@
 	)
 	(wire
 		(pts
-			(xy 292.1 90.17) (xy 269.24 90.17)
+			(xy 292.1 83.82) (xy 269.24 83.82)
 		)
 		(stroke
 			(width 0)
@@ -11517,7 +11493,7 @@
 	)
 	(wire
 		(pts
-			(xy 270.51 92.71) (xy 270.51 87.63)
+			(xy 270.51 86.36) (xy 270.51 81.28)
 		)
 		(stroke
 			(width 0)
@@ -11537,7 +11513,7 @@
 	)
 	(wire
 		(pts
-			(xy 292.1 95.25) (xy 292.1 92.71)
+			(xy 292.1 88.9) (xy 292.1 86.36)
 		)
 		(stroke
 			(width 0)
@@ -11564,16 +11540,6 @@
 			(type default)
 		)
 		(uuid "48a7f2eb-0498-4590-924b-3a490094fdec")
-	)
-	(wire
-		(pts
-			(xy 271.78 46.99) (xy 271.78 50.8)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "497d5e03-c208-472c-9012-5bcd72262945")
 	)
 	(wire
 		(pts
@@ -11654,16 +11620,6 @@
 			(type default)
 		)
 		(uuid "53ac7ad2-331a-43ed-a9ed-fa48f49a8712")
-	)
-	(wire
-		(pts
-			(xy 266.7 82.55) (xy 274.32 82.55)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "53e9395e-39a0-49fc-86ca-7c4edbf8ff1f")
 	)
 	(wire
 		(pts
@@ -11997,26 +11953,6 @@
 	)
 	(wire
 		(pts
-			(xy 271.78 50.8) (xy 271.78 52.07)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "7bbf8668-da87-4a4f-8945-32084c52ea39")
-	)
-	(wire
-		(pts
-			(xy 266.7 76.2) (xy 266.7 82.55)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "7f4917b6-67f2-4dd7-9a13-be4e74e5de1f")
-	)
-	(wire
-		(pts
 			(xy 232.41 236.22) (xy 232.41 247.65)
 		)
 		(stroke
@@ -12064,16 +12000,6 @@
 			(type default)
 		)
 		(uuid "85d8e8a0-d18d-4d81-afc5-e2dcb7c1e3fe")
-	)
-	(wire
-		(pts
-			(xy 266.7 50.8) (xy 271.78 50.8)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "8657d620-4e57-4f5b-b5f5-0b3c447a13d9")
 	)
 	(wire
 		(pts
@@ -12157,7 +12083,7 @@
 	)
 	(wire
 		(pts
-			(xy 269.24 90.17) (xy 269.24 95.25)
+			(xy 269.24 83.82) (xy 269.24 88.9)
 		)
 		(stroke
 			(width 0)
@@ -12174,16 +12100,6 @@
 			(type default)
 		)
 		(uuid "968cdb3b-7c15-411e-99db-e17dafe355b7")
-	)
-	(wire
-		(pts
-			(xy 266.7 54.61) (xy 266.7 50.8)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "999c3fee-7e4f-4780-b571-f5e359cd2db8")
 	)
 	(wire
 		(pts
@@ -12287,7 +12203,7 @@
 	)
 	(wire
 		(pts
-			(xy 292.1 95.25) (xy 294.64 95.25)
+			(xy 292.1 88.9) (xy 294.64 88.9)
 		)
 		(stroke
 			(width 0)
@@ -12377,16 +12293,6 @@
 	)
 	(wire
 		(pts
-			(xy 264.16 82.55) (xy 266.7 82.55)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "b36dbc96-a642-450f-ae11-83cff9556500")
-	)
-	(wire
-		(pts
 			(xy 113.03 40.64) (xy 115.57 40.64)
 		)
 		(stroke
@@ -12467,7 +12373,7 @@
 	)
 	(wire
 		(pts
-			(xy 292.1 92.71) (xy 270.51 92.71)
+			(xy 292.1 86.36) (xy 270.51 86.36)
 		)
 		(stroke
 			(width 0)
@@ -12477,7 +12383,7 @@
 	)
 	(wire
 		(pts
-			(xy 289.56 97.79) (xy 292.1 97.79)
+			(xy 289.56 91.44) (xy 292.1 91.44)
 		)
 		(stroke
 			(width 0)
@@ -12547,7 +12453,7 @@
 	)
 	(wire
 		(pts
-			(xy 292.1 87.63) (xy 294.64 87.63)
+			(xy 292.1 81.28) (xy 294.64 81.28)
 		)
 		(stroke
 			(width 0)
@@ -12674,16 +12580,6 @@
 			(type default)
 		)
 		(uuid "d696d7f2-fcc3-495f-a35b-dac3de31857c")
-	)
-	(wire
-		(pts
-			(xy 265.43 46.99) (xy 271.78 46.99)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "d6b6391c-86cb-42ce-91ca-89cdc75d5f51")
 	)
 	(wire
 		(pts
@@ -12827,7 +12723,7 @@
 	)
 	(wire
 		(pts
-			(xy 292.1 85.09) (xy 292.1 87.63)
+			(xy 292.1 78.74) (xy 292.1 81.28)
 		)
 		(stroke
 			(width 0)
@@ -12947,26 +12843,6 @@
 	)
 	(wire
 		(pts
-			(xy 271.78 46.99) (xy 274.32 46.99)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "f619ff0a-d037-4085-a656-61fd4b4078cd")
-	)
-	(wire
-		(pts
-			(xy 266.7 74.93) (xy 266.7 76.2)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "f6eea5e1-d675-477f-80b2-19dcf9f9f71a")
-	)
-	(wire
-		(pts
 			(xy 208.28 260.35) (xy 208.28 265.43)
 		)
 		(stroke
@@ -12987,7 +12863,7 @@
 	)
 	(wire
 		(pts
-			(xy 289.56 85.09) (xy 292.1 85.09)
+			(xy 289.56 78.74) (xy 292.1 78.74)
 		)
 		(stroke
 			(width 0)
@@ -13111,7 +12987,7 @@
 	)
 	(global_label "~{SDOUT_RESET}"
 		(shape input)
-		(at 265.43 46.99 180)
+		(at 274.32 46.99 180)
 		(fields_autoplaced yes)
 		(effects
 			(font
@@ -13121,7 +12997,7 @@
 		)
 		(uuid "036d3ff3-ef8f-485c-96a9-539ff6c8f53c")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 253.4348 46.9275 0)
+			(at 262.3248 46.9275 0)
 			(effects
 				(font
 					(size 1 1)
@@ -13418,7 +13294,7 @@
 	)
 	(global_label "CS"
 		(shape input)
-		(at 294.64 95.25 0)
+		(at 294.64 88.9 0)
 		(fields_autoplaced yes)
 		(effects
 			(font
@@ -13428,7 +13304,7 @@
 		)
 		(uuid "1b7d5699-0c59-47f5-b090-e8c93840276e")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 298.4924 95.1875 0)
+			(at 298.4924 88.8375 0)
 			(effects
 				(font
 					(size 1 1)
@@ -14297,7 +14173,7 @@
 	)
 	(global_label "~{SDCS_SET}"
 		(shape input)
-		(at 264.16 82.55 180)
+		(at 274.32 76.2 180)
 		(fields_autoplaced yes)
 		(effects
 			(font
@@ -14307,7 +14183,7 @@
 		)
 		(uuid "67d012bc-821d-4fc6-a7e1-401df747e35f")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 254.9743 82.6125 0)
+			(at 265.1343 76.2625 0)
 			(effects
 				(font
 					(size 1 1)
@@ -14671,7 +14547,7 @@
 	)
 	(global_label "~{SDCS_RESET}"
 		(shape input)
-		(at 274.32 100.33 180)
+		(at 274.32 93.98 180)
 		(fields_autoplaced yes)
 		(effects
 			(font
@@ -14681,7 +14557,7 @@
 		)
 		(uuid "8ccae102-17a4-4a5b-847b-8b44c5d701b8")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 263.2295 100.3925 0)
+			(at 263.2295 94.0425 0)
 			(effects
 				(font
 					(size 1 1)
@@ -15329,7 +15205,7 @@
 	)
 	(global_label "~{CS}"
 		(shape input)
-		(at 294.64 87.63 0)
+		(at 294.64 81.28 0)
 		(fields_autoplaced yes)
 		(effects
 			(font
@@ -15339,7 +15215,7 @@
 		)
 		(uuid "b730733c-3e2d-4964-8fc3-0317027bf7e2")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 298.4924 87.5675 0)
+			(at 298.4924 81.2175 0)
 			(effects
 				(font
 					(size 1 1)
@@ -16187,7 +16063,7 @@
 	)
 	(symbol
 		(lib_id "74xx:74HC00")
-		(at 281.94 85.09 0)
+		(at 281.94 78.74 0)
 		(unit 3)
 		(exclude_from_sim no)
 		(in_bom yes)
@@ -16196,7 +16072,7 @@
 		(fields_autoplaced yes)
 		(uuid "09d647a5-4d13-4899-93ac-02049213cdb2")
 		(property "Reference" "U5"
-			(at 281.94 77.5802 0)
+			(at 281.94 71.2302 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -16204,7 +16080,7 @@
 			)
 		)
 		(property "Value" "74HC00"
-			(at 281.94 80.1171 0)
+			(at 281.94 73.7671 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -16212,7 +16088,7 @@
 			)
 		)
 		(property "Footprint" "Package_SO:SOIC-14_3.9x8.7mm_P1.27mm"
-			(at 281.94 85.09 0)
+			(at 281.94 78.74 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -16221,7 +16097,7 @@
 			)
 		)
 		(property "Datasheet" "http://www.ti.com/lit/gpn/sn74hc00"
-			(at 281.94 85.09 0)
+			(at 281.94 78.74 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -16230,7 +16106,7 @@
 			)
 		)
 		(property "Description" "quad 2-input NAND gate"
-			(at 281.94 85.09 0)
+			(at 281.94 78.74 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -16239,7 +16115,7 @@
 			)
 		)
 		(property "LCSC Part #" "C699445"
-			(at 281.94 85.09 0)
+			(at 281.94 78.74 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -18718,72 +18594,6 @@
 			(project "isa-sdcard"
 				(path "/075aea89-321c-44ba-b0b1-8b82a6b1f518"
 					(reference "#PWR028")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
-		(lib_id "power:GND")
-		(at 259.08 54.61 270)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "2cfe8981-1392-4bbb-997e-c1abc42b497d")
-		(property "Reference" "#PWR0100"
-			(at 252.73 54.61 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Value" "GND"
-			(at 259.334 57.15 90)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify right)
-			)
-		)
-		(property "Footprint" ""
-			(at 259.08 54.61 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" ""
-			(at 259.08 54.61 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
-			(at 259.08 54.61 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "2dadb858-62f0-4ac7-89a9-799c16dd1fa5")
-		)
-		(instances
-			(project "isa-sdcard"
-				(path "/075aea89-321c-44ba-b0b1-8b82a6b1f518"
-					(reference "#PWR0100")
 					(unit 1)
 				)
 			)
@@ -23657,72 +23467,6 @@
 		)
 	)
 	(symbol
-		(lib_id "power:VCC")
-		(at 271.78 59.69 180)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "7dc26f6e-2601-4cd8-8eb4-541e89612b73")
-		(property "Reference" "#PWR0103"
-			(at 271.78 55.88 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Value" "VCC"
-			(at 271.78 66.675 90)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify right)
-			)
-		)
-		(property "Footprint" ""
-			(at 271.78 59.69 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" ""
-			(at 271.78 59.69 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Power symbol creates a global label with name \"VCC\""
-			(at 271.78 59.69 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "7c20ade9-d06c-4945-8657-ac96f4154fcc")
-		)
-		(instances
-			(project "isa-sdcard"
-				(path "/075aea89-321c-44ba-b0b1-8b82a6b1f518"
-					(reference "#PWR0103")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
 		(lib_id "power:GND")
 		(at 200.66 172.72 90)
 		(unit 1)
@@ -23784,72 +23528,6 @@
 			(project "isa-sdcard"
 				(path "/075aea89-321c-44ba-b0b1-8b82a6b1f518"
 					(reference "#PWR0102")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
-		(lib_id "power:GND")
-		(at 259.08 76.2 270)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "81074088-ab4b-495d-a147-e1916dcf14ba")
-		(property "Reference" "#PWR099"
-			(at 252.73 76.2 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Value" "GND"
-			(at 259.334 78.74 90)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify right)
-			)
-		)
-		(property "Footprint" ""
-			(at 259.08 76.2 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" ""
-			(at 259.08 76.2 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
-			(at 259.08 76.2 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "8e220631-2167-4b49-8dfb-c106dd083aec")
-		)
-		(instances
-			(project "isa-sdcard"
-				(path "/075aea89-321c-44ba-b0b1-8b82a6b1f518"
-					(reference "#PWR099")
 					(unit 1)
 				)
 			)
@@ -25280,85 +24958,6 @@
 		)
 	)
 	(symbol
-		(lib_id "Device:R")
-		(at 266.7 71.12 180)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(fields_autoplaced yes)
-		(uuid "a027a2fb-52b7-41ca-afa8-f84f5f8c5154")
-		(property "Reference" "R5"
-			(at 269.24 69.8499 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify right)
-			)
-		)
-		(property "Value" "10k"
-			(at 269.24 72.3899 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify right)
-			)
-		)
-		(property "Footprint" "Resistor_SMD:R_0805_2012Metric"
-			(at 268.478 71.12 90)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" "~"
-			(at 266.7 71.12 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Resistor"
-			(at 266.7 71.12 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "LCSC Part #" "C5159708"
-			(at 266.7 71.12 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "c37afe32-2cea-4817-a241-efff83493585")
-		)
-		(pin "2"
-			(uuid "1b340d53-a008-4ed7-bae8-64db96613bc0")
-		)
-		(instances
-			(project "isa-sdcard"
-				(path "/075aea89-321c-44ba-b0b1-8b82a6b1f518"
-					(reference "R5")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
 		(lib_id "power:VCC")
 		(at 365.76 209.55 270)
 		(unit 1)
@@ -26114,72 +25713,6 @@
 			(project "port2-sdcard-interface"
 				(path "/075aea89-321c-44ba-b0b1-8b82a6b1f518"
 					(reference "#PWR035")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
-		(lib_id "power:VCC")
-		(at 266.7 67.31 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "a95155c3-2eae-4911-a8ad-e73d57b298f3")
-		(property "Reference" "#PWR098"
-			(at 266.7 71.12 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Value" "VCC"
-			(at 266.7 60.325 90)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify right)
-			)
-		)
-		(property "Footprint" ""
-			(at 266.7 67.31 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" ""
-			(at 266.7 67.31 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Power symbol creates a global label with name \"VCC\""
-			(at 266.7 67.31 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "9b66359c-113a-499a-bcd2-3bb7cc7bc389")
-		)
-		(instances
-			(project "isa-sdcard"
-				(path "/075aea89-321c-44ba-b0b1-8b82a6b1f518"
-					(reference "#PWR098")
 					(unit 1)
 				)
 			)
@@ -29275,83 +28808,6 @@
 		)
 	)
 	(symbol
-		(lib_id "Device:C")
-		(at 262.89 54.61 270)
-		(mirror x)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "ddfb0978-8e90-446d-bfdb-f4a5a6928d4d")
-		(property "Reference" "C15"
-			(at 262.89 51.054 90)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "0.1uF"
-			(at 266.7 55.626 90)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" "Capacitor_SMD:C_0805_2012Metric"
-			(at 259.08 53.6448 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" "~"
-			(at 262.89 54.61 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Unpolarized capacitor"
-			(at 262.89 54.61 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "LCSC Part #" "C126469"
-			(at 262.89 54.61 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "0e83568f-e5cc-488b-92d2-60c219157c25")
-		)
-		(pin "2"
-			(uuid "24c41f8e-6fb3-421d-b629-985c83114de4")
-		)
-		(instances
-			(project "isa-sdcard"
-				(path "/075aea89-321c-44ba-b0b1-8b82a6b1f518"
-					(reference "C15")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
 		(lib_id "power:VCC")
 		(at 57.15 233.68 0)
 		(unit 1)
@@ -30383,7 +29839,7 @@
 	)
 	(symbol
 		(lib_id "74xx:74HC00")
-		(at 281.94 97.79 0)
+		(at 281.94 91.44 0)
 		(unit 4)
 		(exclude_from_sim no)
 		(in_bom yes)
@@ -30391,7 +29847,7 @@
 		(dnp no)
 		(uuid "e668371b-0d29-4cf0-be4f-110a2865643a")
 		(property "Reference" "U5"
-			(at 281.94 103.5081 0)
+			(at 281.94 97.1581 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -30399,7 +29855,7 @@
 			)
 		)
 		(property "Value" "74HC00"
-			(at 281.94 106.045 0)
+			(at 281.94 99.695 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -30407,7 +29863,7 @@
 			)
 		)
 		(property "Footprint" "Package_SO:SOIC-14_3.9x8.7mm_P1.27mm"
-			(at 281.94 97.79 0)
+			(at 281.94 91.44 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -30416,7 +29872,7 @@
 			)
 		)
 		(property "Datasheet" "http://www.ti.com/lit/gpn/sn74hc00"
-			(at 281.94 97.79 0)
+			(at 281.94 91.44 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -30425,7 +29881,7 @@
 			)
 		)
 		(property "Description" "quad 2-input NAND gate"
-			(at 281.94 97.79 0)
+			(at 281.94 91.44 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -30434,7 +29890,7 @@
 			)
 		)
 		(property "LCSC Part #" "C699445"
-			(at 281.94 97.79 0)
+			(at 281.94 91.44 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -30576,85 +30032,6 @@
 				(path "/075aea89-321c-44ba-b0b1-8b82a6b1f518"
 					(reference "RN1")
 					(unit 2)
-				)
-			)
-		)
-	)
-	(symbol
-		(lib_id "Device:R")
-		(at 271.78 55.88 180)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(fields_autoplaced yes)
-		(uuid "eb4389f4-5be2-410f-8a9e-ab26ed78ef60")
-		(property "Reference" "R6"
-			(at 274.32 54.6099 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify right)
-			)
-		)
-		(property "Value" "10k"
-			(at 274.32 57.1499 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify right)
-			)
-		)
-		(property "Footprint" "Resistor_SMD:R_0805_2012Metric"
-			(at 273.558 55.88 90)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" "~"
-			(at 271.78 55.88 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Resistor"
-			(at 271.78 55.88 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "LCSC Part #" "C5159708"
-			(at 271.78 55.88 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "6c48d34b-70d7-4bd0-aab1-42f6d7dabf98")
-		)
-		(pin "2"
-			(uuid "462b7699-2bad-4a90-99c6-e6a0ad847b2c")
-		)
-		(instances
-			(project "isa-sdcard"
-				(path "/075aea89-321c-44ba-b0b1-8b82a6b1f518"
-					(reference "R6")
-					(unit 1)
 				)
 			)
 		)
@@ -31457,83 +30834,6 @@
 			(project ""
 				(path "/075aea89-321c-44ba-b0b1-8b82a6b1f518"
 					(reference "U2")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
-		(lib_id "Device:C")
-		(at 262.89 76.2 270)
-		(mirror x)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "fc6330c5-a532-43d9-ab4a-4179d5498113")
-		(property "Reference" "C7"
-			(at 262.89 72.644 90)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "0.1uF"
-			(at 262.89 79.248 90)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" "Capacitor_SMD:C_0805_2012Metric"
-			(at 259.08 75.2348 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" "~"
-			(at 262.89 76.2 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Unpolarized capacitor"
-			(at 262.89 76.2 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "LCSC Part #" "C126469"
-			(at 262.89 76.2 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "e772bfd4-471b-484c-891b-5037686a2eeb")
-		)
-		(pin "2"
-			(uuid "268df68e-37d4-486c-938f-68ca061648a2")
-		)
-		(instances
-			(project "isa-sdcard"
-				(path "/075aea89-321c-44ba-b0b1-8b82a6b1f518"
-					(reference "C7")
 					(unit 1)
 				)
 			)
