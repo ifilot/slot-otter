@@ -26,10 +26,10 @@
 #include "fatstruc.h"
 #include "sdcmds.h"
 
-#define F32LLSZ  128  /* maximum linked list size */
-#define F32MXFL  256  /* maximum number of files in folder to parse */
-#define F32MXDIR 256  /* maximum number of folders that can be copied */
-#define MAXPATH   80  /* maximum number of characters in path */
+#define F32LLSZ  2048  	/* maximum linked list size */
+#define F32MXFL  256  	/* maximum number of files in folder to parse */
+#define F32MXDIR 256  	/* maximum number of folders that can be copied */
+#define MAXPATH   80  	/* maximum number of characters in path */
 
 #define MASK_DIR (1 << 4)
 #define FILE_ENTRY 0

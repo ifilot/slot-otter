@@ -126,7 +126,7 @@ void fat32_read_current_folder() {
  *  of files are being read.
  */
 void fat32_read_dir(struct FAT32Folder* folder, struct FAT32File buffer[]) {
-    unsigned char ctr = 0;
+    unsigned ctr = 0;
     unsigned fctr = 0;
     unsigned i,j;
     unsigned char* locptr = 0;
@@ -235,7 +235,7 @@ void fat32_list_dir() {
  */
 int fat32_transfer_file(const struct FAT32File *f, const char* path) {
     unsigned long caddr = 0;
-    unsigned char ctr = 0;
+    unsigned ctr = 0;
     unsigned long bcnt = 0;
     int i;
     FILE *outfile;
