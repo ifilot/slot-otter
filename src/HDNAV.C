@@ -39,7 +39,7 @@ void hdnav_display_commands() {
     gotoxy(1,25);
     set_hl();
     clreol();
-    cputs("F1: HELP | F2: MKDIR | F10: EXIT");
+    cputs("F1: HELP | F2: MKDIR | F10: EXIT | TAB: SWITCH PANE");
     set_regular();
 }
 
@@ -291,14 +291,23 @@ void hdnav_create_folder() {
 
     store_screen();
 
-    /* print window */
-    draw_textbox(30,14,50,15,"Enter folder name:");
-    gotoxy(1,2);
+    /* print boxed prompt with title + input field */
+    window(28,13,53,17);
+    clrscr();
+    gotoxy(1,1);  cputs("\xDA\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xBF");
+    gotoxy(1,2);  cputs("\xB3 ENTER FOLDER NAME:     \xB3");
+    gotoxy(1,3);  cputs("\xB3                        \xB3");
+    gotoxy(1,4);  cputs("\xC0\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xD9");
+    textbackground(BLUE);
+    textcolor(WHITE);
+    gotoxy(3,3);
+    cputs("                    ");
+    gotoxy(3,3);
 
     /* put in writing mode */
     while(c != 0x0D) {
         c = getch();
-        gotoxy(1+ctr, 2);
+        gotoxy(3+ctr, 3);
         if(ctr < 8) {
             if((c>='0' & c<='9') || (c>='A' && c<='Z') || (c>='a' && c<='z')) {
             dbuf[ctr++] = c;
@@ -306,10 +315,10 @@ void hdnav_create_folder() {
             }
         }
         if(ctr > 0 && c == 8) {
-            gotoxy(ctr, 2);
+            gotoxy(2+ctr, 3);
             putch(' ');
             dbuf[--ctr] = 0;
-            gotoxy(1+ctr, 2);
+            gotoxy(3+ctr, 3);
         }
         if(c == 0x1B) {
             break;
@@ -320,6 +329,7 @@ void hdnav_create_folder() {
         mkdir(dbuf);
     }
 
+    set_regular();
     window(1,1,80,25);
     restore_screen();
     hdnav_read_files();
