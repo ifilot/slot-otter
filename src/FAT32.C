@@ -235,26 +235,28 @@ void fat32_list_dir() {
  */
 int fat32_transfer_file(const struct FAT32File *f, const char* path) {
     unsigned long caddr = 0;
-    unsigned ctr = 0;
+    unsigned long cluster = 0;
+    unsigned long nextcluster = 0;
     unsigned long bcnt = 0;
     int i;
+    unsigned item = 0;
     FILE *outfile;
-
-    if(f->filesize > (512UL * (unsigned long)fat32_partition.sectors_per_cluster * F32LLSZ)) {
-        printf("File too large to be copied!\n");
-        return -1;
-    }
 
     if(f->attrib & MASK_DIR) {
 	    return -1;
     }
 
     outfile = fopen(path, "wb");
+    if(outfile == NULL) {
+        return -1;
+    }
 
-    fat32_build_linked_list(f->cluster);
-    while(fat32_linked_list[ctr] != 0xFFFFFFFF && ctr < F32LLSZ && bcnt < f->filesize) {
-        caddr = fat32_calculate_sector_address(fat32_linked_list[ctr], 0);
+    /* consume clusters and transfer file */
+    cluster = f->cluster;
+    while(cluster < 0x0FFFFFF8UL && cluster != 0 && bcnt < f->filesize) {
+        caddr = fat32_calculate_sector_address(cluster, 0);
 
+        /* consume sectors */
         for(i=0; i<fat32_partition.sectors_per_cluster; ++i) {
             fat32_read_sector(caddr);
 
@@ -268,13 +270,18 @@ int fat32_transfer_file(const struct FAT32File *f, const char* path) {
             bcnt += 512;
             caddr++; /* next sector */
         }
-        ctr++;
+
+        fat32_read_sector(fat32_partition.fat_begin_lba + (cluster >> 7));
+        item = (unsigned)(cluster & 0x7F);
+        nextcluster = (*(unsigned long*)(sdbuf + item * 4)) & 0x0FFFFFFFUL;
+        cluster = nextcluster;
     }
 
     fclose(outfile);
 
     return 0;
 }
+
 
 /**
  *  fat32_transfer_folder - Recursively transfer a folder from the SD-CARD
