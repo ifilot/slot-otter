@@ -2,7 +2,9 @@ name: Build and Release
 
 on:
   push:
-    branches: [ master ]
+    branches:
+      - master
+      - develop
     tags: [ 'v*' ]
   pull_request:
 
