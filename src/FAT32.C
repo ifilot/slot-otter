@@ -18,6 +18,7 @@
  * ===================================================================== */
 
 #include "fat32.h"
+#include <conio.h>
 
 /* buffer to store SDCARD sector data including CRC checksum */
 static unsigned char sdbuf[514];
@@ -454,11 +455,11 @@ void fat32_transfer_files_in_folder(struct FAT32Folder* f, const char *basepath)
             strcat(path, "\\");
             build_dos_filename(entry, filename);
             strcat(path, filename);
-            printf(" + File: %s", path);
+            cprintf(" + File: %s", path);
             if(file_exists(path)) {
                 ok = 0;
                 if(!persistent) {
-                    printf("\n File exists; Overwrite? (y/n/a)");
+                    cprintf("\n File exists; Overwrite? (y/n/a)");
                     while(1) {
                     c = getch();
                     if(c == 'y') {
@@ -486,10 +487,16 @@ void fat32_transfer_files_in_folder(struct FAT32Folder* f, const char *basepath)
                 tic = clock();
                 if(fat32_transfer_file(entry, path) == 0) {
                     toc = clock();
-                    printf(" (%lu bytes; %.2f s) [OK]\n", entry->filesize,
-                    (toc - tic) / CLK_TCK);
+                    cprintf(" (%lu bytes; %.2f s) ", entry->filesize,(toc - tic) / CLK_TCK);
+                    textcolor(LIGHTGREEN);
+                    cprintf("[OK]");
+                    textcolor(WHITE);
+                    cprintf("\r\n");
                 } else {
-                    printf(" [FAIL]\n");
+                    textcolor(RED);
+                    cprintf(" [FAIL]");
+                    textcolor(WHITE);
+                    cprintf("\r\n");
                 }
             }
         }
