@@ -25,6 +25,7 @@
 
 #include "fatstruc.h"
 #include "sdcmds.h"
+#include "cfg.h"
 
 #define F32LLSZ  2048  	/* maximum linked list size */
 #define F32MXFL  256  	/* maximum number of files in folder to parse */

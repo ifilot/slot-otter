@@ -2,30 +2,37 @@
 #define _CFG_H
 
 #include <stdio.h>
-#include <string.h>
-#include <ctype.h>
 
-#define CFG_MAX_LINE    256
-#define CFG_MAX_KEY     64
-#define CFG_MAX_ENTRIES 100
-#define CFG_MAX_VALUE   128
+#define CFG_FILENAME "OTTERNAV.INI"
+#define CFG_DEFAULT_BASE_PORT 0x330
 
-typedef struct {
-    char key[CFG_MAX_KEY];
-    char value[CFG_MAX_VALUE];
-} CFGEntry;
+/*
+ *  cfg_init - Load configuration or create defaults
+ *
+ *  Parameters:
+ *      filename - Path to INI file
+ */
+void cfg_init(const char* filename);
 
-extern CFGEntry cfg_entries[CFG_MAX_ENTRIES];
-extern int cfg_entry_count;
+/*
+ *  cfg_save - Persist configuration to disk
+ *
+ *  Parameters:
+ *      filename - Path to INI file
+ */
+void cfg_save(const char* filename);
 
-char *trim(char *str);
+/*
+ *  cfg_get_base_port - Get current base I/O port
+ */
+unsigned cfg_get_base_port();
 
-void cfg_parse_file(const char* filename);
+/*
+ *  cfg_set_base_port - Set current base I/O port
+ *
+ *  Parameters:
+ *      base_port - New base port address
+ */
+void cfg_set_base_port(unsigned base_port);
 
-char *cfg_get_value(const char* key);
-
-void cfg_set_value(const char* key, const char *value);
-
-void cfg_write_file(const char* filename);
-
-#endif
+#endif

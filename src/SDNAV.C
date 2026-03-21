@@ -46,7 +46,7 @@ void sdnav_display_commands() {
     gotoxy(1,25);
     set_hl();
     clreol();
-    cputs("F1: HELP | F3: COPY | F10: EXIT | TAB: SWITCH PANE");
+    cputs("F1: HELP | F3: COPY | F8: SETTINGS | F10: EXIT | TAB: SWITCH PANE");
     set_regular();
 }
 
