@@ -1,3 +1,22 @@
+/* =====================================================================
+ *  Project: SLOT-OTTER
+ *  File:    CFG.C
+ *  Author:  Ivo Filot <ivo@ivofilot.nl>
+ *
+ *  This program is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ * ===================================================================== */
+
 #include "cfg.h"
 
 #include <stdlib.h>
@@ -54,6 +73,12 @@ static void cfg_set_defaults() {
     cfg_base_port = CFG_DEFAULT_BASE_PORT;
 }
 
+/*
+ *  cfg_save - Persist configuration to disk
+ *
+ *  Parameters:
+ *      filename - Path to INI file
+ */
 void cfg_save(const char* filename) {
     FILE* f = fopen(filename, "w");
     if(!f) {
@@ -65,6 +90,12 @@ void cfg_save(const char* filename) {
     fclose(f);
 }
 
+/*
+ *  cfg_init - Load configuration or create defaults
+ *
+ *  Parameters:
+ *      filename - Path to INI file
+ */
 void cfg_init(const char* filename) {
     FILE* f;
     char line[128];
@@ -103,10 +134,19 @@ void cfg_init(const char* filename) {
     fclose(f);
 }
 
+/*
+ *  cfg_get_base_port - Get current base I/O port
+ */
 unsigned cfg_get_base_port() {
     return cfg_base_port;
 }
 
+/*
+ *  cfg_set_base_port - Set current base I/O port
+ *
+ *  Parameters:
+ *      base_port - New base port address
+ */
 void cfg_set_base_port(unsigned base_port) {
     cfg_base_port = base_port;
 }

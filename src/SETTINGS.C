@@ -1,3 +1,22 @@
+/* =====================================================================
+ *  Project: SLOT-OTTER
+ *  File:    SETTINGS.C
+ *  Author:  Ivo Filot <ivo@ivofilot.nl>
+ *
+ *  This program is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ * ===================================================================== */
+
 #include <conio.h>
 #include <stdio.h>
 #include <string.h>
@@ -6,6 +25,8 @@
 #include "helpers.h"
 #include "cfg.h"
 #include "settings.h"
+
+#define TEXTLINE_HEIGHT 11
 
 int settings_show() {
     char input[16];
@@ -28,13 +49,25 @@ int settings_show() {
     cprintf("Current BASE_PORT: 0x%X", cfg_get_base_port());
     gotoxy(1,5);
     cputs("Enter new BASE_PORT (hex, e.g. 0x330). Press ESC to cancel.");
+    
+    textcolor(RED);
+    gotoxy(1,6);
+    cputs("WARNING: Entering a wrong value can potentially damage hardware or");
     gotoxy(1,7);
+    cputs("         make the ISA card temporarily inoperable. Ensure the value");
+    gotoxy(1,8);
+    cputs("         corresponds to the DIP switch on your Slototter ISA card");
+    gotoxy(1,9);
+    cputs("         By default, we recommend a value of 0x330.");
+    textcolor(WHITE);
+
+    gotoxy(1,TEXTLINE_HEIGHT);
     cputs("BASE_PORT: ");
 
     memset(input, 0, sizeof(input));
 
     while(1) {
-        gotoxy(12 + idx, 7);
+        gotoxy(12 + idx, TEXTLINE_HEIGHT);
         c = getch();
 
         if(c == 27) {
@@ -49,14 +82,14 @@ int settings_show() {
             }
             input[idx] = '\0';
             if(!(idx > 2 && input[0] == '0' && (input[1] == 'x' || input[1] == 'X'))) {
-                gotoxy(1,9);
+                gotoxy(1,TEXTLINE_HEIGHT+1);
                 cputs("Please use hexadecimal format (0xNNN).         ");
                 continue;
             }
 
             value = strtoul(input, &endptr, 16);
             if(*endptr != '\0') {
-                gotoxy(1,9);
+                gotoxy(1,TEXTLINE_HEIGHT+1);
                 cputs("Invalid hexadecimal value.                       ");
                 continue;
             }
@@ -71,9 +104,9 @@ int settings_show() {
         if(c == 8) {
             if(idx > 0) {
                 idx--;
-                gotoxy(12 + idx, 7);
+                gotoxy(14 + idx, TEXTLINE_HEIGHT);
                 putch(' ');
-                gotoxy(12 + idx, 7);
+                gotoxy(14 + idx, TEXTLINE_HEIGHT);
             }
             continue;
         }
