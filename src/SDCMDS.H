@@ -22,7 +22,6 @@
 
 #include<dos.h>
 
-#define BASEPORT 0x330
 
 /*
  * Send 80 'clearing bits' to the SD-card to reset it
