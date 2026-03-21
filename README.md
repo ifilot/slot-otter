@@ -1,6 +1,8 @@
 # Slot-otter
 
 [![Build and Release](https://github.com/ifilot/slot-otter/actions/workflows/build.yml/badge.svg)](https://github.com/ifilot/slot-otter/actions/workflows/build.yml)
+![Version](https://img.shields.io/github/v/tag/ifilot/slot-otter?label=version)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 
 A 8-bit ISA card to interface with a FAT32 formatted SD card in MSDOS.
 
@@ -22,9 +24,9 @@ tools were obtained from [WinWorldPC](https://winworldpc.com/home).
 Get the latest pre-built files:
 
 - [OTTERNAV.EXE](https://github.com/ifilot/slot-otter/releases/latest/download/OTTERNAV.EXE)
-- [floppy_360k.img](https://github.com/ifilot/slot-otter/releases/latest/download/floppy_360k.img)
-- [floppy_720k.img](https://github.com/ifilot/slot-otter/releases/latest/download/floppy_720k.img)
-- [floppy_1440k.img](https://github.com/ifilot/slot-otter/releases/latest/download/floppy_1440k.img)
+- [floppy_360k.img](https://github.com/ifilot/slot-otter/releases/latest/download/floppy_360k.img) (5¼" DD)
+- [floppy_720k.img](https://github.com/ifilot/slot-otter/releases/latest/download/floppy_720k.img) (3½" DD)
+- [floppy_1440k.img](https://github.com/ifilot/slot-otter/releases/latest/download/floppy_1440k.img) (3½" HD)
 
 > You can also browse all releases on the [Releases page](https://github.com/ifilot/slot-otter/releases).
 

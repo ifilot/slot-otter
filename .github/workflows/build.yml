@@ -1,4 +1,4 @@
-name: Build and Release
+name: Build
 
 on:
   push:
@@ -41,19 +41,34 @@ jobs:
         run: |
           mkdir -p floppies
           EXE=$(basename src/*.EXE)
+          SOURCE_FILES=(
+            src/*.C
+            src/*.H
+            src/*.ASM
+            src/*.PRJ
+            src/MAKEFILE
+            src/README.MD
+          )
           echo "Creating floppy images for $EXE ..."
+
+          copy_files_to_image() {
+            local image_path="$1"
+            mcopy -i "$image_path" "src/$EXE" ::
+            mmd -i "$image_path" ::/SOURCES
+            mcopy -i "$image_path" "${SOURCE_FILES[@]}" ::/SOURCES
+          }
 
           # 360 KiB (5.25" DD)
           mformat -f 360 -C -v SLOT360 -i floppies/floppy_360k.img ::
-          mcopy -i floppies/floppy_360k.img "src/$EXE" ::
+          copy_files_to_image floppies/floppy_360k.img
 
           # 720 KiB (3.5" DD)
           mformat -f 720 -C -v SLOT720 -i floppies/floppy_720k.img ::
-          mcopy -i floppies/floppy_720k.img "src/$EXE" ::
+          copy_files_to_image floppies/floppy_720k.img
 
           # 1.44 MiB (3.5" HD)
           mformat -f 1440 -C -v SLOT144 -i floppies/floppy_1440k.img ::
-          mcopy -i floppies/floppy_1440k.img "src/$EXE" ::
+          copy_files_to_image floppies/floppy_1440k.img
 
           echo "Floppy images created:"
           ls -lh floppies/
