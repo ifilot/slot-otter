@@ -15,6 +15,8 @@ Turbo Assembler v2.0.1 and Turbo C v2.0, classic MS-DOS development tools
 originally distributed by Borland Software Corporation. The binaries for these
 tools were obtained from [WinWorldPC](https://winworldpc.com/home).
 
+![screenshot of SD card navigator](img/screenshot.png)
+
 ## Downloads
 
 Get the latest pre-built files:
@@ -31,3 +33,10 @@ These images can be written directly to physical floppy disks or used with
 floppy drive emulators such as GoTek,
 [BitstreamBeaver](https://github.com/ifilot/bitstream-beaver) or FlashFloppy for
 easy installation on vintage systems.
+
+## Development
+
+For developing the SD-card navigator application, there exists a fork of the
+popular MS-DOS emulator [DOSBox](www.dosbox.com) that is able to emulate the
+Slot-otter ISA card. More information can be found in 
+[this repository](https://github.com/ifilot/dosbox-virtisa).
