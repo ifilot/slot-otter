@@ -1,6 +1,8 @@
 # Slot-otter
 
 [![Build and Release](https://github.com/ifilot/slot-otter/actions/workflows/build.yml/badge.svg)](https://github.com/ifilot/slot-otter/actions/workflows/build.yml)
+![Version](https://img.shields.io/github/v/tag/ifilot/slot-otter?label=version)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 
 A 8-bit ISA card to interface with a FAT32 formatted SD card in MSDOS.
 
