@@ -22,9 +22,9 @@ tools were obtained from [WinWorldPC](https://winworldpc.com/home).
 Get the latest pre-built files:
 
 - [OTTERNAV.EXE](https://github.com/ifilot/slot-otter/releases/latest/download/OTTERNAV.EXE)
-- [floppy_360k.img](https://github.com/ifilot/slot-otter/releases/latest/download/floppy_360k.img)
-- [floppy_720k.img](https://github.com/ifilot/slot-otter/releases/latest/download/floppy_720k.img)
-- [floppy_1440k.img](https://github.com/ifilot/slot-otter/releases/latest/download/floppy_1440k.img)
+- [floppy_360k.img](https://github.com/ifilot/slot-otter/releases/latest/download/floppy_360k.img) (5¼" DD)
+- [floppy_720k.img](https://github.com/ifilot/slot-otter/releases/latest/download/floppy_720k.img) (3½" DD)
+- [floppy_1440k.img](https://github.com/ifilot/slot-otter/releases/latest/download/floppy_1440k.img) (3½" HD)
 
 > You can also browse all releases on the [Releases page](https://github.com/ifilot/slot-otter/releases).
 
