@@ -44,13 +44,13 @@ void fat32_open_partition() {
     char partname[12];
 
     /* read boot sector */
-    cmd17(BASEPORT, 0x00000000, sdbuf);
+    cmd17(cfg_get_base_port(), 0x00000000, sdbuf);
     /*print_block(sdbuf);*/
 
     /* check for magic bytes */
     if(sdbuf[510] != 0x55 || sdbuf[511] != 0xAA) {
 		printf("Could not read SD-card. Try to reinsert.\n");
-		sddis(BASEPORT);
+		sddis(cfg_get_base_port());
 		return;
     }
 
@@ -74,7 +74,7 @@ void fat32_open_partition() {
     fat32_partition.lba_addr_root_dir = fat32_calculate_sector_address(fat32_partition.root_dir_first_cluster, 0);
 
     /* grab information from root folder */
-    cmd17(BASEPORT, fat32_partition.lba_addr_root_dir, sdbuf);
+    cmd17(cfg_get_base_port(), fat32_partition.lba_addr_root_dir, sdbuf);
     memcpy(fat32_partition.volume_label, sdbuf, 11);
     /*printf("Partition name: %11s\n", fat32_partition.volume_label); */
 
@@ -542,7 +542,7 @@ unsigned long fat32_calculate_sector_address(unsigned long cluster,
  *      addr - SD-CARD sector address
  */
 void fat32_read_sector(unsigned long addr) {
-    cmd17(BASEPORT, addr, sdbuf);
+    cmd17(cfg_get_base_port(), addr, sdbuf);
 }
 
 /*

@@ -23,6 +23,7 @@
 #define MAXTRIAL 100
 
 #include <dos.h>
+#include "cfg.h"
 #include "sdcmds.h"
 
 /*
