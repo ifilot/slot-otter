@@ -7,4 +7,4 @@ has been developed using [Borland's Turbo Macro Assembler
 2.01](https://winworldpc.com/product/borland-turbo-c/2x). Both programs need to
 be installed and their binary folders need to be placed on the `$PATH`. To
 compile the source code, simply head over to the directory containing the source
-files and run `make`.
+files and run `make`.

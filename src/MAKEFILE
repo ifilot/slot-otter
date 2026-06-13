@@ -34,3 +34,4 @@ settings.obj: settings.c settings.h cfg.h helpers.h
 clean:
 	del *.obj
 	del *.exe
+

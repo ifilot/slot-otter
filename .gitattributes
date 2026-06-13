@@ -1,0 +1,7 @@
+# Keep MS-DOS source files checked out with DOS line endings.
+src/*.ASM text eol=crlf
+src/*.C text eol=crlf
+src/*.H text eol=crlf
+src/*.PRJ text eol=crlf
+src/MAKEFILE text eol=crlf
+src/README.MD text eol=crlf

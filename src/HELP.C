@@ -83,3 +83,4 @@ void help_show() {
     restore_screen();
     window(1,1,80,25);
 }
+
