@@ -1,12 +1,25 @@
 	.model small,C
 	.data
 ;-------------------------------------------------------------------------
+; SD-CARD interface
+; The SD-CARD listens on SDBASE base address, typically corresponding
+; to 0x330.
+; OUT 00 -> Write AL to shift register
+; OUT 01 -> Exchange byte with SD-CARD
+; OUT 02 -> Set /CS high, deactivating SD-CARD
+; OUT 03 -> Set /CS low, activating SD-CARD
+; IN  00 -> Read from shift register
+; IN  01 -> Read from shift register and send 0xFF pulse
+; IN  02 -> Pull MISO low via 10k resistor
+; IN  03 -> Pull MISO high via 10k resistor
+;-------------------------------------------------------------------------
 dcmd00  db 40h, 00h, 00h, 00h, 00h, 95h
 dcmd08	db 48h, 00h, 00h, 01h,0AAh, 87h
 dcmd55	db 77h, 00h, 00h, 00h, 00h, 65h
 dacmd41	db 69h, 40h, 00h, 00h, 00h, 77h
 dcmd58	db 7Ah, 00h, 00h, 00h, 00h, 01h
 dcmd17  db 51h, 00h, 00h, 00h, 00h, 01h
+dcmd24  db 58h, 00h, 00h, 00h, 00h, 01h
 ;-------------------------------------------------------------------------
 	.code
 	public cmdclr           ; send 10 blank pulses to SD card
@@ -18,6 +31,7 @@ dcmd17  db 51h, 00h, 00h, 00h, 00h, 01h
 	public acmd41		; send command acmd41
 	public cmd58		; send command cmd58
 	public cmd17		; send command cmd17
+	public cmd24		; send command cmd24
 	public sdrecvf		; receive single byte from SD
 
 ;-------------------------------------------------------------------------
@@ -146,7 +160,7 @@ cmd17	proc
 	mov di, OFFSET dcmd17		; set command array
 	inc di				; first position for address
 	mov si, bp			; works because DS=SS in SMALL
-	add si, 9
+	add si, 9			; set source index to start of addr
 	mov cx, 4			; copy 4 bytes
 	cld  				; set increment direction
 lpaddr: mov al,[si]
@@ -206,6 +220,90 @@ st17:   call sdclose
 	pop bp
 	ret
 cmd17	endp
+;-------------------------------------------------------------------------
+; CMD24: Write block at address
+;-------------------------------------------------------------------------
+cmd24 	proc
+	push bp
+	mov bp,sp
+	mov dx, [bp+4]		; retrieve port (SDBASE)
+	push di
+	push si
+
+	; set DI pointer to dcmd24 (resides in memory) and copy
+	; over bytes 01-04 corresponding to the address with the
+	; MSB first and the LSB last. Set the SI pointer to the
+	; last byte of the address on the stack and decrement over
+	; SI as the address is stored in lower endian format.
+	mov di, OFFSET dcmd24	; set pointer to command array
+	inc di			; first position of sector address
+	mov si, bp		; works because DS=SS in SMALL
+	add si,9		; set si to start of addr
+	mov cx,4		; copy 4 bytes
+	cld			; set to increment
+lpadw:	mov al,[si]
+	stosb
+	dec si
+	loop lpadw		; copy 4 bytes
+
+	; The address is now copied from the stack and stored in
+	; the command array. Next, we need to grab the destination
+	; pointer to the buffer where we are going to retrieve the
+	; block from. We store it for the time being in DI, but will
+	; later put the contents of DI in SI.
+	mov di, [bp+10]
+	mov ax, ds
+	mov es, ax		; ensure ES = DS
+
+	; set the SI pointer to the start of the command array and
+	; send the command to the SD card.
+	mov si, OFFSET dcmd24	; set pointer to command
+	call sdopen
+	call sendcmd
+	cmp al,0		; check acknowledge command
+	jnz st24		; fail mode
+
+wdbuf:  mov al,0FEh		; set block token
+	out dx,al		; put block token in shift register
+	inc dx			; SDBASE+1
+	out dx,al		; send block token to SD-CARD
+
+	mov cx, 514		; number of bytes + checksum
+	cld			; set stosb to increment
+	mov si,di		; place address pointer into source index
+wrlp:   dec dx			; SDBASE
+	lodsb			; grab value from SI and store in AL, inc SI
+	out dx,al		; store byte in shift register
+	inc dx			; SDBASE+1
+	out dx,al		; send byte from shift register to SD-CARD
+	loop wrlp		; next byte
+
+	; after sending the block, we are going to retrieve the first byte
+	in al, dx		; read response byte
+	and al,01Fh		; only store lower 5 bytes
+	cmp al,5		; check if equal to five
+	jnz st24		; fail mode response
+
+	; wait until SD card is done writing
+	mov cx,1000		; set wait counter
+waitr1:	out dx, al		; send a dummy byte
+	in al, dx		; retrieve response token and send pulse
+	cmp al,0FFh		; check if idle token?
+	jz st24			; if wait token, SD-CARD ready again -> done
+	dec cx			; else, decrement wait counter
+	jnz waitr1		; is wait counter not 0, try again
+	mov al,0FFh
+	jmp st24		; number of attempts exceeded, fail
+
+	mov al,00h
+	jmp st24
+
+st24:	call sdclose
+	pop si
+	pop di
+	pop bp
+	ret
+cmd24 	endp
 ;-------------------------------------------------------------------------
 ; General send command, assumes DX contains BASE I/O address
 ; After sending the command, DX is kept to BASE I/O address
