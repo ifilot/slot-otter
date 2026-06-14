@@ -4,7 +4,7 @@
 ; SD-CARD interface
 ; The SD-CARD listens on SDBASE base address, typically corresponding
 ; to 0x330.
-; OUT 00 -> Write AL to shift register
+; OUT 00 -> Write AL to shift register and exchange byte with SD card
 ; OUT 01 -> Exchange byte with SD-CARD
 ; OUT 02 -> Set /CS high, deactivating SD-CARD
 ; OUT 03 -> Set /CS low, activating SD-CARD
@@ -167,7 +167,7 @@ acmd41 	proc
 acmd41	endp
 ;-------------------------------------------------------------------------
 ; SD command CMD58
-; Reads the OCR, or Operating Conditions Register. Used to check voltage 
+; Reads the OCR, or Operating Conditions Register. Used to check voltage
 ; range and whether the card is standard-capacity or high-capacity.
 ;-------------------------------------------------------------------------
 cmd58  	proc
@@ -312,28 +312,32 @@ cmd24 	proc
 	mov si, OFFSET dcmd24	; set pointer to command
 	call sdopen		; open SD card
 	call sendcmd		; send command
-	cmp al,0		; check acknowledge command
+	cmp al, 0		; check acknowledge command
 	jnz st24		; fail mode
 
-wdbuf:  mov al,0FEh		; set block token
-	out dx,al		; put block token in shift register
-	inc dx			; SDBASE+1
-	out dx,al		; send block token to SD-CARD
+wdbuf:  mov al, 0FEh		; set block token
+	out dx, al		; send block token to SD card
 
 	mov cx, 514		; 512 data bytes + 2 CRC/dummy bytes
 	cld			; set lodsb to increment
 	mov si, [bp+10]		; place address pointer into source index
-wrlp:   dec dx			; SDBASE
-	lodsb			; grab value from SI and store in AL, inc SI
+wrlp:   lodsb			; grab value from SI and store in AL, inc SI
 	out dx,al		; store byte in shift register
-	inc dx			; SDBASE+1
-	out dx,al		; send byte from shift register to SD-CARD
 	loop wrlp		; continue until CX=514 bytes are sent
+
+	; start consuming until a non-0xFF token is received
+	mov cx, 100
+	inc dx
+wd:	in al, dx
+	cmp al, 0FFh
+	jnz wchk
+	dec cx
+	jz st24
+	jmp wd
 
 	; after sending the block, the SD card sends a data response token.
 	; the lower 5 bits should equal 00101b, indicating "data accepted".
-	in al, dx		; read response byte
-	and al,01Fh		; keep lower 5 bits
+wchk:	and al,01Fh		; keep lower 5 bits
 	cmp al,5		; check if equal to five
 	jnz st24		; fail mode response
 
