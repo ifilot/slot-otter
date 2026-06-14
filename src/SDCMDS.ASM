@@ -28,6 +28,7 @@ dcmd55	db 77h, 00h, 00h, 00h, 00h, 65h
 dacmd41	db 69h, 40h, 00h, 00h, 00h, 77h
 dcmd58	db 7Ah, 00h, 00h, 00h, 00h, 01h
 dcmd17  db 51h, 00h, 00h, 00h, 00h, 01h
+dcmd24  db 58h, 00h, 00h, 00h, 00h, 01h
 ;-------------------------------------------------------------------------
     .code
     public cmdclr           ; send 10 blank pulses to SD card
@@ -39,6 +40,7 @@ dcmd17  db 51h, 00h, 00h, 00h, 00h, 01h
     public acmd41           ; send command acmd41
     public cmd58            ; send command cmd58
     public cmd17            ; send command cmd17
+    public cmd24            ; send command cmd24
     public sdrecvf          ; receive single byte from SD
 
 ;-------------------------------------------------------------------------
@@ -157,82 +159,176 @@ cmd58	endp
 
 ;-------------------------------------------------------------------------
 ; CMD17: Retrieve block at address
+; Reads one 512-byte block from the SD card.
+;
+; unsigned char cmd17(unsigned baseio, unsigned long addr, unsigned char* buf);
+;    base io -> base port like 0x330
+;    addr    -> 32 bit address
+;    buf     -> 514 byte buffer (payload + 16 bit crc)
 ;-------------------------------------------------------------------------
 cmd17	proc
-    push bp
-    mov bp,sp
-    mov dx, [bp+4]    	        ; retrieve port
-    push di
-    push si
+	push bp				; save caller's BP
+	mov  bp, sp			; establish stack frame for accessing arguments
+	mov dx, [bp+4]			; load base I/O in DX
+	push di				; store DI on stack
+	push si				; store SI on stack
+	push es				; store ES on stack
 
-    ; Set a DI pointer to dcmd17 (resides in memory) and copy
-    ; over bytes 01-04 corresponding to the address with the
-    ; MSB first and the LSB last. Set the SI pointer to the last
-    ; byte of the address on the stack and decrement over SI as
-    ; the address is stored in lower endian format.
-    mov di, OFFSET dcmd17       ; set command array
-    inc di                      ; first position for address
-    mov si, bp    	            ; works because DS=SS in SMALL
-    add si, 9
-    mov cx, 4    	            ; copy 4 bytes
-    cld                         ; set increment direction
-lpaddr: mov al,[si]
-    stosb
-    dec si
-    loop lpaddr    	; copy 4 bytes
+	; Set DI to the address field inside the CMD17 command buffer
+	; The 32-bit address argument is stored little-endian on the 8086 stack
+	;
+	;   [BP+6] = bits  7..0
+	;   [BP+7] = bits 15..8
+	;   [BP+8] = bits 23..16
+	;   [BP+9] = bits 31..24
+	;
+        ; SD command arguments are transmitted big-endian / MSB first, so copy
+        ; the address bytes into the command buffer from high byte to low byte.
+	mov ax, ds			; load DS into AX
+	mov es, ax			; STOSB writes to ES:DI, so set ES = DS
+	mov di, OFFSET dcmd17		; set pointer to command array
+	inc di				; first position of sector address
+	mov al, [bp+9]			; address bits 31..24
+	stosb
+	mov al, [bp+8]			; address bits 23..16
+	stosb
+	mov al, [bp+7]			; address bits 15..8
+	stosb
+	mov al, [bp+6]			; address bits 7..0
+	stosb
 
-    ; print address (for debugging purposes)
-;	mov cx,4
-;	mov si, OFFSET dcmd17
-;	inc si
-;paddr:  mov al,[si]
-;	call puthex
-;	inc si
-;	loop paddr
+	; Set the SI pointer to the start of the command array and send
+	; the command to the SD card.
+	mov si, OFFSET dcmd17		; set pointer to command
+	call sdopen			; open SD card
+	call sendcmd			; send command
+	cmp al,0			; check whether 0x00 response was found
+	jnz st17			; if not, stop, fix stack and return
 
-    ; The address is now copied from the stack and stored in the
-    ; command array. Next, we need to grab the destination pointer
-    ; to the buffer where we are going to store the block.
-    mov di, [bp+10]    	; grab destination pointer
-    mov ax, ds
-    mov es, ax    	; ensure ES = DS
+	mov cx,1000			; number of attempts
+trtk:	inc dx				; SDBASE+1
+	out dx, al			; pulse
+	dec dx				; SDBASE
+	in al, dx			; retrieve byte
+	cmp al, 0FEh			; check for response token
+	jz rdbuf			; if found, go read buffer
+	dec cx				; decrement attempt counter
+	jz fail17			; if not found within attempts, exit
+	jmp trtk			; else next attempt
 
-    ; Set the SI pointer to the start of the command array and send
-    ; the command to the SD card.
-    mov si, OFFSET dcmd17       ; set pointer to command
-    call sdopen
-    call sendcmd    	        ; run command, leaves DX to BASEPORT
-    cmp al,0    	            ; check whether 0x00 response was found
-    jnz fail17    	            ; if not, stop, fix stack and return
+rdbuf:  mov di, [bp+10]			; destination buffer pointer for received data
+	mov cx, 514			; number of bytes + checksum
+	cld				; set stosb to increment
+	inc dx				; set BASEPORT+1
+	out dx, al			; exchange byte with SD-card
+rdlp:	in al, dx			; retrieve byte, followed by pulse
+	stosb				; store byte in DI and increment
+	loop rdlp			; continue for CX=514 bytes
+	mov al, 00h			; set return byte (0x00 = success)
+	jmp st17			; jump to end of routine
 
-    mov cx,1000    	            ; number of attempts
-trtk:	inc dx                  ; SDBASE+1
-    out dx,al    	            ; pulse
-    dec dx                      ; SDBASE
-    in al,dx    	            ; retrieve byte
-    cmp al,0FEh    	            ; check for token
-    jz rdbuf    	            ; if found, go read buffer
-    dec cx                      ; decrement attempt counter
-    jz fail17    	            ; if not found within attempts, exit
-    jmp trtk    	            ; else next attempt
-
-rdbuf:  mov cx,514    	        ; number of bytes + checksum
-    cld                         ; set stosb to increment
-    inc dx                      ; kickstart read cycle with a pulse
-    out dx,al    	            ; send the pulse
-rdlp:	in al,dx    	        ; retrieve byte, followed by pulse
-    stosb                       ; store byte in DI and increment
-    loop rdlp
-    mov al,00h
-    jmp st17
-
-fail17:	mov al,0FFh
-st17:   call sdclose
-    pop si
-    pop di
-    pop bp
-    ret
+fail17: mov al, 0FFh			; set 0FFh to indicate fail
+st17:   call sdclose			; close SD card
+	pop es				; restore ES
+	pop si				; restore SI
+	pop di				; restore DI
+	pop bp				; restore BP
+	ret
 cmd17	endp
+
+;-------------------------------------------------------------------------
+; CMD24: Write block at address
+; Writes one 512-byte block to the SD card.
+;
+; unsigned char cmd24(unsigned baseio, unsigned long addr, unsigned char* buf);
+;    base io -> base port like 0x330
+;    addr    -> 32 bit address
+;    buf     -> 514 byte buffer (payload + 16 bit crc)
+;-------------------------------------------------------------------------
+cmd24 	proc
+	push bp			; save caller's BP
+	mov bp, sp		; establish stack frame for accessing arguments
+	mov dx, [bp+4]		; retrieve port (SDBASE)
+	push di			; save DI on stack
+	push si			; save SI on stack
+	push es			; save ES on stack
+
+	; Set DI to the address field inside the CMD24 command buffer.
+	; The 32-bit address argument is stored little-endian on the 8086 stack:
+	;
+	;   [BP+6] = bits  7..0
+	;   [BP+7] = bits 15..8
+	;   [BP+8] = bits 23..16
+	;   [BP+9] = bits 31..24
+	;
+	; SD command arguments are transmitted big-endian / MSB first, so copy
+	; the address bytes into the command buffer from high byte to low byte.
+	mov di, OFFSET dcmd24	; set pointer to command array
+	mov ax, ds		; load DS in AX
+	mov es, ax		; ensure ES = DS
+	inc di			; first position of sector address
+	mov al, [bp+9]		; address bits 31..24
+	stosb
+	mov al, [bp+8]		; address bits 23..16
+	stosb
+	mov al, [bp+7]		; address bits 15..8
+	stosb
+	mov al, [bp+6]		; address bits 7..0
+	stosb
+
+	; set the SI pointer to the start of the command array and
+	; send the command to the SD card.
+	mov si, OFFSET dcmd24	; set pointer to command
+	call sdopen		; open SD card
+	call sendcmd		; send command
+	cmp al, 0		; check acknowledge command
+	jnz st24		; fail mode
+
+wdbuf:  mov al, 0FEh		; set block token
+	out dx, al		; send block token to SD card
+
+	mov cx, 514		; 512 data bytes + 2 CRC/dummy bytes
+	cld			; set lodsb to increment
+	mov si, [bp+10]		; place address pointer into source index
+wrlp:   lodsb			; grab value from SI and store in AL, inc SI
+	out dx,al		; store byte in shift register
+	loop wrlp		; continue until CX=514 bytes are sent
+
+	; start consuming until a non-0xFF token is received
+	mov cx, 100
+	inc dx
+wd:	in al, dx
+	cmp al, 0FFh
+	jnz wchk
+	dec cx
+	jz st24
+	jmp wd
+
+	; after sending the block, the SD card sends a data response token.
+	; the lower 5 bits should equal 00101b, indicating "data accepted".
+wchk:	and al,01Fh		; keep lower 5 bits
+	cmp al,5		; check if equal to five
+	jnz st24		; fail mode response
+
+	; wait until SD card is done writing
+	mov cx,1000		; set wait counter
+waitr1:	out dx, al		; send dummy byte while polling busy
+	in al, dx		; retrieve response token and send pulse
+	cmp al,0FFh		; check if idle token?
+	jz rd24			; card is ready again -> done
+	dec cx			; else, decrement wait counter
+	jnz waitr1		; is wait counter not 0, try again
+	mov al,0FFh		; set fail return value
+	jmp st24		; number of attempts exceeded, fail
+
+rd24:   mov al, 00h
+st24:	call sdclose		; close SD card
+	pop es			; restore ES
+	pop si			; restore SI
+	pop di			; restore DI
+	pop bp			; restore BP
+	ret
+cmd24 	endp
 
 ;-------------------------------------------------------------------------
 ; General send command, assumes DX contains BASE I/O address
@@ -404,4 +500,5 @@ newline proc
     pop ax
     ret
 newline endp
-end
+end
+
