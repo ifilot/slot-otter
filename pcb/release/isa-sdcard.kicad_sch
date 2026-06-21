@@ -16871,7 +16871,7 @@
 				)
 			)
 		)
-		(property "LCSC Part #" "C699445"
+		(property "LCSC" "C699445"
 			(at 281.94 78.74 0)
 			(hide yes)
 			(show_name no)
@@ -17545,7 +17545,7 @@
 				)
 			)
 		)
-		(property "LCSC Part #" "C699445"
+		(property "LCSC" "C699445"
 			(at 40.64 54.61 0)
 			(hide yes)
 			(show_name no)
@@ -17662,6 +17662,17 @@
 			)
 		)
 		(property "Description" "Dual Decoder 1 of 4, Active low outputs"
+			(at 68.58 115.57 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C545677"
 			(at 68.58 115.57 0)
 			(hide yes)
 			(show_name no)
@@ -17793,8 +17804,8 @@
 				)
 			)
 		)
-		(property "LCSC Part #" "C407459"
-			(at 189.23 166.37 0)
+		(property "LCSC" "C407459"
+			(at 189.23 166.37 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -18555,8 +18566,8 @@
 				)
 			)
 		)
-		(property "LCSC Part #" "C126469"
-			(at 57.15 191.77 0)
+		(property "LCSC" "C126469"
+			(at 57.15 191.77 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -18645,8 +18656,8 @@
 				)
 			)
 		)
-		(property "LCSC Part #" "C126469"
-			(at 93.98 59.69 0)
+		(property "LCSC" "C126469"
+			(at 93.98 59.69 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -18738,7 +18749,7 @@
 				)
 			)
 		)
-		(property "LCSC Part #" "C338758"
+		(property "LCSC" "C338758"
 			(at 78.74 46.99 0)
 			(hide yes)
 			(show_name no)
@@ -19027,8 +19038,8 @@
 				)
 			)
 		)
-		(property "LCSC Part #" "C126469"
-			(at 193.04 95.25 0)
+		(property "LCSC" "C126469"
+			(at 193.04 95.25 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -19110,6 +19121,17 @@
 			)
 		)
 		(property "Description" "Dual D Flip-flop, Set & Reset"
+			(at 280.67 160.02 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C6762"
 			(at 280.67 160.02 0)
 			(hide yes)
 			(show_name no)
@@ -19236,7 +19258,7 @@
 				)
 			)
 		)
-		(property "LCSC Part #" "C381082"
+		(property "LCSC" "C381082"
 			(at 217.17 196.85 0)
 			(hide yes)
 			(show_name no)
@@ -19510,7 +19532,7 @@
 				)
 			)
 		)
-		(property "LCSC Part #" "C5947"
+		(property "LCSC" "C5947"
 			(at 224.79 95.25 0)
 			(hide yes)
 			(show_name no)
@@ -19643,8 +19665,8 @@
 				)
 			)
 		)
-		(property "LCSC Part #" "C5159708"
-			(at 297.18 41.91 0)
+		(property "LCSC" "C5159708"
+			(at 297.18 41.91 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -19813,6 +19835,17 @@
 				)
 			)
 		)
+		(property "LCSC" "C5593"
+			(at 81.28 237.49 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "4"
 			(uuid "cbd50501-45d1-43d7-b748-50e79699ba63")
 		)
@@ -19920,6 +19953,17 @@
 		)
 		(property "Description" "Quad buffer 3-State outputs"
 			(at 81.28 259.08 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C7494906"
+			(at 81.28 259.08 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -20037,6 +20081,17 @@
 			)
 		)
 		(property "Description" "Dual D Flip-flop, Set & Reset"
+			(at 304.8 160.02 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C6762"
 			(at 304.8 160.02 0)
 			(hide yes)
 			(show_name no)
@@ -20320,6 +20375,17 @@
 				)
 			)
 		)
+		(property "LCSC" "C5985"
+			(at 31.75 191.77 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "4"
 			(uuid "83b5884e-69fb-497d-a5be-72f4ae699909")
 		)
@@ -20515,7 +20581,7 @@
 				)
 			)
 		)
-		(property "LCSC Part #" "C699445"
+		(property "LCSC" "C699445"
 			(at 123.19 57.15 0)
 			(hide yes)
 			(show_name no)
@@ -20642,6 +20708,17 @@
 				)
 			)
 		)
+		(property "LCSC" "C5590"
+			(at 317.5 209.55 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "5"
 			(uuid "270e7817-13f0-4b3e-979e-9ccc139f31e7")
 		)
@@ -20758,8 +20835,8 @@
 				)
 			)
 		)
-		(property "LCSC Part #" "C699445"
-			(at 31.75 214.63 0)
+		(property "LCSC" "C699445"
+			(at 31.75 214.63 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -20876,6 +20953,17 @@
 		)
 		(property "Description" "Dual D Flip-flop, Set & Reset"
 			(at 133.35 237.49 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C6762"
+			(at 133.35 237.49 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -21080,6 +21168,17 @@
 				)
 			)
 		)
+		(property "LCSC" "C17540"
+			(at 361.95 209.55 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "1"
 			(uuid "a2387730-0425-41c9-97d8-488a4e8adb19")
 		)
@@ -21159,8 +21258,8 @@
 				)
 			)
 		)
-		(property "LCSC Part #" "C407459"
-			(at 220.98 148.59 0)
+		(property "LCSC" "C407459"
+			(at 220.98 148.59 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -21250,7 +21349,7 @@
 				)
 			)
 		)
-		(property "LCSC Part #" "C7494906"
+		(property "LCSC" "C7494906"
 			(at 200.66 166.37 0)
 			(hide yes)
 			(show_name no)
@@ -21368,6 +21467,17 @@
 			)
 		)
 		(property "Description" "Dual D Flip-flop, Set & Reset"
+			(at 304.8 134.62 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C6762"
 			(at 304.8 134.62 0)
 			(hide yes)
 			(show_name no)
@@ -21806,6 +21916,17 @@
 				)
 			)
 		)
+		(property "LCSC" "C5590"
+			(at 373.38 151.13 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "5"
 			(uuid "270e7817-13f0-4b3e-979e-9ccc139f31e8")
 		)
@@ -21912,6 +22033,17 @@
 			)
 		)
 		(property "Description" "Quad 2-input OR"
+			(at 358.14 151.13 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C5985"
 			(at 358.14 151.13 0)
 			(hide yes)
 			(show_name no)
@@ -22117,6 +22249,17 @@
 				)
 			)
 		)
+		(property "LCSC" "C545677"
+			(at 81.28 191.77 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "15"
 			(uuid "a2b08741-3b0a-45a9-853d-3f66125b0375")
 		)
@@ -22230,6 +22373,17 @@
 		)
 		(property "Description" "Dual D Flip-flop, Set & Reset"
 			(at 31.75 237.49 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C6762"
+			(at 31.75 237.49 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -22432,8 +22586,8 @@
 				)
 			)
 		)
-		(property "LCSC Part #" "C407459"
-			(at 220.98 166.37 0)
+		(property "LCSC" "C407459"
+			(at 220.98 166.37 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -23153,6 +23307,17 @@
 				)
 			)
 		)
+		(property "LCSC" "C5590"
+			(at 133.35 214.63 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "5"
 			(uuid "270e7817-13f0-4b3e-979e-9ccc139f31e9")
 		)
@@ -23506,6 +23671,17 @@
 				)
 			)
 		)
+		(property "LCSC" "C29718"
+			(at 229.87 251.46 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "8"
 			(uuid "42d6ebd4-df8e-46d1-81c1-b0697ee006fe")
 		)
@@ -23693,6 +23869,17 @@
 				)
 			)
 		)
+		(property "LCSC" "C84256"
+			(at 331.47 209.55 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "1"
 			(uuid "90862ee2-677f-4f29-b6b4-75ffd0671e00")
 		)
@@ -23766,6 +23953,17 @@
 		)
 		(property "Description" "4 resistor network, parallel topology, split"
 			(at 227.33 251.46 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C29718"
+			(at 227.33 251.46 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -24186,6 +24384,17 @@
 				)
 			)
 		)
+		(property "LCSC" "C545677"
+			(at 68.58 93.98 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "15"
 			(uuid "a2b08741-3b0a-45a9-853d-3f66125b0376")
 		)
@@ -24386,8 +24595,8 @@
 				)
 			)
 		)
-		(property "LCSC Part #" "C126469"
-			(at 57.15 213.36 0)
+		(property "LCSC" "C126469"
+			(at 57.15 213.36 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -25262,6 +25471,17 @@
 				)
 			)
 		)
+		(property "LCSC" "C29718"
+			(at 224.79 251.46 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "8"
 			(uuid "94dbfccb-7908-4348-9006-707d2e58c63b")
 		)
@@ -25685,6 +25905,17 @@
 				)
 			)
 		)
+		(property "LCSC" "C84256"
+			(at 347.98 226.06 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "1"
 			(uuid "091cd2c9-7eb5-4ce9-b22f-c679042544c3")
 		)
@@ -25843,7 +26074,7 @@
 				)
 			)
 		)
-		(property "LCSC Part #" "C699445"
+		(property "LCSC" "C699445"
 			(at 281.94 44.45 0)
 			(hide yes)
 			(show_name no)
@@ -26126,8 +26357,8 @@
 				)
 			)
 		)
-		(property "LCSC Part #" "C407459"
-			(at 189.23 148.59 0)
+		(property "LCSC" "C407459"
+			(at 189.23 148.59 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -26207,6 +26438,17 @@
 			)
 		)
 		(property "Description" "Hex Inverter"
+			(at 332.74 226.06 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C5590"
 			(at 332.74 226.06 0)
 			(hide yes)
 			(show_name no)
@@ -26323,6 +26565,17 @@
 			)
 		)
 		(property "Description" "8-bit magnitude comparator"
+			(at 269.24 223.52 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C2649422"
 			(at 269.24 223.52 0)
 			(hide yes)
 			(show_name no)
@@ -26467,6 +26720,17 @@
 				)
 			)
 		)
+		(property "LCSC" "C17540"
+			(at 361.95 226.06 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "1"
 			(uuid "f430d4db-8afc-4201-aee1-d1058bab9b4a")
 		)
@@ -26558,6 +26822,17 @@
 				)
 			)
 		)
+		(property "LCSC" "C84256"
+			(at 347.98 242.57 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "1"
 			(uuid "90255ad3-b819-4d58-b98d-10c322213259")
 		)
@@ -26628,6 +26903,17 @@
 			)
 		)
 		(property "Description" "Quad And2"
+			(at 339.09 160.02 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C5593"
 			(at 339.09 160.02 0)
 			(hide yes)
 			(show_name no)
@@ -26744,6 +27030,17 @@
 			)
 		)
 		(property "Description" "Quad 2-input OR"
+			(at 43.18 120.65 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C5985"
 			(at 43.18 120.65 0)
 			(hide yes)
 			(show_name no)
@@ -26949,6 +27246,17 @@
 				)
 			)
 		)
+		(property "LCSC" "C5593"
+			(at 339.09 143.51 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "4"
 			(uuid "cbd50501-45d1-43d7-b748-50e79699ba65")
 		)
@@ -27064,8 +27372,8 @@
 				)
 			)
 		)
-		(property "LCSC Part #" "C126469"
-			(at 144.78 27.94 0)
+		(property "LCSC" "C126469"
+			(at 144.78 27.94 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -27235,7 +27543,7 @@
 				)
 			)
 		)
-		(property "LCSC Part #" "C309030"
+		(property "LCSC" "C309030"
 			(at 209.55 129.54 0)
 			(hide yes)
 			(show_name no)
@@ -27394,6 +27702,17 @@
 			)
 		)
 		(property "Description" "Hex Inverter"
+			(at 332.74 242.57 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C5590"
 			(at 332.74 242.57 0)
 			(hide yes)
 			(show_name no)
@@ -27589,6 +27908,17 @@
 			)
 		)
 		(property "Description" "Quad 2-input OR"
+			(at 41.91 269.24 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C5985"
 			(at 41.91 269.24 0)
 			(hide yes)
 			(show_name no)
@@ -27870,8 +28200,8 @@
 				)
 			)
 		)
-		(property "LCSC Part #" "C126469"
-			(at 184.15 45.72 0)
+		(property "LCSC" "C126469"
+			(at 184.15 45.72 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -28042,6 +28372,17 @@
 				)
 			)
 		)
+		(property "LCSC" "C29718"
+			(at 219.71 251.46 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "8"
 			(uuid "94dbfccb-7908-4348-9006-707d2e58c63c")
 		)
@@ -28098,7 +28439,7 @@
 				(justify left)
 			)
 		)
-		(property "Value" "100n"
+		(property "Value" "0.1uF"
 			(at 287.02 226.0662 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -28132,6 +28473,17 @@
 			)
 		)
 		(property "Description" "Unpolarized capacitor, small symbol"
+			(at 284.48 224.79 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C126469"
 			(at 284.48 224.79 0)
 			(hide yes)
 			(show_name no)
@@ -28222,8 +28574,8 @@
 				)
 			)
 		)
-		(property "LCSC Part #" "C699445"
-			(at 81.28 214.63 0)
+		(property "LCSC" "C699445"
+			(at 81.28 214.63 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -28341,6 +28693,17 @@
 		)
 		(property "Description" "4 resistor network, parallel topology, split"
 			(at 237.49 251.46 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C29718"
+			(at 237.49 251.46 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -28526,7 +28889,7 @@
 				)
 			)
 		)
-		(property "LCSC Part #" "C7494906"
+		(property "LCSC" "C7494906"
 			(at 232.41 148.59 0)
 			(hide yes)
 			(show_name no)
@@ -28809,8 +29172,8 @@
 				)
 			)
 		)
-		(property "LCSC Part #" "C126469"
-			(at 105.41 213.36 0)
+		(property "LCSC" "C126469"
+			(at 105.41 213.36 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -28971,6 +29334,17 @@
 		)
 		(property "Description" "4 resistor network, parallel topology, split"
 			(at 222.25 251.46 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C29718"
+			(at 222.25 251.46 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -29782,7 +30156,7 @@
 				)
 			)
 		)
-		(property "LCSC Part #" "C7494906"
+		(property "LCSC" "C7494906"
 			(at 200.66 148.59 0)
 			(hide yes)
 			(show_name no)
@@ -29909,7 +30283,7 @@
 				)
 			)
 		)
-		(property "LCSC Part #" "C699445"
+		(property "LCSC" "C699445"
 			(at 281.94 31.75 0)
 			(hide yes)
 			(show_name no)
@@ -30036,6 +30410,17 @@
 				)
 			)
 		)
+		(property "LCSC" "C5593"
+			(at 355.6 127 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "4"
 			(uuid "cbd50501-45d1-43d7-b748-50e79699ba66")
 		)
@@ -30144,6 +30529,17 @@
 			)
 		)
 		(property "Description" "Octal BUS Transceivers, 3-State outputs"
+			(at 142.24 107.95 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C5979"
 			(at 142.24 107.95 0)
 			(hide yes)
 			(show_name no)
@@ -30287,8 +30683,8 @@
 				)
 			)
 		)
-		(property "LCSC Part #" "C126469"
-			(at 57.15 237.49 0)
+		(property "LCSC" "C126469"
+			(at 57.15 237.49 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -30614,8 +31010,8 @@
 				)
 			)
 		)
-		(property "LCSC Part #" "C126469"
-			(at 105.41 190.5 0)
+		(property "LCSC" "C126469"
+			(at 105.41 190.5 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -31121,6 +31517,17 @@
 				)
 			)
 		)
+		(property "LCSC" "C6762"
+			(at 280.67 134.62 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "11"
 			(uuid "8bacadfc-907c-49f0-a8ac-99c52d87efc4")
 		)
@@ -31305,6 +31712,17 @@
 			)
 		)
 		(property "Description" "Hex Inverter"
+			(at 317.5 226.06 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C5590"
 			(at 317.5 226.06 0)
 			(hide yes)
 			(show_name no)
@@ -31666,6 +32084,17 @@
 				)
 			)
 		)
+		(property "LCSC" "C17540"
+			(at 361.95 242.57 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "1"
 			(uuid "d155eea0-ba39-45c5-a38d-5ceef2e21816")
 		)
@@ -31736,6 +32165,17 @@
 		)
 		(property "Description" "Quad And2"
 			(at 384.81 140.97 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C5593"
+			(at 384.81 140.97 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -31939,8 +32379,8 @@
 				)
 			)
 		)
-		(property "LCSC Part #" "C126469"
-			(at 154.94 238.76 0)
+		(property "LCSC" "C126469"
+			(at 154.94 238.76 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -32109,7 +32549,7 @@
 				)
 			)
 		)
-		(property "LCSC Part #" "C699445"
+		(property "LCSC" "C699445"
 			(at 40.64 40.64 0)
 			(hide yes)
 			(show_name no)
@@ -32236,7 +32676,7 @@
 				)
 			)
 		)
-		(property "LCSC Part #" "C699445"
+		(property "LCSC" "C699445"
 			(at 123.19 40.64 0)
 			(hide yes)
 			(show_name no)
@@ -32530,7 +32970,7 @@
 				)
 			)
 		)
-		(property "LCSC Part #" "C5346136"
+		(property "LCSC" "C5346136"
 			(at 199.39 125.73 0)
 			(hide yes)
 			(show_name no)
@@ -32780,7 +33220,7 @@
 				)
 			)
 		)
-		(property "LCSC Part #" "C699445"
+		(property "LCSC" "C699445"
 			(at 281.94 91.44 0)
 			(hide yes)
 			(show_name no)
@@ -32899,6 +33339,17 @@
 		)
 		(property "Description" "4 resistor network, parallel topology, split"
 			(at 232.41 251.46 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C29718"
+			(at 232.41 251.46 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -33083,8 +33534,8 @@
 				)
 			)
 		)
-		(property "LCSC Part #" "C126469"
-			(at 105.41 237.49 0)
+		(property "LCSC" "C126469"
+			(at 105.41 237.49 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -33174,7 +33625,7 @@
 				)
 			)
 		)
-		(property "LCSC Part #" "C7494906"
+		(property "LCSC" "C7494906"
 			(at 232.41 166.37 0)
 			(hide yes)
 			(show_name no)
@@ -33302,8 +33753,8 @@
 				)
 			)
 		)
-		(property "LCSC Part #" "C5613"
-			(at 218.44 45.72 0)
+		(property "LCSC" "C5613"
+			(at 218.44 45.72 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -33427,6 +33878,17 @@
 		)
 		(property "Description" "4 resistor network, parallel topology, split"
 			(at 234.95 251.46 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C29718"
+			(at 234.95 251.46 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -33603,6 +34065,17 @@
 			)
 		)
 		(property "Description" "Hex Inverter"
+			(at 317.5 242.57 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C5590"
 			(at 317.5 242.57 0)
 			(hide yes)
 			(show_name no)
@@ -33807,6 +34280,17 @@
 				)
 			)
 		)
+		(property "LCSC" "C5985"
+			(at 43.18 99.06 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "4"
 			(uuid "83b5884e-69fb-497d-a5be-72f4ae69990d")
 		)
@@ -33922,8 +34406,8 @@
 				)
 			)
 		)
-		(property "LCSC Part #" "C126469"
-			(at 153.67 214.63 0)
+		(property "LCSC" "C126469"
+			(at 153.67 214.63 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
