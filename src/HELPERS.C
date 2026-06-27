@@ -164,6 +164,90 @@ void restore_screen() {
 }
 
 /*
+ *  confirm_delete_modal - Ask for delete confirmation
+ *
+ *  Parameters:
+ *      name  - Entry name to show
+ *      isdir - Nonzero if the entry is a folder
+ *
+ *  Returns:
+ *      1 if confirmed, 0 otherwise
+ */
+int confirm_delete_modal(const char* name, unsigned isdir) {
+    char c;
+    int left = 25;
+    int top = 9;
+    int right = 56;
+    int bottom = 17;
+    unsigned selected = 0;
+
+    store_screen();
+
+    window(1,1,80,25);
+    gotoxy(left, top);
+    cputs("\xDA\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xBF");
+    gotoxy(left, top + 1); putch('\xB3');
+    textbackground(RED);
+    textcolor(WHITE);
+    cprintf(" %-28s ", "DELETE ENTRY?");
+    set_regular();
+    gotoxy(right, top + 1); putch('\xB3');
+    gotoxy(left, top + 2); cputs("\xB3                              \xB3");
+    gotoxy(left, top + 3); cputs("\xB3                              \xB3");
+    gotoxy(left, top + 4); cputs("\xB3                              \xB3");
+    gotoxy(left, top + 5); cputs("\xB3                              \xB3");
+    gotoxy(left, top + 6); cputs("\xB3                              \xB3");
+    gotoxy(left, top + 7); cputs("\xC0\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xD9");
+
+    gotoxy(left + 3, top + 2);
+    if(isdir) {
+        cprintf("DIR  %-21.21s", name);
+    } else {
+        cprintf("FILE %-21.21s", name);
+    }
+
+    while(1) {
+        gotoxy(left + 12, top + 4);
+        if(selected == 0) {
+            set_hl();
+        } else {
+            set_regular();
+        }
+        cputs("  NO   ");
+
+        gotoxy(left + 12, top + 5);
+        if(selected == 1) {
+            set_hl();
+        } else {
+            set_regular();
+        }
+        cputs("  YES  ");
+        set_regular();
+
+        c = getch();
+        if(c == 0) {
+            c = getch();
+            if(c == 0x48 || c == 0x50 || c == 0x4B || c == 0x4D) {
+                selected = selected ? 0 : 1;
+            }
+            continue;
+        }
+        if(c == 0x0D && selected == 1) {
+            restore_screen();
+            window(1,1,80,25);
+            set_regular();
+            return 1;
+        }
+        if(c == 0x0D || c == 0x1B) {
+            restore_screen();
+            window(1,1,80,25);
+            set_regular();
+            return 0;
+        }
+    }
+}
+
+/*
  *  draw_textbox - Draw a simple text window with title
  *
  *  Parameters:
@@ -306,4 +390,8 @@ unsigned char get_video_mode() {
     display_bits = (equipment >> 4) & 0x03;
 
     return display_bits;
-}
+}
+
+
+
+

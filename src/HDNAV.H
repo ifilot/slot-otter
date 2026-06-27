@@ -151,4 +151,13 @@ void hdnav_print_entry(unsigned char pos, unsigned int id);
  */
 void hdnav_create_folder();
 
-#endif
+/*
+ * hdnav_delete_entry - Delete a hard-drive entry after confirmation
+ *
+ * Parameters:
+ *      f - Pointer to HDNavFile entry
+ */
+void hdnav_delete_entry(const struct HDNavFile* f);
+
+#endif
+

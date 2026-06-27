@@ -19,6 +19,7 @@
  * ===================================================================== */
 
 #include "sdnav.h"
+#include <string.h>
 
 static int cursor_pos;
 static int start_pos;
@@ -46,7 +47,7 @@ void sdnav_display_commands() {
     gotoxy(1,25);
     set_hl();
     clreol();
-    cputs("F1: HELP | F2: MKDIR | F3: COPY | F8: SETTINGS | F10: EXIT | TAB: SWITCH PANE");
+    cputs("F1: HELP | F2: MKDIR | F3: COPY | F4: DEL | F8: SETTINGS | F10: EXIT | TAB");
     set_regular();
 }
 
@@ -273,4 +274,47 @@ void sdnav_create_folder() {
     sdnav_print_files();
     sdnav_reset_cursor();
 }
+
+/*
+ * sdnav_delete_entry - Delete an SD card entry after confirmation
+ *
+ * Parameters:
+ *      f - Pointer to FAT32File entry
+ */
+void sdnav_delete_entry(const struct FAT32File* f) {
+    char rawname[11];
+    char filename[13];
+    char* ptr;
+
+    if(f == 0) {
+        return;
+    }
+
+    if(memcmp(f->basename, ".       ", 8) == 0 ||
+       memcmp(f->basename, "..      ", 8) == 0) {
+        return;
+    }
+
+    memcpy(rawname, f->basename, 11);
+
+    if(f->attrib & MASK_DIR) {
+        memset(filename, 0x00, sizeof(filename));
+        memcpy(filename, f->basename, 8);
+        ptr = strchr(filename, ' ');
+        if(ptr != 0) {
+            *ptr = 0;
+        }
+    } else {
+        build_dos_filename(f, filename);
+    }
+
+    if(confirm_delete_modal(filename, (f->attrib & MASK_DIR) != 0)) {
+        fat32_delete_entry(rawname);
+    }
+
+    sdnav_print_files();
+    sdnav_reset_cursor();
+}
+
+
 

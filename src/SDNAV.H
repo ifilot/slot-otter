@@ -105,5 +105,14 @@ void sdnav_print_entry(unsigned char pos, unsigned int id);
  */
 void sdnav_create_folder();
 
+/*
+ * sdnav_delete_entry - Delete an SD card entry after confirmation
+ *
+ * Parameters:
+ *      f - Pointer to FAT32File entry
+ */
+void sdnav_delete_entry(const struct FAT32File* f);
+
 #endif
+
 

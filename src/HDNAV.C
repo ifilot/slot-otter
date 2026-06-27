@@ -24,6 +24,9 @@ static struct HDNavFile hdnav_files[HDNAV_MAX_FILES];
 static int cursor_pos;
 static int start_pos;
 
+static int hdnav_delete_child(const char* name, unsigned char attrib);
+static int hdnav_delete_current_folder_contents();
+
 /*
  *  hdnav_init - Initialize the navigator menu
  */
@@ -39,7 +42,7 @@ void hdnav_display_commands() {
     gotoxy(1,25);
     set_hl();
     clreol();
-    cputs("F1: HELP | F2: MKDIR | F8: SETTINGS | F10: EXIT | TAB: SWITCH PANE");
+    cputs("F1: HELP | F2: MKDIR | F3: COPY | F4: DEL | F8: SETTINGS | F10: EXIT | TAB");
     set_regular();
 }
 
@@ -335,4 +338,86 @@ void hdnav_create_folder() {
     hdnav_read_files();
     hdnav_print_files();
     hdnav_reset_cursor();
-}
+}
+
+/*
+ * hdnav_delete_entry - Delete a hard-drive entry after confirmation
+ *
+ * Parameters:
+ *      f - Pointer to HDNavFile entry
+ */
+void hdnav_delete_entry(const struct HDNavFile* f) {
+    if(f == 0) {
+        return;
+    }
+
+    if(strcmp(f->filename, ".") == 0 || strcmp(f->filename, "..") == 0) {
+        return;
+    }
+
+    if(confirm_delete_modal(f->filename, (f->attrib & HDNAV_MASK_DIR) != 0)) {
+        hdnav_delete_child(f->filename, f->attrib);
+    }
+
+    hdnav_read_files();
+    hdnav_print_files();
+    hdnav_reset_cursor();
+}
+
+/*
+ * hdnav_delete_child - Delete a hard-drive file or folder
+ *
+ * Parameters:
+ *      name   - DOS filename
+ *      attrib - DOS attribute byte
+ *
+ * Returns:
+ *      0 on success, -1 otherwise
+ */
+static int hdnav_delete_child(const char* name, unsigned char attrib) {
+    if(attrib & HDNAV_MASK_DIR) {
+        if(chdir(name) != 0) {
+            return -1;
+        }
+
+        if(hdnav_delete_current_folder_contents() != 0) {
+            chdir("..");
+            return -1;
+        }
+
+        chdir("..");
+        return rmdir(name);
+    }
+
+    return remove(name);
+}
+
+/*
+ * hdnav_delete_current_folder_contents - Empty current hard-drive folder
+ *
+ * Returns:
+ *      0 on success, -1 otherwise
+ */
+static int hdnav_delete_current_folder_contents() {
+    struct ffblk file;
+    int done;
+
+    while(1) {
+        done = findfirst("*.*", &file, FA_NORMAL | FA_DIREC);
+        while(!done &&
+              (strcmp(file.ff_name, ".") == 0 ||
+               strcmp(file.ff_name, "..") == 0)) {
+            done = findnext(&file);
+        }
+
+        if(done) {
+            return 0;
+        }
+
+        if(hdnav_delete_child(file.ff_name, file.ff_attrib) != 0) {
+            return -1;
+        }
+    }
+}
+
+

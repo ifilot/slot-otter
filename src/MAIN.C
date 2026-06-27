@@ -28,6 +28,7 @@
 #include "sdnav.h"
 #include "help.h"
 #include "settings.h"
+#include "transfer.h"
 
 #define STATE_MAIN_MENU 0
 #define STATE_SD        1
@@ -153,6 +154,11 @@ int state_sd() {
                 case 0x3C:
                     sdnav_create_folder();
                 break;
+                case 0x3E:
+                    fpos = sdnav_get_cursor_pos();
+                    f = fat32_get_file_entry(fpos);
+                    sdnav_delete_entry(f);
+                break;
                 case 0x42:
                     if(settings_show()) {
                         apply_settings_and_reinit();
@@ -185,10 +191,10 @@ int state_sd() {
                     break;
                 }
                 if(f->attrib & MASK_DIR) {
-                    fat32_transfer_folder(f);
+                    transfer_sd_folder_to_hd(f);
                 } else {
                     build_dos_filename(f, filename);
-                    fat32_transfer_file(f, filename);
+                    transfer_sd_file_to_hd(f, filename);
                 }
                 hdnav_read_files();
                 hdnav_print_files();
@@ -234,6 +240,26 @@ int state_hdnav() {
                 break;
                 case 0x3C:
                     hdnav_create_folder();
+                break;
+                case 0x3D:
+                    fpos = hdnav_get_cursor_pos();
+                    f = hdnav_get_file_entry(fpos);
+                    if(f->attrib & HDNAV_MASK_DIR) {
+                        transfer_hd_folder_to_sd(f);
+                        sdnav_print_files();
+                        sdnav_reset_cursor();
+                        sdnav_remove_cursor();
+                    } else {
+                        transfer_hd_file_to_sd_ui(f);
+                        sdnav_print_files();
+                        sdnav_reset_cursor();
+                        sdnav_remove_cursor();
+                    }
+                break;
+                case 0x3E:
+                    fpos = hdnav_get_cursor_pos();
+                    f = hdnav_get_file_entry(fpos);
+                    hdnav_delete_entry(f);
                 break;
                 case 0x42:
                     if(settings_show()) {
@@ -336,5 +362,4 @@ void init_fat() {
     sdnav_print_files();
     sdnav_reset_cursor();
 }
-
 

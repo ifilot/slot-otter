@@ -38,6 +38,7 @@ struct FAT32Partition {
     unsigned long fat_begin_lba;            /* LBA address of first FAT sector */
     unsigned long lba_addr_root_dir;        /* LBA address of root directory   */
     unsigned long sector_begin_lba;         /* LBA of data region start        */
+    unsigned long next_free_cluster_hint;   /* Cluster to try first when alloc */
     char volume_label[11];                  /* Volume label in ASCII (no null) */
 };
 
@@ -71,4 +72,5 @@ struct FAT32File {
 };
 
 #endif
+
 

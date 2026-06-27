@@ -19,9 +19,13 @@
 
 #include "fat32.h"
 #include <conio.h>
+#include <string.h>
+
+#define FAT32_WRITE_RETRIES 3
 
 /* buffer to store SDCARD sector data including CRC checksum */
 static unsigned char sdbuf[514];
+static unsigned char verifybuf[514];
 /* store linked list of cluster addresses */
 static unsigned long fat32_linked_list[F32LLSZ];
 /* total number of files in the currently active folder */
@@ -31,7 +35,13 @@ struct FAT32Partition fat32_partition;
 struct FAT32Folder fat32_root_folder;
 struct FAT32Folder fat32_current_folder;
 struct FAT32File fat32_files[F32MXFL];
-struct FAT32File fat32_folder_contents[F32MXFL];
+
+static int fat32_delete_named_in_folder(struct FAT32Folder* folder,
+                                        const char name[11],
+                                        unsigned allowdir);
+static int fat32_find_first_deletable_entry(struct FAT32Folder* folder,
+                                            char name[11]);
+static int fat32_free_cluster_chain(unsigned long cluster);
 
 /**
  *  fat32_open_partition - Open FAT32 partition
@@ -41,6 +51,8 @@ struct FAT32File fat32_folder_contents[F32MXFL];
  */
 void fat32_open_partition() {
     unsigned long lba = 0x00000000;
+    unsigned fsinfo_sector = 0;
+    unsigned long fsinfo_hint = 0;
     char partname[12];
 
     /* read boot sector */
@@ -66,6 +78,7 @@ void fat32_open_partition() {
     fat32_partition.sectors_per_cluster = sdbuf[0x0D];
     fat32_partition.reserved_sectors = *(unsigned*)(sdbuf + 0x0E);
     fat32_partition.number_of_fats = sdbuf[0x10];
+    fsinfo_sector = *(unsigned*)(sdbuf + 0x30);
     fat32_partition.total_sectors = *(unsigned long*)(sdbuf + 0x20);
     fat32_partition.sectors_per_fat = *(unsigned long*)(sdbuf + 0x24);
     fat32_partition.cluster_count =
@@ -77,6 +90,19 @@ void fat32_open_partition() {
     fat32_partition.sector_begin_lba = fat32_partition.fat_begin_lba +
 	(fat32_partition.number_of_fats * fat32_partition.sectors_per_fat);
     fat32_partition.lba_addr_root_dir = fat32_calculate_sector_address(fat32_partition.root_dir_first_cluster, 0);
+    fat32_partition.next_free_cluster_hint = 2;
+
+    if(fsinfo_sector != 0) {
+        fat32_read_sector(lba + fsinfo_sector);
+        if(*(unsigned long*)(sdbuf + 0x000) == 0x41615252UL &&
+           *(unsigned long*)(sdbuf + 0x1E4) == 0x61417272UL) {
+            fsinfo_hint = *(unsigned long*)(sdbuf + 0x1EC);
+            if(fsinfo_hint >= 2 &&
+               fsinfo_hint < fat32_partition.cluster_count + 2) {
+                fat32_partition.next_free_cluster_hint = fsinfo_hint;
+            }
+        }
+    }
 
     /* grab information from root folder */
     cmd17(cfg_get_base_port(), fat32_partition.lba_addr_root_dir, sdbuf);
@@ -212,6 +238,27 @@ void fat32_set_current_folder(const struct FAT32File* entry) {
     fat32_read_current_folder();
 }
 
+/*
+ *  fat32_get_current_folder - Copy the current folder state
+ *
+ *  Parameters:
+ *      folder - Destination folder state
+ */
+void fat32_get_current_folder(struct FAT32Folder* folder) {
+    *folder = fat32_current_folder;
+}
+
+/*
+ *  fat32_set_current_folder_state - Restore the current folder state
+ *
+ *  Parameters:
+ *      folder - Folder state to restore
+ */
+void fat32_set_current_folder_state(const struct FAT32Folder* folder) {
+    fat32_current_folder = *folder;
+    fat32_read_current_folder();
+}
+
 /**
  *  fat32_list_dir - Prints all files in folder to screen
  */
@@ -229,288 +276,6 @@ void fat32_list_dir() {
 }
 
 /**
- *  fat32_transfer_file - Transfer a single file
- *
- *  Parameters:
- *      f    - Pointer to FAT32File* struct
- *      path - Path to store file in
- *
- *  Returns:
- *      0 on success
- *
- *  Transfers a single file from the SD-CARD to the hard drive. Uses MS-DOS
- *  write functions to store the file.
- */
-int fat32_transfer_file(const struct FAT32File *f, const char* path) {
-    unsigned long caddr = 0;
-    unsigned long cluster = 0;
-    unsigned long nextcluster = 0;
-    unsigned long bcnt = 0;
-    int i;
-    unsigned item = 0;
-    FILE *outfile;
-
-    if(f->attrib & MASK_DIR) {
-	    return -1;
-    }
-
-    outfile = fopen(path, "wb");
-    if(outfile == NULL) {
-        return -1;
-    }
-
-    /* consume clusters and transfer file */
-    cluster = f->cluster;
-    while(cluster < 0x0FFFFFF8UL && cluster != 0 && bcnt < f->filesize) {
-        caddr = fat32_calculate_sector_address(cluster, 0);
-
-        /* consume sectors */
-        for(i=0; i<fat32_partition.sectors_per_cluster; ++i) {
-            fat32_read_sector(caddr);
-
-            if((f->filesize - bcnt) > 512) {
-                fwrite(sdbuf, sizeof(char), 512, outfile);
-            } else {
-                fwrite(sdbuf, sizeof(char), f->filesize - bcnt, outfile);
-                break;
-            }
-
-            bcnt += 512;
-            caddr++; /* next sector */
-        }
-
-        fat32_read_sector(fat32_partition.fat_begin_lba + (cluster >> 7));
-        item = (unsigned)(cluster & 0x7F);
-        nextcluster = (*(unsigned long*)(sdbuf + item * 4)) & 0x0FFFFFFFUL;
-        cluster = nextcluster;
-    }
-
-    fclose(outfile);
-
-    return 0;
-}
-
-
-/**
- *  fat32_transfer_folder - Recursively transfer a folder from the SD-CARD
- *
- *  Parameters:
- *      f    - Pointer to FAT32File* corresponding to a folder
- *
- *  Recursively copies all the files and folders to the currently active folder
- *  in the MS-DOS environment. The currently active folder is assumed to already
- *  be set in the file navigator.
- */
-void fat32_transfer_folder(const struct FAT32File* f) {
-    static struct FAT32Folder folders[F32MXDIR];
-    unsigned nrfolders = 1;
-    unsigned newfolders = 1;
-    unsigned startfolder = 0;
-    unsigned i,j,k;
-    const struct FAT32File* fptr;
-    char path[MAXPATH];
-    int ret;
-
-    /* initialize iterative procedure */
-    memcpy(folders[0].name, f->basename, 11);
-    folders[0].cluster = f->cluster;
-    folders[0].nrfiles = 0;
-    folders[0].attrib = 0x00;
-    folders[0].reference = -1;
-
-    /* recursively go over the folders until no unscanned folders are found */
-    while(newfolders != 0) {
-        startfolder = nrfolders - newfolders;
-        newfolders = 0;
-        for(i=startfolder; i<nrfolders; ++i) {
-            /* read folder contents */
-            fat32_read_dir(&folders[i], fat32_folder_contents);
-
-            /* loop over files and look for subfolders */
-            for(j=0; j<folders[i].nrfiles; ++j) {
-            fptr = &fat32_folder_contents[j];
-
-            /* skip self and parent folder */
-            if(memcmp(fptr->basename, ".       ", 8) == 0 ||
-                memcmp(fptr->basename, "..      ", 8) == 0) {
-                continue;
-            }
-
-            /* if entry is a folder, add it to the list */
-            if(fat32_folder_contents[j].attrib & MASK_DIR) {
-                memcpy(folders[nrfolders].name, fptr->basename, 11);
-                folders[nrfolders].cluster = fptr->cluster;
-                folders[nrfolders].attrib = 0x00;
-                folders[nrfolders].nrfiles = 0;
-                folders[nrfolders].reference = i;
-                newfolders++;
-                nrfolders++;
-            }
-            }
-            /* tag folder as being scanned */
-            folders[i].attrib = 0x01;
-        }
-    }
-
-    store_screen();
-    clrscr();
-    gotoxy(1,1);
-    printf("START TRANSFER...\n");
-    
-    for(i=0; i<nrfolders; ++i) {
-        fat32_build_path(folders, i, path);
-        printf(">> DIR: %s", path);
-
-        if(folder_exists(path)) {
-            printf(" [EXISTS]\n");
-        } else {
-            ret = mkdir(path);
-
-            if(ret == 0) {
-                printf(" [CREATED]\n");
-            } else {
-                printf(" [ERROR]\n");
-                return;
-            }
-        }
-
-        /* if no errors were encountered creating the folder, start
-           transferring all the files */
-        fat32_transfer_files_in_folder(&folders[i], path);
-    }
-    
-    printf("-- Transfer complete, press any key to return to navigator. --");
-    getch();
-    restore_screen();
-}
-
-/**
- *  fat32_build_path - Construct a subpath from a folder list using identifier
- *
- *  Parameters:
- *      folders    - Array of FAT32Folder to copy
- *      id         - Index of folder to construct path for
- *      path       - Subpath
- *
- *  Construct a subpath given the folder in the array of folders to be copied
- *  and which is identified by id. Used in `fat32_transfer_folder`.
- */
-void fat32_build_path(struct FAT32Folder folders[], unsigned id, char path[]) {
-    unsigned ll[20];
-    unsigned i,N;
-    unsigned n;
-    const char* name;
-    const char* p;
-
-    /* construct linked list */
-    ll[0] = id;
-    i = 0;
-
-    /* populate linked list */
-    while(folders[ll[i]].reference != -1 && i<20) {
-        i++;
-        ll[i] = (unsigned)folders[ll[i-1]].reference;
-    }
-
-    N = i+1; /* number of path sections */
-
-    /* build path */
-    memset(path, 0x00, MAXPATH);
-    n = 0;
-    for(i=0; i<N; ++i) {
-        name = folders[ll[N-i-1]].name;
-        p = (const char*)strchr(name, (int)' ');
-        memcpy(&path[n], name, (size_t)(p - name));
-        n += (unsigned)(p - name);
-        path[n++] = '\\';
-    }
-
-    path[--n] = 0; /* remove trailing slash */
-}
-
-/**
- *  fat32_transfer_files_in_folder - Copies all files in folder
- *
- *  Parameters:
- *      f           - Pointer to FAT32Folder struct
- *      basepath    - Destination to copy folder to
- *
- *  Reads all files in folder, loops over these files and copies all files
- *  one-by-one to the MS-DOS filesystem. If a file exists, the user is prompted
- *  to overwrite (y/n/a).
- */
-void fat32_transfer_files_in_folder(struct FAT32Folder* f, const char *basepath) {
-    unsigned i;
-    const struct FAT32File* entry;
-    char path[MAXPATH];
-    char filename[13];
-    char c;
-    unsigned ok = 0;
-    unsigned persistent = 0;
-    clock_t tic, toc;
-
-    /* read folder */
-    fat32_read_dir(f, fat32_folder_contents);
-
-    for(i=0; i<f->nrfiles; ++i) {
-        entry = &fat32_folder_contents[i];
-        if(entry->attrib & MASK_DIR) {
-            continue;
-        } else {
-            ok = 1;
-            strcpy(path, basepath);
-            strcat(path, "\\");
-            build_dos_filename(entry, filename);
-            strcat(path, filename);
-            cprintf(" + File: %s", path);
-            if(file_exists(path)) {
-                ok = 0;
-                if(!persistent) {
-                    cprintf("\n File exists; Overwrite? (y/n/a)");
-                    while(1) {
-                    c = getch();
-                    if(c == 'y') {
-                        putch(c);
-                        ok = 1;
-                        break;
-                    } else if(c == 'n') {
-                        putch(c);
-                        printf(" [SKIP]\n");
-                        break;
-                    } else if(c == 'a') {
-                        putch(c);
-                        persistent = 1;
-                        ok = 1;
-                        break;
-                    }
-                    }
-                } else {
-                    printf(" (A) ");
-                    ok = 1; /* ok is always true when persistent is 1 */
-                }
-            }
-
-            if(ok == 1) {
-                tic = clock();
-                if(fat32_transfer_file(entry, path) == 0) {
-                    toc = clock();
-                    cprintf(" (%lu bytes; %.2f s) ", entry->filesize,(toc - tic) / CLK_TCK);
-                    textcolor(LIGHTGREEN);
-                    cprintf("[OK]");
-                    textcolor(WHITE);
-                    cprintf("\r\n");
-                } else {
-                    textcolor(RED);
-                    cprintf(" [FAIL]");
-                    textcolor(WHITE);
-                    cprintf("\r\n");
-                }
-            }
-        }
-    }
-}
-
-/**
  *  fat32_mkdir - Create a new directory on SD card
  *
  *  Parameters:
@@ -518,13 +283,8 @@ void fat32_transfer_files_in_folder(struct FAT32Folder* f, const char *basepath)
  */
 int fat32_mkdir(const char* dirname) {
     unsigned i;
-    unsigned item;
-    unsigned long fatsector;
-    unsigned long entry;
     unsigned long sectoraddr;
     unsigned long parentcluster;
-    unsigned long parententrysector;
-    unsigned parententryoffset;
     unsigned char* locptr;
     char fatname[11];
     unsigned long newcluster;
@@ -552,25 +312,14 @@ int fat32_mkdir(const char* dirname) {
     }
 
     /* mark that new cluster as end of chain */
-    fatsector = newcluster >> 7;
-    item = (unsigned)(newcluster & 0x7F);
-    for(i=0; i<fat32_partition.number_of_fats; ++i) { /* loop over all FATs */
-        fat32_read_sector(fat32_partition.fat_begin_lba +
-                          ((unsigned long)i * fat32_partition.sectors_per_fat) +
-                          fatsector);
-        entry = *(unsigned long*)(sdbuf + item * 4);
-        entry = (entry & 0xF0000000UL) | 0x0FFFFFFFUL;
-        *(unsigned long*)(sdbuf + item * 4) = entry;
-        fat32_write_sector(fat32_partition.fat_begin_lba +
-                           ((unsigned long)i * fat32_partition.sectors_per_fat) +
-                           fatsector);
+    if(fat32_write_fat_entry(newcluster, 0x0FFFFFFFUL) != 0) {
+        return -1;
     }
 
     /* zero the new directory cluster's sectors */
     sectoraddr = fat32_calculate_sector_address(newcluster, 0);
-    memset(sdbuf, 0x00, 514);
-    for(i=0; i<fat32_partition.sectors_per_cluster; ++i) {
-        fat32_write_sector(sectoraddr + i);
+    if(fat32_zero_cluster(newcluster) != 0) {
+        return -1;
     }
 
     /* write its first two entries */
@@ -591,28 +340,15 @@ int fat32_mkdir(const char* dirname) {
     *(unsigned*)(locptr + 0x14) = (unsigned)(parentcluster >> 16);
     *(unsigned*)(locptr + 0x1A) = (unsigned)(parentcluster & 0xFFFF);
 
-    fat32_write_sector(sectoraddr);
-
-    /* find a free 32-byte entry in the parent directory chain */
-    if(fat32_find_free_dir_entry(&fat32_current_folder,
-                                 &parententrysector,
-                                 &parententryoffset) != 0) {
+    if(fat32_write_sector(sectoraddr) != 0) {
         return -1;
     }
 
-    /* write the new directory entry */
-    fat32_read_sector(parententrysector);
-    locptr = sdbuf + parententryoffset;
-    memset(locptr, 0x00, 32);
-    memcpy(locptr, fatname, 11);
-    *(locptr + 0x0B) = MASK_DIR;
-    *(unsigned*)(locptr + 0x14) = (unsigned)(newcluster >> 16);
-    *(unsigned*)(locptr + 0x1A) = (unsigned)(newcluster & 0xFFFF);
-    fat32_write_sector(parententrysector);
+    /* write the new directory entry and refresh current folder */
+    if(fat32_create_dir_entry(fatname, MASK_DIR, newcluster, 0) != 0) {
+        return -1;
+    }
 
-    /* refresh current folder */
-    fat32_read_current_folder();
-    
     return 0;
 }
 
@@ -659,13 +395,73 @@ void fat32_read_sector(unsigned long addr) {
 }
 
 /*
+ *  fat32_read_sector_to - Reads sector from SD-CARD into caller buffer
+ *
+ *  Parameters:
+ *      addr - SD-CARD sector address
+ *      buf  - Buffer to store sector data
+ */
+void fat32_read_sector_to(unsigned long addr, unsigned char* buf) {
+    cmd17(cfg_get_base_port(), addr, buf);
+}
+
+/*
  *  fat32_write_sector - Write sector to SD-CARD
  *
  *  Parameters:
  *      addr - SD-CARD sector address
  */
-void fat32_write_sector(unsigned long addr) {
-    cmd24(cfg_get_base_port(), addr, sdbuf);
+int fat32_write_sector(unsigned long addr) {
+    unsigned char res;
+    unsigned attempt;
+
+    for(attempt=0; attempt<=FAT32_WRITE_RETRIES; ++attempt) {
+        res = cmd24(cfg_get_base_port(), addr, sdbuf);
+        if(res != 0) {
+            continue;
+        }
+
+        res = cmd17(cfg_get_base_port(), addr, verifybuf);
+        if(res != 0) {
+            continue;
+        }
+
+        if(memcmp(sdbuf, verifybuf, 512) == 0) {
+            return 0;
+        }
+    }
+
+    return -1;
+}
+
+/*
+ *  fat32_write_sector_from - Write sector to SD-CARD from caller buffer
+ *
+ *  Parameters:
+ *      addr - SD-CARD sector address
+ *      buf  - Buffer containing sector data
+ */
+int fat32_write_sector_from(unsigned long addr, unsigned char* buf) {
+    unsigned char res;
+    unsigned attempt;
+
+    for(attempt=0; attempt<=FAT32_WRITE_RETRIES; ++attempt) {
+        res = cmd24(cfg_get_base_port(), addr, buf);
+        if(res != 0) {
+            continue;
+        }
+
+        res = cmd17(cfg_get_base_port(), addr, verifybuf);
+        if(res != 0) {
+            continue;
+        }
+
+        if(memcmp(buf, verifybuf, 512) == 0) {
+            return 0;
+        }
+    }
+
+    return -1;
 }
 
 /*
@@ -785,40 +581,445 @@ int fat32_normalize_name_83(const char* input, char out[11]) {
 }
 
 /*
+ *  fat32_normalize_file_83 - Convert a filename to FAT 8.3 raw format
+ *
+ *  Parameters:
+ *      input - User-facing filename
+ *      out   - 11-byte FAT 8.3 name buffer
+ *
+ *  Returns:
+ *      0 if the name is valid, -1 otherwise
+ */
+int fat32_normalize_file_83(const char* input, char out[11]) {
+    unsigned i;
+    unsigned o;
+    unsigned ext;
+    char c;
+
+    if(input == 0 || input[0] == 0 || input[0] == '.') {
+        return -1;
+    }
+
+    memset(out, ' ', 11);
+    o = 0;
+    ext = 0;
+
+    for(i=0; input[i] != 0; ++i) {
+        c = input[i];
+
+        if(c == '.') {
+            if(ext || o == 0 || input[i+1] == 0) {
+                return -1;
+            }
+            ext = 1;
+            o = 8;
+            continue;
+        }
+
+        if(c >= 'a' && c <= 'z') {
+            c -= 'a' - 'A';
+        }
+
+        if(!((c >= 'A' && c <= 'Z') ||
+             (c >= '0' && c <= '9') ||
+             c == '_' || c == '-' || c == '$' || c == '~')) {
+            return -1;
+        }
+
+        if((!ext && o >= 8) || (ext && o >= 11)) {
+            return -1;
+        }
+
+        out[o++] = c;
+    }
+
+    return 0;
+}
+
+/*
  *  fat32_find_free_cluster - Find the first unused data cluster
  *
  *  Returns:
  *      Cluster number, or 0 if no free cluster was found
  */
 unsigned long fat32_find_free_cluster() {
+    unsigned pass;
+    unsigned long startcluster;
+    unsigned long endcluster;
     unsigned long sector;
+    unsigned long firstsector;
+    unsigned long lastsector;
     unsigned long cluster;
     unsigned long entry;
     unsigned item;
 
-    /* loop over all sectors in the FAT */
-    for(sector=0; sector<fat32_partition.sectors_per_fat; ++sector) {
+    if(fat32_partition.next_free_cluster_hint < 2 ||
+       fat32_partition.next_free_cluster_hint >= fat32_partition.cluster_count + 2) {
+        fat32_partition.next_free_cluster_hint = 2;
+    }
 
-        /* read contents of the FAT sector */
-        fat32_read_sector(fat32_partition.fat_begin_lba + sector);
+    startcluster = fat32_partition.next_free_cluster_hint;
+    endcluster = fat32_partition.cluster_count + 2;
 
-        /* loop over all 128 x 8-byte entries in the FAT sector */
-        for(item=0; item<128; ++item) {
-            cluster = (sector << 7) + item;
+    for(pass=0; pass<2; ++pass) {
+        if(pass == 0) {
+            firstsector = startcluster >> 7;
+            lastsector = (endcluster - 1) >> 7;
+        } else {
+            firstsector = 0;
+            lastsector = (startcluster - 1) >> 7;
+        }
 
-            if(cluster < 2) {
-                continue;
-            }
+        for(sector=firstsector; sector<=lastsector; ++sector) {
 
-            if(cluster >= fat32_partition.cluster_count + 2) {
-                return 0;
-            }
+            /* read contents of the FAT sector */
+            fat32_read_sector(fat32_partition.fat_begin_lba + sector);
 
-            entry = *(unsigned long*)(sdbuf + item * 4);
-            if((entry & 0x0FFFFFFFUL) == 0) {
-                return cluster;
+            /* loop over all 128 4-byte entries in the FAT sector */
+            for(item=0; item<128; ++item) {
+                cluster = (sector << 7) + item;
+
+                if(cluster < 2) {
+                    continue;
+                }
+
+                if(pass == 0 && cluster < startcluster) {
+                    continue;
+                }
+
+                if(pass == 1 && cluster >= startcluster) {
+                    return 0;
+                }
+
+                if(cluster >= endcluster) {
+                    break;
+                }
+
+                entry = *(unsigned long*)(sdbuf + item * 4);
+                if((entry & 0x0FFFFFFFUL) == 0) {
+                    fat32_partition.next_free_cluster_hint = cluster + 1;
+                    if(fat32_partition.next_free_cluster_hint >= endcluster) {
+                        fat32_partition.next_free_cluster_hint = 2;
+                    }
+                    return cluster;
+                }
             }
         }
+    }
+
+    return 0;
+}
+
+/*
+ *  fat32_write_fat_entry - Write a FAT entry to all FAT copies
+ *
+ *  Parameters:
+ *      cluster - Cluster whose FAT entry should be written
+ *      value   - New low-28-bit FAT value
+ *
+ *  Returns:
+ *      0 on success, -1 otherwise
+ */
+int fat32_write_fat_entry(unsigned long cluster, unsigned long value) {
+    unsigned i;
+    unsigned item;
+    unsigned long fatsector;
+    unsigned long entry;
+    unsigned long addr;
+
+    if(cluster < 2 || cluster >= fat32_partition.cluster_count + 2) {
+        return -1;
+    }
+
+    fatsector = cluster >> 7;
+    item = (unsigned)(cluster & 0x7F);
+
+    for(i=0; i<fat32_partition.number_of_fats; ++i) {
+        addr = fat32_partition.fat_begin_lba +
+               ((unsigned long)i * fat32_partition.sectors_per_fat) +
+               fatsector;
+        fat32_read_sector(addr);
+        entry = *(unsigned long*)(sdbuf + item * 4);
+        entry = (entry & 0xF0000000UL) | (value & 0x0FFFFFFFUL);
+        *(unsigned long*)(sdbuf + item * 4) = entry;
+        if(fat32_write_sector(addr) != 0) {
+            return -1;
+        }
+    }
+
+    if((value & 0x0FFFFFFFUL) == 0 &&
+       cluster < fat32_partition.next_free_cluster_hint) {
+        fat32_partition.next_free_cluster_hint = cluster;
+    }
+
+    return 0;
+}
+
+/*
+ *  fat32_zero_cluster - Write zeroes to all sectors in a cluster
+ *
+ *  Parameters:
+ *      cluster - Cluster to clear
+ *
+ *  Returns:
+ *      0 on success, -1 otherwise
+ */
+int fat32_zero_cluster(unsigned long cluster) {
+    unsigned i;
+    unsigned long caddr;
+
+    if(cluster < 2 || cluster >= fat32_partition.cluster_count + 2) {
+        return -1;
+    }
+
+    caddr = fat32_calculate_sector_address(cluster, 0);
+    memset(sdbuf, 0x00, 514);
+
+    for(i=0; i<fat32_partition.sectors_per_cluster; ++i) {
+        if(fat32_write_sector(caddr + i) != 0) {
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
+/*
+ *  fat32_create_dir_entry - Create an entry in the current directory
+ *
+ *  Parameters:
+ *      name         - 11-byte FAT 8.3 name
+ *      attrib       - FAT attribute byte
+ *      firstcluster - First cluster of the file or directory
+ *      filesize     - File size in bytes
+ *
+ *  Returns:
+ *      0 on success, -1 otherwise
+ */
+int fat32_create_dir_entry(const char name[11],
+                           unsigned char attrib,
+                           unsigned long firstcluster,
+                           unsigned long filesize) {
+    unsigned long entrysector;
+    unsigned entryoffset;
+    unsigned char* locptr;
+
+    if(fat32_find_free_dir_entry(&fat32_current_folder,
+                                 &entrysector,
+                                 &entryoffset) != 0) {
+        return -1;
+    }
+
+    fat32_read_sector(entrysector);
+    locptr = sdbuf + entryoffset;
+    memset(locptr, 0x00, 32);
+    memcpy(locptr, name, 11);
+    *(locptr + 0x0B) = attrib;
+    *(unsigned*)(locptr + 0x14) = (unsigned)(firstcluster >> 16);
+    *(unsigned*)(locptr + 0x1A) = (unsigned)(firstcluster & 0xFFFF);
+    *(unsigned long*)(locptr + 0x1C) = filesize;
+    if(fat32_write_sector(entrysector) != 0) {
+        return -1;
+    }
+
+    fat32_read_current_folder();
+
+    return 0;
+}
+
+/*
+ *  fat32_delete_file_entry - Delete a file entry from the current directory
+ *
+ *  Parameters:
+ *      name - 11-byte FAT 8.3 name
+ *
+ *  Returns:
+ *      0 on success, -1 otherwise
+ */
+int fat32_delete_file_entry(const char name[11]) {
+    return fat32_delete_named_in_folder(&fat32_current_folder, name, 0);
+}
+
+/*
+ *  fat32_delete_entry - Delete an entry from the current directory
+ *
+ *  Parameters:
+ *      name - 11-byte FAT 8.3 name
+ *
+ *  Returns:
+ *      0 on success, -1 otherwise
+ */
+int fat32_delete_entry(const char name[11]) {
+    return fat32_delete_named_in_folder(&fat32_current_folder, name, 1);
+}
+
+/*
+ *  fat32_delete_named_in_folder - Delete an entry from a folder
+ *
+ *  Parameters:
+ *      folder   - Folder that contains the entry
+ *      name     - 11-byte FAT 8.3 name
+ *      allowdir - Nonzero to allow recursive folder deletion
+ *
+ *  Returns:
+ *      0 on success, -1 otherwise
+ */
+static int fat32_delete_named_in_folder(struct FAT32Folder* folder,
+                                        const char name[11],
+                                        unsigned allowdir) {
+    unsigned ctr;
+    unsigned i;
+    unsigned j;
+    unsigned long caddr;
+    unsigned long entrysector;
+    unsigned entryoffset;
+    unsigned long cluster;
+    unsigned char* locptr;
+    struct FAT32Folder child;
+    char childname[11];
+
+    fat32_build_linked_list(folder->cluster);
+
+    ctr = 0;
+    while(fat32_linked_list[ctr] != 0xFFFFFFFF && ctr < F32LLSZ) {
+        caddr = fat32_calculate_sector_address(fat32_linked_list[ctr], 0);
+
+        for(i=0; i<fat32_partition.sectors_per_cluster; ++i) {
+            fat32_read_sector(caddr + i);
+            locptr = sdbuf;
+
+            for(j=0; j<16; ++j) {
+                if(*locptr == 0x00) {
+                    return -1;
+                }
+
+                if(*locptr != 0xE5 &&
+                   (*(locptr + 0x0B) & 0x0F) == 0x00 &&
+                   memcmp(locptr, name, 11) == 0) {
+                    entrysector = caddr + i;
+                    entryoffset = j * 32;
+                    cluster = fat32_grab_cluster_address_from_fileblock(locptr);
+
+                    if(*(locptr + 0x0B) & MASK_DIR) {
+                        if(!allowdir) {
+                            return -1;
+                        }
+
+                        memset(&child, 0x00, sizeof(struct FAT32Folder));
+                        memcpy(child.name, locptr, 11);
+                        child.cluster = cluster;
+
+                        while(fat32_find_first_deletable_entry(&child,
+                                                               childname) == 0) {
+                            if(fat32_delete_named_in_folder(&child,
+                                                            childname,
+                                                            1) != 0) {
+                                return -1;
+                            }
+                        }
+                    }
+
+                    fat32_read_sector(entrysector);
+                    locptr = sdbuf + entryoffset;
+                    *locptr = 0xE5;
+                    if(fat32_write_sector(entrysector) != 0) {
+                        return -1;
+                    }
+
+                    if(fat32_free_cluster_chain(cluster) != 0) {
+                        return -1;
+                    }
+
+                    fat32_read_current_folder();
+                    return 0;
+                }
+
+                locptr += 32;
+            }
+        }
+
+        ctr++;
+    }
+
+    return -1;
+}
+
+/*
+ *  fat32_find_first_deletable_entry - Find first child entry in a folder
+ *
+ *  Parameters:
+ *      folder - Folder to scan
+ *      name   - 11-byte FAT 8.3 name destination
+ *
+ *  Returns:
+ *      0 if an entry was found, -1 otherwise
+ */
+static int fat32_find_first_deletable_entry(struct FAT32Folder* folder,
+                                            char name[11]) {
+    unsigned ctr;
+    unsigned i;
+    unsigned j;
+    unsigned long caddr;
+    unsigned char* locptr;
+
+    fat32_build_linked_list(folder->cluster);
+
+    ctr = 0;
+    while(fat32_linked_list[ctr] != 0xFFFFFFFF && ctr < F32LLSZ) {
+        caddr = fat32_calculate_sector_address(fat32_linked_list[ctr], 0);
+
+        for(i=0; i<fat32_partition.sectors_per_cluster; ++i) {
+            fat32_read_sector(caddr + i);
+            locptr = sdbuf;
+
+            for(j=0; j<16; ++j) {
+                if(*locptr == 0x00) {
+                    return -1;
+                }
+
+                if(*locptr != 0xE5 &&
+                   (*(locptr + 0x0B) & 0x0F) == 0x00 &&
+                   memcmp(locptr, ".          ", 11) != 0 &&
+                   memcmp(locptr, "..         ", 11) != 0) {
+                    memcpy(name, locptr, 11);
+                    return 0;
+                }
+
+                locptr += 32;
+            }
+        }
+
+        ctr++;
+    }
+
+    return -1;
+}
+
+/*
+ *  fat32_free_cluster_chain - Mark all clusters in a chain free
+ *
+ *  Parameters:
+ *      cluster - First cluster in the chain
+ *
+ *  Returns:
+ *      0 on success, -1 otherwise
+ */
+static int fat32_free_cluster_chain(unsigned long cluster) {
+    unsigned item;
+    unsigned long nextcluster;
+    unsigned long entry;
+
+    while(cluster >= 2 && cluster < 0x0FFFFFF8UL) {
+        fat32_read_sector(fat32_partition.fat_begin_lba + (cluster >> 7));
+        item = (unsigned)(cluster & 0x7F);
+        entry = *(unsigned long*)(sdbuf + item * 4);
+        nextcluster = entry & 0x0FFFFFFFUL;
+
+        if(fat32_write_fat_entry(cluster, 0) != 0) {
+            return -1;
+        }
+
+        cluster = nextcluster;
     }
 
     return 0;
@@ -841,12 +1042,9 @@ int fat32_find_free_dir_entry(struct FAT32Folder* folder,
     unsigned ctr;
     unsigned i;
     unsigned j;
-    unsigned item;
     unsigned long caddr;
     unsigned long lastcluster;
     unsigned long newcluster;
-    unsigned long fatsector;
-    unsigned long entry;
     unsigned char* locptr;
 
     fat32_build_linked_list(folder->cluster);
@@ -883,36 +1081,17 @@ int fat32_find_free_dir_entry(struct FAT32Folder* folder,
         return -1;
     }
 
-    for(i=0; i<fat32_partition.number_of_fats; ++i) {
-        fatsector = lastcluster >> 7;
-        item = (unsigned)(lastcluster & 0x7F);
-        fat32_read_sector(fat32_partition.fat_begin_lba +
-                          ((unsigned long)i * fat32_partition.sectors_per_fat) +
-                          fatsector);
-        entry = *(unsigned long*)(sdbuf + item * 4);
-        entry = (entry & 0xF0000000UL) | newcluster;
-        *(unsigned long*)(sdbuf + item * 4) = entry;
-        fat32_write_sector(fat32_partition.fat_begin_lba +
-                           ((unsigned long)i * fat32_partition.sectors_per_fat) +
-                           fatsector);
+    if(fat32_write_fat_entry(lastcluster, newcluster) != 0) {
+        return -1;
+    }
 
-        fatsector = newcluster >> 7;
-        item = (unsigned)(newcluster & 0x7F);
-        fat32_read_sector(fat32_partition.fat_begin_lba +
-                          ((unsigned long)i * fat32_partition.sectors_per_fat) +
-                          fatsector);
-        entry = *(unsigned long*)(sdbuf + item * 4);
-        entry = (entry & 0xF0000000UL) | 0x0FFFFFFFUL;
-        *(unsigned long*)(sdbuf + item * 4) = entry;
-        fat32_write_sector(fat32_partition.fat_begin_lba +
-                           ((unsigned long)i * fat32_partition.sectors_per_fat) +
-                           fatsector);
+    if(fat32_write_fat_entry(newcluster, 0x0FFFFFFFUL) != 0) {
+        return -1;
     }
 
     caddr = fat32_calculate_sector_address(newcluster, 0);
-    memset(sdbuf, 0x00, 514);
-    for(i=0; i<fat32_partition.sectors_per_cluster; ++i) {
-        fat32_write_sector(caddr + i);
+    if(fat32_zero_cluster(newcluster) != 0) {
+        return -1;
     }
 
     *entrysector = caddr;
@@ -920,6 +1099,16 @@ int fat32_find_free_dir_entry(struct FAT32Folder* folder,
 
     return 0;
 }
+
+
+
+
+
+
+
+
+
+
 
 
 
