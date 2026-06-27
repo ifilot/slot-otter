@@ -31,7 +31,9 @@ struct FAT32Partition {
     unsigned char sectors_per_cluster;      /* Sectors that make up a cluster  */
     unsigned reserved_sectors;              /* Reserved sectors before FAT area*/
     unsigned char number_of_fats;           /* Number of FAT tables present    */
+    unsigned long total_sectors;            /* Total sectors in partition      */
     unsigned long sectors_per_fat;          /* Sectors used by one FAT         */
+    unsigned long cluster_count;            /* Number of data clusters         */
     unsigned long root_dir_first_cluster;   /* First cluster of root dir       */
     unsigned long fat_begin_lba;            /* LBA address of first FAT sector */
     unsigned long lba_addr_root_dir;        /* LBA address of root directory   */
@@ -68,4 +70,5 @@ struct FAT32File {
     unsigned long filesize;          /* File size in bytes                 */
 };
 
-#endif
+#endif
+

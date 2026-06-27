@@ -98,4 +98,12 @@ void sdnav_scroll_up();
  */
 void sdnav_print_entry(unsigned char pos, unsigned int id);
 
-#endif
+/*
+ * sdnav_create_folder - Create folder on SD card
+ *
+ * Ask the user to type in a folder name and create that folder
+ */
+void sdnav_create_folder();
+
+#endif
+

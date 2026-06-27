@@ -150,6 +150,17 @@ void fat32_build_path(struct FAT32Folder folders[], unsigned id, char path[]);
  */
 void fat32_transfer_files_in_folder(struct FAT32Folder* f, const char* basepath);
 
+/**
+ *  fat32_mkdir - Create a new directory on SD card
+ *
+ *  Parameters:
+ *      dirname - Name of the directory to create
+ *
+ *  Returns:
+ *      0 on success, -1 otherwise
+ */
+int fat32_mkdir(const char* dirname);
+
 /*
  *  fat32_calculate_sector_address - Calculate sector address from cluster and sector
  *
@@ -170,6 +181,14 @@ unsigned long fat32_calculate_sector_address(unsigned long cluster,
  *      addr - SD-CARD sector address
  */
 void fat32_read_sector(unsigned long);
+
+/*
+ *  fat32_write_sector - Write sector to SD-CARD
+ *
+ *  Parameters:
+ *      addr - SD-CARD sector address
+ */
+void fat32_write_sector(unsigned long);
 
 /*
  *  fat32_get_file_entry - Get file from buffer identified by id
@@ -218,4 +237,43 @@ void fat32_build_linked_list(unsigned long nextcluster);
  */
 unsigned long fat32_grab_cluster_address_from_fileblock(unsigned char* loc);
 
-#endif
+/*
+ *  fat32_normalize_name_83 - Convert a filename to FAT 8.3 raw format
+ *
+ *  Parameters:
+ *      input - User-facing name
+ *      out   - 11-byte FAT 8.3 name buffer
+ *
+ *  Returns:
+ *      0 if the name is valid, -1 otherwise
+ */
+int fat32_normalize_name_83(const char* input, char out[11]);
+
+/*
+ *  fat32_find_free_cluster - Find the first unused data cluster
+ *
+ *  Returns:
+ *      Cluster number, or 0 if no free cluster was found
+ */
+unsigned long fat32_find_free_cluster();
+
+/*
+ *  fat32_find_free_dir_entry - Find or create a free directory entry
+ *
+ *  Parameters:
+ *      folder      - Folder whose directory chain should be searched
+ *      entrysector - Sector address containing the free entry
+ *      entryoffset - Byte offset of the free entry within that sector
+ *
+ *  Returns:
+ *      0 if a free entry was found or created, -1 otherwise
+ */
+int fat32_find_free_dir_entry(struct FAT32Folder* folder,
+                              unsigned long* entrysector,
+                              unsigned* entryoffset);
+
+#endif
+
+
+
+

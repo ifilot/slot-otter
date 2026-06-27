@@ -150,6 +150,9 @@ int state_sd() {
                     sdnav_display_commands();
                     sdnav_set_cursor();
                 break;
+                case 0x3C:
+                    sdnav_create_folder();
+                break;
                 case 0x42:
                     if(settings_show()) {
                         apply_settings_and_reinit();
@@ -333,4 +336,5 @@ void init_fat() {
     sdnav_print_files();
     sdnav_reset_cursor();
 }
+
 

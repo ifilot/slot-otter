@@ -66,7 +66,12 @@ void fat32_open_partition() {
     fat32_partition.sectors_per_cluster = sdbuf[0x0D];
     fat32_partition.reserved_sectors = *(unsigned*)(sdbuf + 0x0E);
     fat32_partition.number_of_fats = sdbuf[0x10];
+    fat32_partition.total_sectors = *(unsigned long*)(sdbuf + 0x20);
     fat32_partition.sectors_per_fat = *(unsigned long*)(sdbuf + 0x24);
+    fat32_partition.cluster_count =
+        (fat32_partition.total_sectors - fat32_partition.reserved_sectors -
+        (fat32_partition.number_of_fats * fat32_partition.sectors_per_fat)) /
+        fat32_partition.sectors_per_cluster;
     fat32_partition.root_dir_first_cluster = *(unsigned long*)(sdbuf + 0x2C);
     fat32_partition.fat_begin_lba = lba + fat32_partition.reserved_sectors;
     fat32_partition.sector_begin_lba = fat32_partition.fat_begin_lba +
@@ -95,7 +100,9 @@ void fat32_print_partition_info() {
     printf("Sectors per cluster: %i\n", fat32_partition.sectors_per_cluster);
     printf("Reserved sectors: %i\n", fat32_partition.reserved_sectors);
     printf("Number of FATs: %i\n", fat32_partition.number_of_fats);
+    printf("Total sectors: %lu\n", fat32_partition.total_sectors);
     printf("Root directory first cluster: %08X\n", fat32_partition.root_dir_first_cluster);
+    printf("Data clusters: %lu\n", fat32_partition.cluster_count);
     printf("FAT begin LBA: %08X\n", fat32_partition.fat_begin_lba);
     printf("Root directory sector: %08X\n", fat32_partition.lba_addr_root_dir);
 }
@@ -503,6 +510,112 @@ void fat32_transfer_files_in_folder(struct FAT32Folder* f, const char *basepath)
     }
 }
 
+/**
+ *  fat32_mkdir - Create a new directory on SD card
+ *
+ *  Parameters:
+ *      dirname - Name of the directory to create
+ */
+int fat32_mkdir(const char* dirname) {
+    unsigned i;
+    unsigned item;
+    unsigned long fatsector;
+    unsigned long entry;
+    unsigned long sectoraddr;
+    unsigned long parentcluster;
+    unsigned long parententrysector;
+    unsigned parententryoffset;
+    unsigned char* locptr;
+    char fatname[11];
+    unsigned long newcluster;
+
+    /* build linked list */
+    fat32_build_linked_list(fat32_current_folder.cluster);
+
+    /* validate name */
+    if(fat32_normalize_name_83(dirname, fatname) != 0) {
+        return -1;
+    }
+
+    /* check the current directory for a matching entry */
+    fat32_read_current_folder();
+    for(i=0; i<fat32_nrfiles; ++i) {
+        if(memcmp(fat32_files[i].basename, fatname, 11) == 0) {
+            return -1;
+        }
+    }
+
+    /* find a free cluster for the new directory's contents */
+    newcluster = fat32_find_free_cluster();
+    if(newcluster == 0) {
+        return -1;
+    }
+
+    /* mark that new cluster as end of chain */
+    fatsector = newcluster >> 7;
+    item = (unsigned)(newcluster & 0x7F);
+    for(i=0; i<fat32_partition.number_of_fats; ++i) { /* loop over all FATs */
+        fat32_read_sector(fat32_partition.fat_begin_lba +
+                          ((unsigned long)i * fat32_partition.sectors_per_fat) +
+                          fatsector);
+        entry = *(unsigned long*)(sdbuf + item * 4);
+        entry = (entry & 0xF0000000UL) | 0x0FFFFFFFUL;
+        *(unsigned long*)(sdbuf + item * 4) = entry;
+        fat32_write_sector(fat32_partition.fat_begin_lba +
+                           ((unsigned long)i * fat32_partition.sectors_per_fat) +
+                           fatsector);
+    }
+
+    /* zero the new directory cluster's sectors */
+    sectoraddr = fat32_calculate_sector_address(newcluster, 0);
+    memset(sdbuf, 0x00, 514);
+    for(i=0; i<fat32_partition.sectors_per_cluster; ++i) {
+        fat32_write_sector(sectoraddr + i);
+    }
+
+    /* write its first two entries */
+    parentcluster = fat32_current_folder.cluster;
+    if(parentcluster == fat32_partition.root_dir_first_cluster) {
+        parentcluster = 0;
+    }
+
+    locptr = sdbuf;
+    memcpy(locptr, ".          ", 11); /* "." entry */
+    *(locptr + 0x0B) = MASK_DIR;
+    *(unsigned*)(locptr + 0x14) = (unsigned)(newcluster >> 16);
+    *(unsigned*)(locptr + 0x1A) = (unsigned)(newcluster & 0xFFFF);
+
+    locptr = sdbuf + 32;
+    memcpy(locptr, "..         ", 11); /* ".." entry */
+    *(locptr + 0x0B) = MASK_DIR;
+    *(unsigned*)(locptr + 0x14) = (unsigned)(parentcluster >> 16);
+    *(unsigned*)(locptr + 0x1A) = (unsigned)(parentcluster & 0xFFFF);
+
+    fat32_write_sector(sectoraddr);
+
+    /* find a free 32-byte entry in the parent directory chain */
+    if(fat32_find_free_dir_entry(&fat32_current_folder,
+                                 &parententrysector,
+                                 &parententryoffset) != 0) {
+        return -1;
+    }
+
+    /* write the new directory entry */
+    fat32_read_sector(parententrysector);
+    locptr = sdbuf + parententryoffset;
+    memset(locptr, 0x00, 32);
+    memcpy(locptr, fatname, 11);
+    *(locptr + 0x0B) = MASK_DIR;
+    *(unsigned*)(locptr + 0x14) = (unsigned)(newcluster >> 16);
+    *(unsigned*)(locptr + 0x1A) = (unsigned)(newcluster & 0xFFFF);
+    fat32_write_sector(parententrysector);
+
+    /* refresh current folder */
+    fat32_read_current_folder();
+    
+    return 0;
+}
+
 /*
  *  fat32_get_file_entry - Get file from buffer identified by id
  *
@@ -543,6 +656,16 @@ unsigned long fat32_calculate_sector_address(unsigned long cluster,
  */
 void fat32_read_sector(unsigned long addr) {
     cmd17(cfg_get_base_port(), addr, sdbuf);
+}
+
+/*
+ *  fat32_write_sector - Write sector to SD-CARD
+ *
+ *  Parameters:
+ *      addr - SD-CARD sector address
+ */
+void fat32_write_sector(unsigned long addr) {
+    cmd24(cfg_get_base_port(), addr, sdbuf);
 }
 
 /*
@@ -613,4 +736,192 @@ void fat32_build_linked_list(unsigned long nextcluster) {
 unsigned long fat32_grab_cluster_address_from_fileblock(unsigned char* loc) {
     return ((unsigned long)*(unsigned*)(loc + 0x14)) << 16 |
            *(unsigned*)(loc + 0x1A);
-}
+}
+
+/*
+ *  fat32_normalize_name_83 - Convert a filename to FAT 8.3 raw format
+ *
+ *  Parameters:
+ *      input - User-facing name
+ *      out   - 11-byte FAT 8.3 name buffer
+ *
+ *  Returns:
+ *      0 if the name is valid, -1 otherwise
+ */
+int fat32_normalize_name_83(const char* input, char out[11]) {
+    unsigned i;
+    char c;
+
+    if(input == 0 || input[0] == 0) {
+        return -1;
+    }
+
+    memset(out, ' ', 11);
+
+    for(i=0; input[i] != 0; ++i) {
+        if(i >= 8) {
+            return -1;
+        }
+
+        c = input[i];
+        if(c >= 'a' && c <= 'z') {
+            c -= 'a' - 'A';
+        }
+
+        if(!((c >= 'A' && c <= 'Z') ||
+             (c >= '0' && c <= '9') ||
+             c == '_' || c == '-' || c == '$' || c == '~')) {
+            return -1;
+        }
+
+        out[i] = c;
+    }
+
+    if(out[0] == '.') {
+        return -1;
+    }
+
+    return 0;
+}
+
+/*
+ *  fat32_find_free_cluster - Find the first unused data cluster
+ *
+ *  Returns:
+ *      Cluster number, or 0 if no free cluster was found
+ */
+unsigned long fat32_find_free_cluster() {
+    unsigned long sector;
+    unsigned long cluster;
+    unsigned long entry;
+    unsigned item;
+
+    /* loop over all sectors in the FAT */
+    for(sector=0; sector<fat32_partition.sectors_per_fat; ++sector) {
+
+        /* read contents of the FAT sector */
+        fat32_read_sector(fat32_partition.fat_begin_lba + sector);
+
+        /* loop over all 128 x 8-byte entries in the FAT sector */
+        for(item=0; item<128; ++item) {
+            cluster = (sector << 7) + item;
+
+            if(cluster < 2) {
+                continue;
+            }
+
+            if(cluster >= fat32_partition.cluster_count + 2) {
+                return 0;
+            }
+
+            entry = *(unsigned long*)(sdbuf + item * 4);
+            if((entry & 0x0FFFFFFFUL) == 0) {
+                return cluster;
+            }
+        }
+    }
+
+    return 0;
+}
+
+/*
+ *  fat32_find_free_dir_entry - Find or create a free directory entry
+ *
+ *  Parameters:
+ *      folder      - Folder whose directory chain should be searched
+ *      entrysector - Sector address containing the free entry
+ *      entryoffset - Byte offset of the free entry within that sector
+ *
+ *  Returns:
+ *      0 if a free entry was found or created, -1 otherwise
+ */
+int fat32_find_free_dir_entry(struct FAT32Folder* folder,
+                              unsigned long* entrysector,
+                              unsigned* entryoffset) {
+    unsigned ctr;
+    unsigned i;
+    unsigned j;
+    unsigned item;
+    unsigned long caddr;
+    unsigned long lastcluster;
+    unsigned long newcluster;
+    unsigned long fatsector;
+    unsigned long entry;
+    unsigned char* locptr;
+
+    fat32_build_linked_list(folder->cluster);
+
+    ctr = 0;
+    lastcluster = 0;
+    while(fat32_linked_list[ctr] != 0xFFFFFFFF && ctr < F32LLSZ) {
+        lastcluster = fat32_linked_list[ctr];
+        caddr = fat32_calculate_sector_address(lastcluster, 0);
+
+        for(i=0; i<fat32_partition.sectors_per_cluster; ++i) {
+            fat32_read_sector(caddr + i);
+            locptr = sdbuf;
+
+            for(j=0; j<16; ++j) {
+                if(*locptr == 0xE5 || *locptr == 0x00) {
+                    *entrysector = caddr + i;
+                    *entryoffset = j * 32;
+                    return 0;
+                }
+                locptr += 32;
+            }
+        }
+
+        ctr++;
+    }
+
+    if(lastcluster == 0) {
+        return -1;
+    }
+
+    newcluster = fat32_find_free_cluster();
+    if(newcluster == 0) {
+        return -1;
+    }
+
+    for(i=0; i<fat32_partition.number_of_fats; ++i) {
+        fatsector = lastcluster >> 7;
+        item = (unsigned)(lastcluster & 0x7F);
+        fat32_read_sector(fat32_partition.fat_begin_lba +
+                          ((unsigned long)i * fat32_partition.sectors_per_fat) +
+                          fatsector);
+        entry = *(unsigned long*)(sdbuf + item * 4);
+        entry = (entry & 0xF0000000UL) | newcluster;
+        *(unsigned long*)(sdbuf + item * 4) = entry;
+        fat32_write_sector(fat32_partition.fat_begin_lba +
+                           ((unsigned long)i * fat32_partition.sectors_per_fat) +
+                           fatsector);
+
+        fatsector = newcluster >> 7;
+        item = (unsigned)(newcluster & 0x7F);
+        fat32_read_sector(fat32_partition.fat_begin_lba +
+                          ((unsigned long)i * fat32_partition.sectors_per_fat) +
+                          fatsector);
+        entry = *(unsigned long*)(sdbuf + item * 4);
+        entry = (entry & 0xF0000000UL) | 0x0FFFFFFFUL;
+        *(unsigned long*)(sdbuf + item * 4) = entry;
+        fat32_write_sector(fat32_partition.fat_begin_lba +
+                           ((unsigned long)i * fat32_partition.sectors_per_fat) +
+                           fatsector);
+    }
+
+    caddr = fat32_calculate_sector_address(newcluster, 0);
+    memset(sdbuf, 0x00, 514);
+    for(i=0; i<fat32_partition.sectors_per_cluster; ++i) {
+        fat32_write_sector(caddr + i);
+    }
+
+    *entrysector = caddr;
+    *entryoffset = 0;
+
+    return 0;
+}
+
+
+
+
+
