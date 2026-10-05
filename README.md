@@ -19,6 +19,10 @@ tools were obtained from [WinWorldPC](https://winworldpc.com/home).
 
 ![screenshot of SD card navigator](img/screenshot.png)
 
+The separate [OTTERFS resident driver](driver/README.md) exposes the FAT32 SD
+card as a read-only DOS drive letter for ordinary DOS programs. Its standalone
+source, build instructions, real-DOS tests, and 86Box adapter are under `driver`.
+
 ## Downloads
 
 Get the latest pre-built files:
