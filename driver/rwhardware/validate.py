@@ -20,14 +20,15 @@ def boot_run(a,work,image,files,commands,phase,fault=None):
         if not name.endswith('/') and Path(name).name.upper() not in keep:
             subprocess.run(['mdel','-i',str(boot),name],check=True)
     config=work/'CONFIG.SYS'; config.write_bytes(b'LASTDRIVE=S\r\nFILES=40\r\nBUFFERS=10\r\n')
-    batch='@echo off\nOTTERWR /DRIVE:S'+(' /RW' if a.mode!='readonly' else '')+' > INSTALL.TXT\n'
+    access=' /RO' if a.mode=='readonly' else '' if a.mode=='default-ro' else ' /RW'
+    batch='@echo off\nOTTERWR /DRIVE:S'+access+' > INSTALL.TXT\n'
     for command in commands:
         batch+=command+'\nif errorlevel 1 goto failed\n'
     batch+='echo 0 > CODE.TXT\ngoto finish\n:failed\necho 1 > CODE.TXT\n:finish\n'
     batch+='OTTERWR /UNMOUNT > UNMOUNT.TXT\necho HW-DONE > DONE.TXT\ndir a:\\ > FLUSH.TXT\n'
     auto=work/'AUTOEXEC.BAT'; auto.write_bytes(batch.replace('\n','\r\n').encode())
     for source,target in [(config,'CONFIG.SYS'),(auto,'AUTOEXEC.BAT'),(a.driver,'OTTERWR.EXE'),
-                          (files/'HWRT.EXE','HWRT.EXE'),(files/'RWCHILD.EXE','RWCHILD.EXE')]:
+                          (files/'HWRT.EXE','HWRT.EXE')]:
         subprocess.run(['mcopy','-o','-i',str(boot),str(source),'::'+target],check=True)
     if a.mode=='swap':
         subprocess.run(['mcopy','-o','-i',str(boot),str(files/'HWSWAP.EXE'),'::HWSWAP.EXE'],check=True)
@@ -52,7 +53,7 @@ def boot_run(a,work,image,files,commands,phase,fault=None):
             try: proc.wait(timeout=5)
             except subprocess.TimeoutExpired: proc.kill(); proc.wait()
     results={}
-    for name in ('INSTALL.TXT','CODE.TXT','RWINFO.LOG','RWTEST.LOG','RWVERIFY.LOG','RWSTRESS.LOG','RWMEM.LOG','RWSWAP.LOG','UNMOUNT.TXT'):
+    for name in ('INSTALL.TXT','CODE.TXT','GUARD.TXT','RWINFO.LOG','RWTEST.LOG','RWVERIFY.LOG','RWSTRESS.LOG','RWMEM.LOG','RWSWAP.LOG','UNMOUNT.TXT'):
         r=subprocess.run(['mtype','-i',str(boot),'::'+name],capture_output=True)
         if not r.returncode:
             results[name]=r.stdout; (work/f'{phase}-{name}').write_bytes(r.stdout)
@@ -68,15 +69,18 @@ def main():
     p.add_argument('--tester',type=Path)
     p.add_argument('--image',type=Path,help='Copy a built kit image instead of generating an empty-kit fixture')
     p.add_argument('--timeout',type=float,default=1200)
-    p.add_argument('--mode',choices=('normal','swap','drop','readonly','unmarked','no-erase'),default='normal')
+    p.add_argument('--mode',choices=('normal','swap','drop','readonly','default-ro','unmarked','no-erase'),default='normal')
     a=p.parse_args(); work=Path(tempfile.mkdtemp(prefix='otter-hwrt-dos-'))
     print(f'Artifacts: {work}',flush=True)
     if a.tester and a.mode!='swap':
-        for name in ('HWRT.EXE','RWCHILD.EXE'): shutil.copyfile(a.tester.parent/name,work/name)
+        shutil.copyfile(a.tester,work/'HWRT.EXE')
     else: build.compile_test(work,swap_adapter=a.mode=='swap')
     image=work/'card.img'
     if a.image:
         shutil.copyfile(a.image,image)
+        for name,source in [('OTTERWR.EXE',a.driver),('HWRT.EXE',work/'HWRT.EXE')]:
+            kit=subprocess.check_output(['mtype','-i',str(image)+'@@1048576','::KIT/'+name])
+            assert kit==source.read_bytes(),'Distributed KIT differs from tested binary: '+name
         with image.open('rb') as f:
             f.seek(2048*512); sector=f.read(512)
         layout={'total':struct.unpack_from('<I',sector,32)[0]}
@@ -85,8 +89,8 @@ def main():
         subprocess.run(['mdel','-i',str(image)+'@@1048576','::RW.TAG'],check=True)
     before=image.read_bytes()
     commands=['HWRT /INFO','HWRT /TEST /ERASE','HWRT /VERIFY','HWRT /STRESS /ERASE','HWRT /MEMORY']
-    if a.mode in ('drop','readonly','unmarked'): commands=['HWRT /TEST /ERASE']
-    if a.mode=='no-erase': commands=['HWRT /TEST']
+    if a.mode in ('drop','readonly','default-ro','unmarked'): commands=['HWRT /TEST /ERASE > GUARD.TXT']
+    if a.mode=='no-erase': commands=['HWRT /TEST > GUARD.TXT']
     if a.mode=='swap': commands=['HWRT /TEST /ERASE','HWSWAP /SWAP','HWRT /VERIFY']
     result=boot_run(a,work,image,work,commands,'first','DROP' if a.mode=='drop' else None)
     if a.mode not in ('normal','swap'):
@@ -94,9 +98,20 @@ def main():
         if a.mode=='drop':
             assert b'transmissions=1 retries=0' in result['RWTEST.LOG']
             assert b'poison=1' in result['RWTEST.LOG']
-        else: assert image.read_bytes()==before,'Guard failure mutated SD image'
+        else:
+            assert image.read_bytes()==before,'Guard failure mutated SD image'
+            if a.mode in ('readonly','default-ro'):
+                assert b'MODE: writable=0' in result['RWTEST.LOG']
+                assert b'writing requires installation with /RW' in result['RWTEST.LOG']
+                assert b'ERRORLEVEL=2' in result['RWTEST.LOG']
+            elif a.mode=='unmarked':
+                assert b'FAIL: supplied expendable resident-write image marker' in result['RWTEST.LOG']
+                assert b'ERRORLEVEL=1' in result['RWTEST.LOG']
+            else:
+                assert b'STOP: /TEST and /STRESS require /ERASE' in result['GUARD.TXT']
         print(f'PASS: hardware tester {a.mode} stops safely',flush=True); return
     assert result['CODE.TXT'].strip()==b'0'
+    assert b'drive is offline; card may be removed' in result['UNMOUNT.TXT']
     logs=('RWTEST.LOG','RWSWAP.LOG','RWVERIFY.LOG') if a.mode=='swap' else (
           'RWINFO.LOG','RWTEST.LOG','RWVERIFY.LOG','RWSTRESS.LOG','RWMEM.LOG')
     for name in logs:
@@ -104,6 +119,7 @@ def main():
     raw=image.read_bytes()
     second=boot_run(a,work,image,work,['HWRT /VERIFY'],'reboot')
     assert second['CODE.TXT'].strip()==b'0'
+    assert b'drive is offline; card may be removed' in second['UNMOUNT.TXT']
     assert image.read_bytes()==raw,'Fresh-boot verify wrote to card'
     for lba in (0,2048,2054): assert raw[lba*512:(lba+1)*512]==before[lba*512:(lba+1)*512]
     partition=work/'partition.img'; partition.write_bytes(raw[2048*512:(2048+layout['total'])*512])

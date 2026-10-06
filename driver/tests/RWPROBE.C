@@ -295,7 +295,13 @@ int main(int argc,char **argv) {
         request(0x4301,0,32,(unsigned)"S:\\RWTEMP\\EXT.BIN"); unlink("S:\\RWTEMP\\EXT.BIN");
     }
     bad=0;
+#ifdef RW_HARDWARE_TEST
+    hardware_phase("grown-directory allocation and wildcard deletion");
+#endif
     for(i=0;i<20;++i) {
+#ifdef RW_HARDWARE_TEST
+        printf("PROGRESS: create/close directory entry %u/20\n",i+1);
+#endif
         sprintf(name,"S:\\RWTEMP\\P%02u.TMP",i);
         a=request(0x3c00,0,0,(unsigned)name);
         if(a<0) ++bad;

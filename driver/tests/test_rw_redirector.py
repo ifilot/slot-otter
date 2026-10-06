@@ -70,12 +70,89 @@ class WritableRedirectorTests(unittest.TestCase):
         return subprocess.check_output(['mtype', '-i', str(self.image)+'@@1048576', '::'+path])
 
     def clean(self):
+        # Close persists bytes but deliberately leaves the mounted volume dirty.
+        # Explicit global flush is the full mirror/clean-publication boundary.
+        self.call(0x20, handled=False)
         part = self.work/'part.img'
         with self.image.open('rb') as disk:
             disk.seek(2048*512)
             part.write_bytes(disk.read(self.layout['total']*512))
         check = subprocess.run(['fsck.fat', '-n', str(part)], capture_output=True, text=True)
         self.assertEqual(check.returncode, 0, check.stdout+check.stderr)
+
+    def clean_flag(self):
+        with self.image.open('rb') as disk:
+            disk.seek((2048+32)*512+7)
+            return bool(disk.read(1)[0] & 8)
+
+    def corrupt_unused_mirror_byte(self):
+        with self.image.open('r+b') as disk:
+            disk.seek((2048+32+547+100)*512+100)
+            disk.write(b'BAD!')
+
+    def test_close_persists_bytes_and_timestamp_but_defers_clean_flag(self):
+        off=self.created()
+        self.write(off,b'DURABLE')
+        self.put(self.sfts,off+13,0x7441); self.put(self.sfts,off+15,0x5821)
+        self.call(6,di=off)
+        self.assertEqual(self.content('NEW.BIN'),b'DURABLE')
+        self.assertFalse(self.clean_flag())
+        off=self.opened(name='S:\\NEW.BIN')
+        self.assertEqual(self.get(self.sfts,off+13),0x7441)
+        self.assertEqual(self.get(self.sfts,off+15),0x5821)
+        self.call(7,di=off)
+        self.assertTrue(self.clean_flag())
+        self.write(off,b'NEW',error=5)
+        self.call(6,di=off)
+        self.assertTrue(self.clean_flag())
+
+    def test_twenty_closes_do_not_rescan_fats(self):
+        close_reads=0
+        reads=C.c_uint.in_dll(self.lib,'rw_host_reads')
+        for i in range(20):
+            off=self.created('S:\\P%02u.TMP'%i)
+            before=reads.value
+            self.call(6,di=off)
+            close_reads+=reads.value-before
+        self.assertLess(close_reads,20*12)
+        self.assertFalse(self.clean_flag())
+        before=reads.value
+        self.assertEqual(self.lib.media_unmount(),0)
+        self.assertGreaterEqual(reads.value-before,1094)
+        self.assertTrue(self.clean_flag())
+
+    def test_unmount_detects_untouched_mirror_corruption_after_close(self):
+        off=self.created(); self.write(off,b'DATA'); self.call(6,di=off)
+        self.corrupt_unused_mirror_byte()
+        self.assertEqual(self.lib.media_unmount(),13)
+        self.assertFalse(self.clean_flag())
+        self.assertEqual(C.c_ubyte.in_dll(self.lib,'media_online').value,0)
+        self.assertEqual(C.c_uint16.in_dll(self.lib,'fs_error').value,13)
+
+    def test_commit_detects_untouched_mirror_corruption_after_close(self):
+        off=self.created(); self.call(6,di=off)
+        off=self.opened(name='S:\\NEW.BIN')
+        self.corrupt_unused_mirror_byte()
+        self.call(7,di=off,error=13)
+        self.assertFalse(self.clean_flag())
+        self.call(6,di=off)
+
+    def test_online_remount_flushes_dirty_closed_files_first(self):
+        off=self.created(); self.write(off,b'REMOUNT'); self.call(6,di=off)
+        self.assertFalse(self.clean_flag())
+        self.assertEqual(self.lib.media_mount(),0)
+        self.assertTrue(self.clean_flag())
+        self.assertEqual(self.content('NEW.BIN'),b'REMOUNT')
+
+    def test_abrupt_reset_refuses_dirty_volume_without_new_writes(self):
+        off=self.created(); self.write(off,b'RESET'); self.call(6,di=off)
+        count=C.c_uint.in_dll(self.lib,'rw_host_writes').value
+        # Simulate losing volatile state, not a normal remount of a live TSR.
+        C.c_ubyte.in_dll(self.lib,'media_online').value=0
+        self.lib.rw_invalidate()
+        self.assertEqual(self.lib.media_mount(),13)
+        self.assertEqual(C.c_uint.in_dll(self.lib,'rw_host_writes').value,count)
+        self.assertFalse(self.clean_flag())
 
     def test_create_write_commit_close_and_reopen(self):
         off = self.created()
@@ -293,6 +370,28 @@ class WritableRedirectorTests(unittest.TestCase):
         self.call(0x20, handled=False); self.clean(); self.call(6, di=off)
         r = self.call(0x0c, es=2)
         self.assertGreater(r.dx, 0)
+
+    def test_versioned_card_info_query_is_cached_and_bounds_checked(self):
+        before=self.image.read_bytes()
+        reads=C.c_uint.in_dll(self.lib,'rw_host_reads').value
+        self.data[4095:4130]=b'\xa5'*35
+        C.c_uint16.in_dll(self.lib,'resident_bytes').value=36000
+        r=self.call(0,ax=0xd74f,bx=0x4f54,dx=0x524f,si=8,cx=32,es=4,di=4096)
+        self.assertEqual(r.cx,32)
+        self.assertEqual(self.get(self.data,4096+20),4)
+        self.assertEqual(self.get(self.data,4096+22),36000)
+        self.assertEqual(self.get(self.data,4096+28),7)
+        self.assertEqual(self.get(self.data,4096+30),1)
+        self.assertNotEqual(bytes(self.data[4100:4116]),bytes(16))
+        self.assertEqual((self.data[4095],self.data[4128]),(0xa5,0xa5))
+        self.assertEqual(C.c_uint.in_dll(self.lib,'rw_host_reads').value,reads)
+        self.assertEqual(self.image.read_bytes(),before)
+        for cx,di in ((31,0),(32,65504)):
+            self.call(0,ax=0xd74f,bx=0x4f54,dx=0x524f,si=8,cx=cx,es=4,di=di,error=1)
+        self.assertEqual(self.lib.media_unmount(),0)
+        self.call(0,ax=0xd74f,bx=0x4f54,dx=0x524f,si=8,cx=32,es=4)
+        self.assertEqual(self.get(self.data,28),2)
+        self.assertEqual(bytes(self.data[4:20]),bytes(16))
 
     def test_wildcard_delete_across_grown_directory_preserves_other_files(self):
         for i in range(25):

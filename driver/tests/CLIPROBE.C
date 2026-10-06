@@ -74,7 +74,13 @@ int main(void) {
     run("",1,0); run("/status",1,0); run("/unknown",1,0);
     run("/drive:s /port:10000",1,0); run("/drive:s /port:333",1,0);
     run("/drive:s /port:-fffffd00",1,0); run("/mount /drive:s",1,0);
+#ifdef UNIFIED_DRIVER
+    run("/drive:s /ro /rw",1,0); run("/status /ro",1,0);
+    run("/drive:s /rw /rw",1,0); run("/drive:s /ro /ro",1,0);
+    run("\t\"/drive:s\"\t\"/port:+0x330\" /ro",0,1);
+#else
     run("\t\"/drive:s\"\t\"/port:+0x330\"",0,1);
+#endif
     run("/drive:s /port:0000330",1,0);
     run("\t\"/status\"",0,0);
     memset(padded,' ',127); memcpy(padded,"/status",7); padded[127]=0;

@@ -1,0 +1,656 @@
+        -:    0:Source:/mnt/d/PROGRAMMING/KiCAD/slot-otter/driver/SDRW.C
+        -:    0:Graph:/mnt/d/PROGRAMMING/KiCAD/slot-otter/driver/dist/coverage/combined-rwsd/sdrw.gcno
+        -:    0:Data:/mnt/d/PROGRAMMING/KiCAD/slot-otter/driver/dist/coverage/combined-rwsd/sdrw.gcda
+        -:    0:Runs:3
+        -:    1:/* SPDX-License-Identifier: GPL-3.0-or-later
+        -:    2: * Resident CRC-checked SDHC/SDXC transport. No heap, DOS calls or diagnostics
+        -:    3: * strings. Each retry writes the same snapshotted sector to the same address.
+        -:    4: * Full reset/CRC initialization and matching CID/capacity precede retries.
+        -:    5: */
+        -:    6:#include "RWSD.H"
+        -:    7:#include <string.h>
+        -:    8:U16 sd_port=0x330;
+        -:    9:SdDiagnostic sd_diag;
+        -:   10:U32 sd_last_lba;
+        -:   11:int sd_write_enabled;
+        -:   12:static U8 identity[16], expected[512];
+        -:   13:/* Filesystem scratch may supply a write's input. expected freezes it before
+        -:   14: * reception; successful verification restores these same bytes. Failure
+        -:   15: * aborts the caller, which must not reuse the overwritten scratch. */
+        -:   16:U8 sd_scratch[512];
+        -:   17:#define actual sd_scratch
+        -:   18:static U32 allowed_first, allowed_end;
+        -:   19:static U8 identified, protected_card, armed;
+        -:   20:#ifndef HOST_TEST
+        -:   21:#define rw_reg_write(o,v) outportb(sd_port+(o),(v))
+        -:   22:#define rw_reg_read(o) inportb(sd_port+(o))
+        -:   23:static U16 rw_ticks(void) { return *(volatile U16 far *)MK_FP(0x40,0x6c); }
+        -:   24:#endif
+function sd_ticks called 124 returned 100% blocks executed 100%
+      124:   25:U16 sd_ticks(void) { return rw_ticks(); }
+call    0 returned 124
+function sd_card_info called 2 returned 100% blocks executed 100%
+        2:   26:int sd_card_info(U8 *cid,U32 *last_lba) {
+        2:   27:    *last_lba=sd_last_lba;
+        2:   28:    memset(cid,0,16);
+        2:   29:    if (!identified) return 0;
+branch  0 taken 1 (fallthrough)
+branch  1 taken 1
+        1:   30:    memcpy(cid,identity,16); return 1;
+        -:   31:}
+        -:   32:/* OUT base+0 starts a byte burst; two RX reads allow it to settle.
+        -:   33: * IN base+0 does not clock the card. OUT base+2/3 releases/asserts CS;
+        -:   34: * IN base+3 instead raises the board's MISO pull latch. */
+function settle called 102672052 returned 100% blocks executed 100%
+102672052:   35:static void settle(void) { (void)rw_reg_read(0); (void)rw_reg_read(0); }
+call    0 returned 102672052
+call    1 returned 102672052
+function io called 101552957 returned 100% blocks executed 100%
+101552957:   36:static U8 io(U8 b) {
+101552957:   37:    rw_reg_write(0,b); settle(); return rw_reg_read(0);
+call    0 returned 101552957
+call    1 returned 101552957
+call    2 returned 101552957
+        -:   38:}
+function select_card called 1099163 returned 100% blocks executed 100%
+  1099163:   39:static void select_card(int selected) {
+  1099163:   40:    rw_reg_write(selected?3:2,255); settle();
+branch  0 taken 365352 (fallthrough)
+branch  1 taken 733811
+call    2 returned 1099163
+call    3 returned 1099163
+  1099163:   41:}
+function finish called 732150 returned 100% blocks executed 100%
+   732150:   42:static void finish(void) {
+   732150:   43:    (void)io(255); select_card(0); (void)io(255);
+call    0 returned 732150
+call    1 returned 732150
+call    2 returned 732150
+   732150:   44:}
+function fail called 1479 returned 100% blocks executed 100%
+     1479:   45:static int fail(U16 code) { sd_diag.error=code; return -1; }
+function sd_crc16 called 360526 returned 100% blocks executed 100%
+   360526:   46:U16 sd_crc16(const U8 *p, U16 count) {
+   360526:   47:    U16 crc=0, x;
+ 95379069:   48:    while (count--) {
+branch  0 taken 95018543
+branch  1 taken 360526 (fallthrough)
+        -:   49:        /* Table-free CCITT byte update, equivalent to eight polynomial steps.
+        -:   50:         * Unsigned truncation to 16 bits is part of the recurrence. */
+ 95018543:   51:        x=(U16)((crc>>8)^*p++); x^=x>>4;
+ 95018543:   52:        crc=(U16)((crc<<8)^(x<<12)^(x<<5)^x);
+        -:   53:    }
+   360526:   54:    return crc;
+        -:   55:}
+function crc7 called 365352 returned 100% blocks executed 100%
+   365352:   56:static U8 crc7(const U8 *p) {
+   365352:   57:    U8 crc=0,b;
+        -:   58:    U16 i,n;
+  2192112:   59:    for (n=0;n<5;++n) {
+branch  0 taken 1826760
+branch  1 taken 365352 (fallthrough)
+  1826760:   60:        b=p[n];
+ 16440840:   61:        for (i=0;i<8;++i) {
+branch  0 taken 14614080
+branch  1 taken 1826760 (fallthrough)
+ 14614080:   62:            crc<<=1; if ((b^crc)&128) crc^=9; b<<=1;
+branch  0 taken 7472894 (fallthrough)
+branch  1 taken 7141186
+        -:   63:        }
+        -:   64:    }
+   365352:   65:    return (U8)((crc<<1)|1);
+        -:   66:}
+        -:   67:/* BIOS ticks are about 55 ms. Unsigned subtraction tolerates low-word wrap;
+        -:   68: * the poll limit also bounds a wait when the BIOS clock is not advancing. */
+function ready called 366167 returned 100% blocks executed 100%
+   366167:   69:static int ready(U16 ticks, U16 consecutive) {
+   366167:   70:    U16 start=rw_ticks(), idle=0;
+call    0 returned 366167
+        -:   71:    U32 polls;
+   554759:   72:    for (polls=0;polls<4000000UL;++polls) {
+branch  0 taken 554759
+branch  1 taken 0 (fallthrough)
+   554759:   73:        if (io(255)==255) { if (++idle==consecutive) return 0; }
+call    0 returned 554759
+branch  1 taken 371114 (fallthrough)
+branch  2 taken 183645
+branch  3 taken 366166 (fallthrough)
+branch  4 taken 4948
+   183645:   74:        else idle=0;
+   188593:   75:        if ((U16)(rw_ticks()-start)>=ticks) break;
+call    0 returned 188593
+branch  1 taken 1 (fallthrough)
+branch  2 taken 188592
+        -:   76:    }
+        1:   77:    return fail(SD_TIMEOUT);
+call    0 returned 1
+        -:   78:}
+function command called 365352 returned 100% blocks executed 83%
+   365352:   79:static int command(U8 cmd, U32 arg) {
+        -:   80:    U8 p[6], value;
+        -:   81:    U16 i;
+   365352:   82:    sd_diag.stage=cmd; sd_diag.r1=sd_diag.token=255; sd_diag.status=0;
+   365352:   83:    finish(); select_card(1);
+call    0 returned 365352
+call    1 returned 365352
+        -:   84:    /* A cold card may hold MISO low. CMD0 must precede the usual ready wait. */
+  365352*:   85:    if (cmd && ready(90,cmd==13?2:1)) { finish(); return -1; }
+branch  0 taken 363691 (fallthrough)
+branch  1 taken 1661
+branch  2 taken 2473 (fallthrough)
+branch  3 taken 361218
+call    4 returned 363691
+branch  5 taken 0 (fallthrough)
+branch  6 taken 363691
+call    7 never executed
+   365352:   86:    p[0]=(U8)(64|cmd); p[1]=(U8)(arg>>24); p[2]=(U8)(arg>>16);
+   365352:   87:    p[3]=(U8)(arg>>8); p[4]=(U8)arg; p[5]=crc7(p);
+call    0 returned 365352
+  2557464:   88:    for (i=0;i<6;++i) {
+branch  0 taken 2192112
+branch  1 taken 365352 (fallthrough)
+  2192112:   89:        value=io(p[i]);
+call    0 returned 2192112
+        -:   90:        /* A late busy byte cannot be interpreted as clean CMD13 status. */
+ 2192112*:   91:        if (cmd==13 && value!=255) { finish(); return fail(SD_TIMEOUT); }
+branch  0 taken 14838 (fallthrough)
+branch  1 taken 2177274
+branch  2 taken 0 (fallthrough)
+branch  3 taken 14838
+call    4 never executed
+call    5 never executed
+        -:   92:    }
+   869402:   93:    for (i=0;i<100;++i) {
+branch  0 taken 868000
+branch  1 taken 1402 (fallthrough)
+   868000:   94:        sd_diag.r1=io(255);
+call    0 returned 868000
+   868000:   95:        if (!(sd_diag.r1&128)) return 0;
+branch  0 taken 363950 (fallthrough)
+branch  1 taken 504050
+        -:   96:    }
+     1402:   97:    finish(); return fail(SD_TIMEOUT);
+call    0 returned 1402
+call    1 returned 1402
+        -:   98:}
+function packet called 357762 returned 100% blocks executed 86%
+   357762:   99:static int packet(U8 *p, U16 count) {
+   357762:  100:    U16 start=rw_ticks(),i,crc;
+call    0 returned 357762
+        -:  101:    U32 polls;
+   788286:  102:    for (polls=0;polls<4000000UL;++polls) {
+branch  0 taken 788286
+branch  1 taken 0 (fallthrough)
+   788286:  103:        sd_diag.token=io(255);
+call    0 returned 788286
+   788286:  104:        if (sd_diag.token==254) break;
+branch  0 taken 357761 (fallthrough)
+branch  1 taken 430525
+  430525*:  105:        if (sd_diag.token!=255) return fail(SD_REJECT);
+branch  0 taken 0 (fallthrough)
+branch  1 taken 430525
+call    2 never executed
+   430525:  106:        if ((U16)(rw_ticks()-start)>=36) return fail(SD_TIMEOUT);
+call    0 returned 430525
+branch  1 taken 1 (fallthrough)
+branch  2 taken 430524
+call    3 returned 1
+        -:  107:    }
+  357761*:  108:    if (polls==4000000UL) return fail(SD_TIMEOUT);
+branch  0 taken 0 (fallthrough)
+branch  1 taken 357761
+call    2 never executed
+ 94029681:  109:    for (i=0;i<count;++i) p[i]=io(255);
+call    0 returned 93671920
+branch  1 taken 93671920
+branch  2 taken 357761 (fallthrough)
+   357761:  110:    crc=(U16)io(255)<<8; crc|=io(255);
+call    0 returned 357761
+call    1 returned 357761
+   357761:  111:    return crc==sd_crc16(p,count)?0:fail(SD_CRC);
+call    0 returned 357761
+branch  1 taken 7 (fallthrough)
+branch  2 taken 357754
+call    3 returned 7
+        -:  112:}
+function read_register called 180448 returned 100% blocks executed 73%
+   180448:  113:static int read_register(U8 cmd, U8 *p) {
+        -:  114:    int result;
+   180448:  115:    if (command(cmd,0)) return -1;
+call    0 returned 180448
+branch  1 taken 1 (fallthrough)
+branch  2 taken 180447
+  180447*:  116:    if (sd_diag.r1) { finish(); return fail(SD_IDENTITY); }
+branch  0 taken 0 (fallthrough)
+branch  1 taken 180447
+call    2 never executed
+call    3 never executed
+   180447:  117:    result=packet(p,16); finish(); return result;
+call    0 returned 180447
+call    1 returned 180447
+        -:  118:}
+function initialize called 175 returned 100% blocks executed 71%
+      175:  119:static int initialize(void) {
+        -:  120:    U8 reply[4], csd[16];
+        -:  121:    U16 start,i,trial;
+      175:  122:    identified=0; protected_card=0;
+        -:  123:    /* Wake with MISO pulled high and at least 74 clocks while CS is released.
+        -:  124:     * OUT base+1 clocks a byte without loading TX; RX reads only settle it. */
+      175:  125:    (void)rw_reg_read(3);
+call    0 returned 175
+      175:  126:    start=rw_ticks();
+call    0 returned 175
+     1676:  127:    for (trial=0;trial<100;++trial) {
+branch  0 taken 1661
+branch  1 taken 15 (fallthrough)
+     1661:  128:        select_card(0); (void)io(255);
+call    0 returned 1661
+call    1 returned 1661
+    21593:  129:        for (i=0;i<12;++i) { rw_reg_write(1,255); settle(); }
+call    0 returned 19932
+call    1 returned 19932
+branch  2 taken 19932
+branch  3 taken 1661 (fallthrough)
+     1661:  130:        if (!command(0,0) && sd_diag.r1==1) break;
+call    0 returned 1661
+branch  1 taken 260 (fallthrough)
+branch  2 taken 1401
+branch  3 taken 160 (fallthrough)
+branch  4 taken 100
+     1501:  131:        finish();
+call    0 returned 1501
+    1501*:  132:        if ((U16)(rw_ticks()-start)>=90) return fail(SD_IDENTITY);
+call    0 returned 1501
+branch  1 taken 0 (fallthrough)
+branch  2 taken 1501
+call    3 never executed
+        -:  133:    }
+      175:  134:    if (trial==100) return fail(SD_IDENTITY);
+branch  0 taken 15 (fallthrough)
+branch  1 taken 160
+call    2 returned 15
+      160:  135:    finish();
+call    0 returned 160
+     160*:  136:    if (command(8,0x1aaUL)) return -1;
+call    0 returned 160
+branch  1 taken 0 (fallthrough)
+branch  2 taken 160
+     160*:  137:    if (sd_diag.r1!=1) { finish(); return fail(SD_IDENTITY); }
+branch  0 taken 0 (fallthrough)
+branch  1 taken 160
+call    2 never executed
+call    3 never executed
+      800:  138:    for (i=0;i<4;++i) reply[i]=io(255);
+call    0 returned 640
+branch  1 taken 640
+branch  2 taken 160 (fallthrough)
+      160:  139:    finish();
+call    0 returned 160
+     160*:  140:    if (reply[2]!=1 || reply[3]!=170) return fail(SD_IDENTITY);
+branch  0 taken 160 (fallthrough)
+branch  1 taken 0
+branch  2 taken 0 (fallthrough)
+branch  3 taken 160
+call    4 never executed
+     160*:  141:    if (command(59,1)) return -1;
+call    0 returned 160
+branch  1 taken 0 (fallthrough)
+branch  2 taken 160
+      160:  142:    finish(); if (sd_diag.r1!=1) return fail(SD_CRC);
+call    0 returned 160
+branch  1 taken 1 (fallthrough)
+branch  2 taken 159
+call    3 returned 1
+      159:  143:    start=rw_ticks();
+call    0 returned 159
+      162:  144:    for (trial=0;trial<65535U;++trial) {
+branch  0 taken 162
+branch  1 taken 0 (fallthrough)
+     162*:  145:        if (command(55,0)) return -1;
+call    0 returned 162
+branch  1 taken 0 (fallthrough)
+branch  2 taken 162
+     162*:  146:        finish(); if (sd_diag.r1>1) return fail(SD_IDENTITY);
+call    0 returned 162
+branch  1 taken 0 (fallthrough)
+branch  2 taken 162
+call    3 never executed
+     162*:  147:        if (command(41,0x40000000UL)) return -1;
+call    0 returned 162
+branch  1 taken 0 (fallthrough)
+branch  2 taken 162
+      162:  148:        finish(); if (!sd_diag.r1) break;
+call    0 returned 162
+branch  1 taken 159 (fallthrough)
+branch  2 taken 3
+       3*:  149:        if (sd_diag.r1!=1) return fail(SD_IDENTITY);
+branch  0 taken 0 (fallthrough)
+branch  1 taken 3
+call    2 never executed
+       3*:  150:        if ((U16)(rw_ticks()-start)>=90) return fail(SD_TIMEOUT);
+call    0 returned 3
+branch  1 taken 0 (fallthrough)
+branch  2 taken 3
+call    3 never executed
+        -:  151:    }
+     159*:  152:    if (trial==65535U) return fail(SD_TIMEOUT);
+branch  0 taken 0 (fallthrough)
+branch  1 taken 159
+call    2 never executed
+     159*:  153:    if (command(58,0)) return -1;
+call    0 returned 159
+branch  1 taken 0 (fallthrough)
+branch  2 taken 159
+     159*:  154:    if (sd_diag.r1) { finish(); return fail(SD_IDENTITY); }
+branch  0 taken 0 (fallthrough)
+branch  1 taken 159
+call    2 never executed
+call    3 never executed
+      795:  155:    for (i=0;i<4;++i) reply[i]=io(255);
+call    0 returned 636
+branch  1 taken 636
+branch  2 taken 159 (fallthrough)
+     159*:  156:    finish(); if ((reply[0]&192)!=192) return fail(SD_IDENTITY);
+call    0 returned 159
+branch  1 taken 0 (fallthrough)
+branch  2 taken 159
+call    3 never executed
+     159*:  157:    if (command(59,1)) return -1;
+call    0 returned 159
+branch  1 taken 0 (fallthrough)
+branch  2 taken 159
+     159*:  158:    finish(); if (sd_diag.r1) return fail(SD_CRC);
+call    0 returned 159
+branch  1 taken 0 (fallthrough)
+branch  2 taken 159
+call    3 never executed
+     159*:  159:    if (read_register(10,identity) || read_register(9,csd)) return -1;
+call    0 returned 159
+branch  1 taken 159 (fallthrough)
+branch  2 taken 0
+call    3 returned 159
+branch  4 taken 0 (fallthrough)
+branch  5 taken 159
+     159*:  160:    if ((csd[0]>>6)!=1) return fail(SD_RANGE);
+branch  0 taken 0 (fallthrough)
+branch  1 taken 159
+call    2 never executed
+      159:  161:    sd_last_lba=(((U32)(csd[7]&63)<<16)|((U32)csd[8]<<8)|csd[9]);
+      159:  162:    sd_last_lba=(sd_last_lba<<10)|1023UL;
+      159:  163:    protected_card=(U8)(csd[14]&48); identified=1; sd_diag.error=0;
+      159:  164:    return 0;
+        -:  165:}
+function sd_write_disarm called 173 returned 100% blocks executed 100%
+      173:  166:void sd_write_disarm(void) { armed=0; }
+function sd_release called 45 returned 100% blocks executed 100%
+       45:  167:void sd_release(void) {
+        -:  168:    /* Preserve failure evidence for the application's diagnostic query. */
+       45:  169:    finish(); identified=0; armed=0; (void)rw_reg_read(3);
+call    0 returned 45
+call    1 returned 45
+       45:  170:}
+function sd_init called 127 returned 100% blocks executed 83%
+      127:  171:int sd_init(void) {
+        -:  172:    /* Explicit remount starts a new session; filesystem preflight must then
+        -:  173:     * succeed before sd_write_arm can permit any sector mutations. */
+      127:  174:    memset(&sd_diag,0,sizeof(sd_diag)); armed=0;
+     127*:  175:    return initialize()?E_NOTREADY:0;
+call    0 returned 127
+branch  1 taken 0 (fallthrough)
+branch  2 taken 127
+        -:  176:}
+function sd_check_media called 180130 returned 100% blocks executed 83%
+   180130:  177:int sd_check_media(void) {
+        -:  178:    U8 cid[16];
+  180130*:  179:    if (!identified || sd_diag.poisoned) return E_NOTREADY;
+branch  0 taken 180130 (fallthrough)
+branch  1 taken 0
+branch  2 taken 0 (fallthrough)
+branch  3 taken 180130
+   180130:  180:    if (read_register(10,cid) || memcmp(cid,identity,16)) {
+call    0 returned 180130
+branch  1 taken 180129 (fallthrough)
+branch  2 taken 1
+branch  3 taken 0 (fallthrough)
+branch  4 taken 180129
+       1*:  181:        if (!sd_diag.error) (void)fail(SD_IDENTITY);
+branch  0 taken 0 (fallthrough)
+branch  1 taken 1
+call    2 never executed
+        1:  182:        identified=0; return E_NOTREADY;
+        -:  183:    }
+   180129:  184:    return 0;
+        -:  185:}
+function read_block called 177315 returned 100% blocks executed 64%
+   177315:  186:static int read_block(U32 lba, U8 *p) {
+        -:  187:    int result;
+  177315*:  188:    if (command(17,lba)) return -1;
+call    0 returned 177315
+branch  1 taken 0 (fallthrough)
+branch  2 taken 177315
+  177315*:  189:    if (sd_diag.r1) { finish(); return fail(SD_REJECT); }
+branch  0 taken 0 (fallthrough)
+branch  1 taken 177315
+call    2 never executed
+call    3 never executed
+   177315:  190:    result=packet(p,512); finish(); return result;
+call    0 returned 177315
+call    1 returned 177315
+        -:  191:}
+function sd_read called 174821 returned 100% blocks executed 79%
+   174821:  192:int sd_read(U32 lba, U8 *buffer) {
+   174821:  193:    if (sd_diag.poisoned) return E_NOTREADY;
+branch  0 taken 9 (fallthrough)
+branch  1 taken 174812
+   174812:  194:    sd_diag.error=0; sd_diag.lba=lba;
+  174812*:  195:    if (sd_check_media()) return E_NOTREADY;
+call    0 returned 174812
+branch  1 taken 0 (fallthrough)
+branch  2 taken 174812
+  174812*:  196:    if (lba>sd_last_lba) { (void)fail(SD_RANGE); return E_READ; }
+branch  0 taken 0 (fallthrough)
+branch  1 taken 174812
+call    2 never executed
+   174812:  197:    return read_block(lba,buffer)?E_READ:0;
+call    0 returned 174812
+branch  1 taken 5 (fallthrough)
+branch  2 taken 174807
+        -:  198:}
+function sd_write_arm called 120 returned 100% blocks executed 91%
+      120:  199:int sd_write_arm(U32 first, U32 end) {
+      120:  200:    armed=0;
+      120:  201:    if (!sd_write_enabled || protected_card) return E_ACCESS;
+branch  0 taken 119 (fallthrough)
+branch  1 taken 1
+branch  2 taken 0 (fallthrough)
+branch  3 taken 119
+     119*:  202:    if (!identified || sd_diag.poisoned) return E_NOTREADY;
+branch  0 taken 119 (fallthrough)
+branch  1 taken 0
+branch  2 taken 0 (fallthrough)
+branch  3 taken 119
+      119:  203:    if (first>=end || end-1>sd_last_lba) return E_INVALID;
+branch  0 taken 116 (fallthrough)
+branch  1 taken 3
+branch  2 taken 0 (fallthrough)
+branch  3 taken 116
+      116:  204:    allowed_first=first; allowed_end=end; armed=1; return 0;
+        -:  205:}
+function write_once called 2493 returned 100% blocks executed 86%
+     2493:  206:static int write_once(U32 lba) {
+     2493:  207:    U16 crc=sd_crc16(expected,512),i;
+call    0 returned 2493
+    2493*:  208:    if (command(24,lba)) return -1;
+call    0 returned 2493
+branch  1 taken 0 (fallthrough)
+branch  2 taken 2493
+    2493*:  209:    if (sd_diag.r1) { finish(); return fail(SD_REJECT); }
+branch  0 taken 0 (fallthrough)
+branch  1 taken 2493
+call    2 never executed
+call    3 never executed
+     2493:  210:    ++sd_diag.transmissions;
+     2493:  211:    (void)io(255); (void)io(254);
+call    0 returned 2493
+call    1 returned 2493
+  1278909:  212:    for (i=0;i<512;++i) (void)io(expected[i]);
+call    0 returned 1276416
+branch  1 taken 1276416
+branch  2 taken 2493 (fallthrough)
+     2493:  213:    (void)io((U8)(crc>>8)); (void)io((U8)crc);
+call    0 returned 2493
+call    1 returned 2493
+     2493:  214:    sd_diag.stage=124;
+     6273:  215:    for (i=0;i<100;++i) {
+branch  0 taken 6260
+branch  1 taken 13 (fallthrough)
+     6260:  216:        sd_diag.token=io(255); if (sd_diag.token!=255) break;
+call    0 returned 6260
+branch  1 taken 2480 (fallthrough)
+branch  2 taken 3780
+        -:  217:    }
+     2493:  218:    if ((sd_diag.token&31)!=5) {
+branch  0 taken 19 (fallthrough)
+branch  1 taken 2474
+       36:  219:        U16 code=(sd_diag.token&31)==11?SD_CRC:
+branch  0 taken 17 (fallthrough)
+branch  1 taken 2
+       17:  220:                 sd_diag.token==255?SD_TIMEOUT:SD_REJECT;
+branch  0 taken 13 (fallthrough)
+branch  1 taken 4
+       19:  221:        if (code==SD_CRC) {
+branch  0 taken 2 (fallthrough)
+branch  1 taken 17
+        2:  222:            sd_diag.stage=324;
+       2*:  223:            if (ready(90,2)) { finish(); return -1; }
+call    0 returned 2
+branch  1 taken 0 (fallthrough)
+branch  2 taken 2
+call    3 never executed
+        -:  224:        }
+       19:  225:        finish(); return fail(code);
+call    0 returned 19
+call    1 returned 19
+        -:  226:    }
+     2474:  227:    sd_diag.stage=224;
+     2474:  228:    if (ready(90,2)) { finish(); return -1; }
+call    0 returned 2474
+branch  1 taken 1 (fallthrough)
+branch  2 taken 2473
+call    3 returned 1
+     2473:  229:    finish();
+call    0 returned 2473
+    2473*:  230:    if (command(13,0)) return -1;
+call    0 returned 2473
+branch  1 taken 0 (fallthrough)
+branch  2 taken 2473
+     2473:  231:    sd_diag.status=io(255); finish();
+call    0 returned 2473
+call    1 returned 2473
+     2473:  232:    if (sd_diag.r1 || sd_diag.status) return fail(SD_STATUS);
+branch  0 taken 2473 (fallthrough)
+branch  1 taken 0
+branch  2 taken 1 (fallthrough)
+branch  3 taken 2472
+call    4 returned 1
+    2472*:  233:    if (sd_check_media()) return fail(SD_IDENTITY);
+call    0 returned 2472
+branch  1 taken 0 (fallthrough)
+branch  2 taken 2472
+call    3 never executed
+     2472:  234:    if (read_block(lba,actual)) return -1;
+call    0 returned 2472
+branch  1 taken 1 (fallthrough)
+branch  2 taken 2471
+     2471:  235:    if (memcmp(expected,actual,512)) return fail(SD_VERIFY);
+branch  0 taken 31 (fallthrough)
+branch  1 taken 2440
+call    2 returned 31
+     2440:  236:    return 0;
+        -:  237:}
+function recover called 48 returned 100% blocks executed 87%
+       48:  238:static int recover(U32 lba) {
+        -:  239:    U8 cid[16];
+       48:  240:    U32 capacity=sd_last_lba;
+       48:  241:    memcpy(cid,identity,16);
+       48:  242:    if (initialize()) return -1;
+call    0 returned 48
+branch  1 taken 16 (fallthrough)
+branch  2 taken 32
+       32:  243:    if (memcmp(cid,identity,16) || sd_last_lba!=capacity || protected_card)
+branch  0 taken 31 (fallthrough)
+branch  1 taken 1
+branch  2 taken 31 (fallthrough)
+branch  3 taken 0
+branch  4 taken 0 (fallthrough)
+branch  5 taken 31
+        1:  244:        return fail(SD_IDENTITY);
+call    0 returned 1
+      31*:  245:    if (sd_check_media()) return fail(SD_IDENTITY);
+call    0 returned 31
+branch  1 taken 0 (fallthrough)
+branch  2 taken 31
+call    3 never executed
+        -:  246:    /* CID/status alone do not establish usable sector access. This read must
+        -:  247:     * have valid CRC, but need not equal expected: the retry replaces it. */
+       31:  248:    return read_block(lba,actual);
+call    0 returned 31
+        -:  249:}
+function sd_write called 2479 returned 100% blocks executed 96%
+     2479:  250:int sd_write(U32 lba, const U8 *buffer) {
+     2479:  251:    U16 first=0;
+     2479:  252:    if (sd_diag.poisoned) return E_NOTREADY;
+branch  0 taken 9 (fallthrough)
+branch  1 taken 2470
+     2470:  253:    sd_diag.lba=lba; sd_diag.attempts=0; sd_diag.first_error=0;
+     2470:  254:    sd_diag.first_stage=sd_diag.first_r1=sd_diag.first_token=sd_diag.first_status=0;
+     2470:  255:    if (!sd_write_enabled || !armed || protected_card) return E_ACCESS;
+branch  0 taken 2470 (fallthrough)
+branch  1 taken 0
+branch  2 taken 2468 (fallthrough)
+branch  3 taken 2
+branch  4 taken 0 (fallthrough)
+branch  5 taken 2468
+    2468*:  256:    if (sd_check_media()) { sd_diag.poisoned=1; armed=0; return E_NOTREADY; }
+call    0 returned 2468
+branch  1 taken 0 (fallthrough)
+branch  2 taken 2468
+     2468:  257:    if (lba<allowed_first || lba>=allowed_end) return E_ACCESS;
+branch  0 taken 2466 (fallthrough)
+branch  1 taken 2
+branch  2 taken 2 (fallthrough)
+branch  3 taken 2464
+        -:  258:    /* Freeze the entire payload once. Reset/recovery must never change this
+        -:  259:     * snapshot or the target LBA. Three attempts includes the initial one. */
+     2464:  260:    memcpy(expected,buffer,512);
+     2493:  261:    for (sd_diag.attempts=1;sd_diag.attempts<=3;++sd_diag.attempts) {
+branch  0 taken 2493
+branch  1 taken 0 (fallthrough)
+     2493:  262:        sd_diag.error=0;
+     2493:  263:        if (!write_once(lba)) {
+call    0 returned 2493
+branch  1 taken 2440 (fallthrough)
+branch  2 taken 53
+     2440:  264:            ++sd_diag.verified; sd_diag.error=0; return 0;
+        -:  265:        }
+       53:  266:        if (!first) {
+branch  0 taken 43 (fallthrough)
+branch  1 taken 10
+       43:  267:            first=sd_diag.error;
+       43:  268:            sd_diag.first_stage=sd_diag.stage; sd_diag.first_r1=sd_diag.r1;
+       43:  269:            sd_diag.first_token=sd_diag.token; sd_diag.first_status=sd_diag.status;
+        -:  270:        }
+       53:  271:        sd_diag.first_error=first;
+       53:  272:        if (sd_diag.attempts==3 || recover(lba)) break;
+branch  0 taken 48 (fallthrough)
+branch  1 taken 5
+call    2 returned 48
+branch  3 taken 29 (fallthrough)
+branch  4 taken 19
+       29:  273:        ++sd_diag.retries;
+        -:  274:    }
+       24:  275:    sd_diag.poisoned=1; armed=0;
+       24:  276:    return sd_diag.error==SD_IDENTITY?E_NOTREADY:E_WRITE;
+branch  0 taken 16 (fallthrough)
+branch  1 taken 8
+        -:  277:}

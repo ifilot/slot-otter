@@ -1,0 +1,290 @@
+File '/mnt/d/PROGRAMMING/KiCAD/slot-otter/driver/emulation/slot_model.c'
+Lines executed:98.31% of 236
+Branches executed:99.41% of 337
+Taken at least once:89.02% of 337
+Calls executed:92.05% of 88
+Creating 'slot_model.c.gcov'
+
+Lines executed:98.31% of 236
+
+File '/mnt/d/PROGRAMMING/KiCAD/slot-otter/driver/RWFS.C'
+Lines executed:92.76% of 635
+Branches executed:98.78% of 818
+Taken at least once:69.07% of 818
+Calls executed:84.14% of 290
+Creating 'RWFS.C.gcov'
+
+Lines executed:92.76% of 635
+
+File '/mnt/d/PROGRAMMING/KiCAD/slot-otter/driver/SDRW.C'
+Lines executed:100.00% of 191
+Branches executed:100.00% of 220
+Taken at least once:75.45% of 220
+Calls executed:77.86% of 131
+Creating 'SDRW.C.gcov'
+
+Lines executed:100.00% of 191
+
+File '/mnt/d/PROGRAMMING/KiCAD/slot-otter/driver/FAT32.C'
+Lines executed:96.99% of 166
+Branches executed:98.44% of 256
+Taken at least once:82.03% of 256
+Calls executed:85.14% of 74
+Creating 'FAT32.C.gcov'
+
+Lines executed:96.99% of 166
+
+File '/mnt/d/PROGRAMMING/KiCAD/slot-otter/driver/tests/HOSTSD.C'
+Lines executed:78.57% of 14
+Branches executed:66.67% of 18
+Taken at least once:44.44% of 18
+Calls executed:100.00% of 5
+Creating 'HOSTSD.C.gcov'
+
+Lines executed:78.57% of 14
+
+File '/mnt/d/PROGRAMMING/KiCAD/slot-otter/driver/emulation/slot_model.c'
+Lines executed:55.51% of 236
+Branches executed:49.26% of 337
+Taken at least once:34.12% of 337
+Calls executed:53.41% of 88
+Creating 'slot_model.c.gcov'
+
+Lines executed:55.51% of 236
+
+File '/mnt/d/PROGRAMMING/KiCAD/slot-otter/driver/PORTBODY.H'
+Lines executed:100.00% of 18
+Branches executed:100.00% of 44
+Taken at least once:100.00% of 44
+No calls
+Creating 'PORTBODY.H.gcov'
+
+Lines executed:100.00% of 18
+
+File '/mnt/d/PROGRAMMING/KiCAD/slot-otter/driver/FAT32.C'
+Lines executed:92.77% of 166
+Branches executed:92.19% of 256
+Taken at least once:60.55% of 256
+Calls executed:64.86% of 74
+Creating 'FAT32.C.gcov'
+
+Lines executed:92.77% of 166
+
+File '/mnt/d/PROGRAMMING/KiCAD/slot-otter/driver/tests/HOSTRD.C'
+Lines executed:100.00% of 14
+Branches executed:100.00% of 2
+Taken at least once:50.00% of 2
+Calls executed:80.00% of 5
+Creating 'HOSTRD.C.gcov'
+
+File '/mnt/d/PROGRAMMING/KiCAD/slot-otter/driver/REDIR.C'
+Lines executed:100.00% of 206
+Branches executed:100.00% of 265
+Taken at least once:95.09% of 265
+Calls executed:98.43% of 127
+Creating 'REDIR.C.gcov'
+
+Lines executed:100.00% of 220
+
+File '/mnt/d/PROGRAMMING/KiCAD/slot-otter/driver/tests/HOSTSD.C'
+Lines executed:100.00% of 14
+Branches executed:100.00% of 18
+Taken at least once:77.78% of 18
+Calls executed:100.00% of 5
+Creating 'HOSTSD.C.gcov'
+
+Lines executed:100.00% of 14
+
+File '/mnt/d/PROGRAMMING/KiCAD/slot-otter/driver/FAT32.C'
+Lines executed:76.51% of 166
+Branches executed:78.12% of 256
+Taken at least once:49.61% of 256
+Calls executed:59.46% of 74
+Creating 'FAT32.C.gcov'
+
+Lines executed:76.51% of 166
+
+File '/mnt/d/PROGRAMMING/KiCAD/slot-otter/driver/tests/HOSTRW.C'
+Lines executed:83.61% of 61
+Branches executed:97.06% of 68
+Taken at least once:82.35% of 68
+Calls executed:69.23% of 13
+Creating 'HOSTRW.C.gcov'
+
+Lines executed:83.61% of 61
+
+File '/mnt/d/PROGRAMMING/KiCAD/slot-otter/driver/RWFS.C'
+Lines executed:89.76% of 635
+Branches executed:95.35% of 818
+Taken at least once:66.87% of 818
+Calls executed:81.72% of 290
+Creating 'RWFS.C.gcov'
+
+Lines executed:89.76% of 635
+
+File '/mnt/d/PROGRAMMING/KiCAD/slot-otter/driver/SDRW.C'
+Lines executed:90.58% of 191
+Branches executed:95.45% of 220
+Taken at least once:62.73% of 220
+Calls executed:69.47% of 131
+Creating 'SDRW.C.gcov'
+
+Lines executed:90.58% of 191
+
+File '/mnt/d/PROGRAMMING/KiCAD/slot-otter/driver/emulation/slot_model.c'
+Lines executed:75.00% of 236
+Branches executed:76.26% of 337
+Taken at least once:45.99% of 337
+Calls executed:70.45% of 88
+Creating 'slot_model.c.gcov'
+
+Lines executed:75.00% of 236
+
+File '/mnt/d/PROGRAMMING/KiCAD/slot-otter/driver/FAT32.C'
+Lines executed:89.16% of 166
+Branches executed:89.06% of 256
+Taken at least once:55.47% of 256
+Calls executed:63.51% of 74
+Creating 'FAT32.C.gcov'
+
+Lines executed:89.16% of 166
+
+File '/mnt/d/PROGRAMMING/KiCAD/slot-otter/driver/tests/HOSTRW.C'
+Lines executed:85.25% of 61
+Branches executed:97.06% of 68
+Taken at least once:82.35% of 68
+Calls executed:76.92% of 13
+Creating 'HOSTRW.C.gcov'
+
+Lines executed:85.25% of 61
+
+File '/mnt/d/PROGRAMMING/KiCAD/slot-otter/driver/tests/HOSTRD.C'
+Lines executed:100.00% of 17
+Branches executed:100.00% of 2
+Taken at least once:50.00% of 2
+Calls executed:83.33% of 6
+Creating 'HOSTRD.C.gcov'
+
+File '/mnt/d/PROGRAMMING/KiCAD/slot-otter/driver/REDIR.C'
+Lines executed:90.65% of 278
+Branches executed:94.09% of 372
+Taken at least once:67.74% of 372
+Calls executed:75.00% of 176
+Creating 'REDIR.C.gcov'
+
+File '/mnt/d/PROGRAMMING/KiCAD/slot-otter/driver/RWOPS.C'
+Lines executed:97.31% of 223
+Branches executed:97.24% of 362
+Taken at least once:74.86% of 362
+Calls executed:79.39% of 165
+Creating 'RWOPS.C.gcov'
+
+Lines executed:93.82% of 518
+
+File '/mnt/d/PROGRAMMING/KiCAD/slot-otter/driver/RWFS.C'
+Lines executed:85.51% of 635
+Branches executed:88.02% of 818
+Taken at least once:55.50% of 818
+Calls executed:71.72% of 290
+Creating 'RWFS.C.gcov'
+
+Lines executed:85.51% of 635
+
+File '/mnt/d/PROGRAMMING/KiCAD/slot-otter/driver/SDRW.C'
+Lines executed:93.19% of 191
+Branches executed:93.64% of 220
+Taken at least once:59.55% of 220
+Calls executed:67.94% of 131
+Creating 'SDRW.C.gcov'
+
+Lines executed:93.19% of 191
+
+File '/mnt/d/PROGRAMMING/KiCAD/slot-otter/driver/emulation/slot_model.c'
+Lines executed:76.69% of 236
+Branches executed:76.85% of 337
+Taken at least once:45.40% of 337
+Calls executed:71.59% of 88
+Creating 'slot_model.c.gcov'
+
+Lines executed:76.69% of 236
+
+File '/mnt/d/PROGRAMMING/KiCAD/slot-otter/driver/tests/HOSTRW.C'
+Lines executed:98.36% of 61
+Branches executed:100.00% of 68
+Taken at least once:91.18% of 68
+Calls executed:92.31% of 13
+Creating 'HOSTRW.C.gcov'
+
+Lines executed:98.36% of 61
+
+File '/mnt/d/PROGRAMMING/KiCAD/slot-otter/driver/SDRW.C'
+Lines executed:93.72% of 191
+Branches executed:98.18% of 220
+Taken at least once:73.18% of 220
+Calls executed:75.57% of 131
+Creating 'SDRW.C.gcov'
+
+Lines executed:93.72% of 191
+
+File '/mnt/d/PROGRAMMING/KiCAD/slot-otter/driver/emulation/slot_model.c'
+Lines executed:82.63% of 236
+Branches executed:86.94% of 337
+Taken at least once:60.83% of 337
+Calls executed:76.14% of 88
+Creating 'slot_model.c.gcov'
+
+Lines executed:82.63% of 236
+
+File '/mnt/d/PROGRAMMING/KiCAD/slot-otter/driver/FAT32.C'
+Lines executed:88.55% of 166
+Branches executed:85.16% of 256
+Taken at least once:51.95% of 256
+Calls executed:64.86% of 74
+Creating 'FAT32.C.gcov'
+
+Lines executed:88.55% of 166
+
+File '/mnt/d/PROGRAMMING/KiCAD/slot-otter/driver/write/HOSTIO.C'
+Lines executed:97.87% of 47
+Branches executed:100.00% of 36
+Taken at least once:83.33% of 36
+Calls executed:90.00% of 10
+Creating 'HOSTIO.C.gcov'
+
+Lines executed:97.87% of 47
+
+File '/mnt/d/PROGRAMMING/KiCAD/slot-otter/driver/emulation/slot_model.c'
+Lines executed:94.92% of 236
+Branches executed:98.22% of 337
+Taken at least once:85.16% of 337
+Calls executed:84.09% of 88
+Creating 'slot_model.c.gcov'
+
+Lines executed:94.92% of 236
+
+File '/mnt/d/PROGRAMMING/KiCAD/slot-otter/driver/write/WFS.C'
+Lines executed:84.22% of 450
+Branches executed:99.51% of 408
+Taken at least once:70.59% of 408
+Calls executed:83.14% of 172
+Creating 'WFS.C.gcov'
+
+Lines executed:84.22% of 450
+
+File '/mnt/d/PROGRAMMING/KiCAD/slot-otter/driver/write/WSD.C'
+Lines executed:91.11% of 450
+Branches executed:99.39% of 326
+Taken at least once:85.58% of 326
+Calls executed:84.38% of 160
+Creating 'WSD.C.gcov'
+
+Lines executed:91.11% of 450
+
+File '/mnt/d/PROGRAMMING/KiCAD/slot-otter/driver/write/WTEST.C'
+Lines executed:92.59% of 432
+Branches executed:97.89% of 568
+Taken at least once:69.01% of 568
+Calls executed:99.02% of 305
+Creating 'WTEST.C.gcov'
+
+Lines executed:92.59% of 432

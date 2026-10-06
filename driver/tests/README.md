@@ -1,3 +1,13 @@
+# Current consolidated test entry point
+
+Run `python3 driver/validate.py` for host coverage/mutations, canonical driver
+and tester builds and a candidate image. Add `--full --dosbox PATH` and two
+`--boot-image PATH` arguments for DOS 5/6.22, faults, guards and final-image
+qualification. See [driver README](../README.md). The commands below retain
+legacy/internal development gates; `run.py --build` builds the archived RO
+comparison only. Current releases always use driver/build.sh and validate.py.
+PORTBODY.H is shared with INSTALL.C, so exhaustive port tests cover its body.
+
 # Regression tests
 
 Run the fast suite from any working directory with Python 3 and GCC:

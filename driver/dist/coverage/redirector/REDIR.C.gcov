@@ -1,0 +1,899 @@
+        -:    0:Source:/mnt/d/PROGRAMMING/KiCAD/slot-otter/driver/REDIR.C
+        -:    0:Graph:/mnt/d/PROGRAMMING/KiCAD/slot-otter/driver/dist/coverage/redirector/hostrd.gcno
+        -:    0:Data:/mnt/d/PROGRAMMING/KiCAD/slot-otter/driver/dist/coverage/redirector/hostrd.gcda
+        -:    0:Runs:1
+        -:    1:/* SPDX-License-Identifier: GPL-3.0-or-later
+        -:    2: * DOS 3.1-6.x INT 2F/11xx redirector. No INT 21 calls in resident code.
+        -:    3: * SDA/CDS/SFT offsets follow RBIL tables 01687,01690,01643,01641,01642.
+        -:    4: */
+        -:    5:#include "OTTER.H"
+        -:    6:#ifdef RW_DRIVER
+        -:    7:#include "RWFS.H"
+        -:    8:#endif
+        -:    9:#include <string.h>
+        -:   10:
+        -:   11:Registers regs;
+        -:   12:U8 resident_stack[2048];
+        -:   13:U8 FAR *dos_sda;
+        -:   14:U16 dos_name_offset, dos_attr_offset;
+        -:   15:U16 dos_search_offset, dos_found_offset;
+        -:   16:U8 drive_number, dos_major;
+        -:   17:U8 FAR *drive_cds;
+        -:   18:U8 media_online;
+        -:   19:#ifdef RW_DRIVER
+        -:   20:static U16 rw_error_function,rw_error_code;
+        -:   21:U16 resident_bytes, mount_sd_ticks, mount_fs_ticks;
+        -:   22:#endif
+        -:   23:static U32 media_epoch=1;
+        -:   24:#define MAX_OPEN 16
+        -:   25:typedef struct {
+        -:   26:    U8 FAR *sft;
+        -:   27:#ifdef RW_DRIVER
+        -:   28:    /* Installed access mode cannot change on remount. RO cursors and RW
+        -:   29:     * directory state therefore never coexist in one open-file slot. */
+        -:   30:    union { FileCursor cursor; RwFile disk; } state;
+        -:   31:    U16 owner;
+        -:   32:    U8 created_ro;
+        -:   33:#else
+        -:   34:    FileCursor cursor;
+        -:   35:#endif
+        -:   36:} OpenFile;
+        -:   37:#ifdef RW_DRIVER
+        -:   38:#define FILE_CURSOR(f) ((f)->state.cursor)
+        -:   39:#define FILE_DISK(f) ((f)->state.disk)
+        -:   40:#else
+        -:   41:#define FILE_CURSOR(f) ((f)->cursor)
+        -:   42:#endif
+        -:   43:static OpenFile files[MAX_OPEN];
+        -:   44:#define MAX_SEARCH 32
+        -:   45:typedef struct { DirCursor cursor; U32 serial, epoch; } Search;
+        -:   46:static Search searches[MAX_SEARCH];
+        -:   47:static U16 next_search;
+        -:   48:static U32 search_serial;
+        -:   49:/* Lookup consumes the path before writing its result; traversal uses its own
+        -:   50: * local entry. ENTRY's busy guard prevents another dispatch using this scratch. */
+        -:   51:static union { char path[PATH_MAX]; U8 entry[32]; } scratch;
+        -:   52:#define path (scratch.path)
+        -:   53:#define entry (scratch.entry)
+        -:   54:
+function far_at called 402 returned 100% blocks executed 100%
+      402:   55:static U8 FAR *far_at(U16 seg, U16 off) {
+        -:   56:    /* Construct only; streaming transfers normalize before offset rollover. */
+        -:   57:#ifdef HOST_TEST
+      402:   58:    return test_far_at(seg,off);
+call    0 returned 402
+        -:   59:#else
+        -:   60:    return (U8 far *)MK_FP(seg,off);
+        -:   61:#endif
+        -:   62:}
+function pointer_at called 206 returned 100% blocks executed 100%
+      206:   63:static U8 FAR *pointer_at(U8 FAR *p) { return far_at(get16(p+2), get16(p)); }
+call    0 returned 206
+call    1 returned 206
+call    2 returned 206
+function success called 122 returned 100% blocks executed 100%
+      122:   64:static int success(void) { regs.ax=0; regs.flags &= ~1; return 1; }
+function error called 53 returned 100% blocks executed 100%
+       53:   65:static int error(U16 code) {
+        -:   66:#ifdef RW_DRIVER
+        -:   67:    if ((regs.ax&0xff00)==0x1100) { rw_error_function=regs.ax; rw_error_code=code; }
+        -:   68:#endif
+       53:   69:    regs.ax=code; regs.flags |= 1; return 1;
+        -:   70:}
+function open_count called 38 returned 100% blocks executed 100%
+       38:   71:static U16 open_count(void) {
+       38:   72:    U16 i, count=0;
+      646:   73:    for (i=0;i<MAX_OPEN;++i) if (files[i].sft) ++count;
+branch  0 taken 22 (fallthrough)
+branch  1 taken 586
+branch  2 taken 608
+branch  3 taken 38 (fallthrough)
+       38:   74:    return count;
+        -:   75:}
+function offline called 35 returned 100% blocks executed 100%
+       35:   76:static void offline(void) {
+       35:   77:    media_online=0; ++media_epoch;
+        -:   78:#ifdef RW_DRIVER
+        -:   79:    rw_invalidate();
+        -:   80:#endif
+       35:   81:    fs_invalidate(); memset(&volume,0,sizeof(volume)); sd_release();
+call    0 returned 35
+call    1 returned 35
+       35:   82:    if (drive_cds) {
+branch  0 taken 35 (fallthrough)
+branch  1 taken 0
+       35:   83:        drive_cds[0]='A'+drive_number; drive_cds[1]=':';
+       35:   84:        drive_cds[2]='\\'; drive_cds[3]=0;
+        -:   85:    }
+       35:   86:}
+function media_unmount called 6 returned 100% blocks executed 100%
+        6:   87:U16 media_unmount(void) {
+        6:   88:    if (open_count()) return E_ACCESS;
+call    0 returned 6
+branch  1 taken 2 (fallthrough)
+branch  2 taken 4
+        -:   89:#ifdef RW_DRIVER
+        -:   90:    if (sd_write_enabled && media_online && rw_flush()) {
+        -:   91:        U16 code=fs_error;
+        -:   92:        offline(); return code;
+        -:   93:    }
+        -:   94:#endif
+        4:   95:    offline(); return 0;
+call    0 returned 4
+        -:   96:}
+function media_mount called 29 returned 100% blocks executed 100%
+       29:   97:U16 media_mount(void) {
+        -:   98:    U16 result;
+        -:   99:#ifdef RW_DRIVER
+        -:  100:    U16 start;
+        -:  101:#endif
+       29:  102:    if (open_count()) return E_ACCESS;
+call    0 returned 29
+branch  1 taken 5 (fallthrough)
+branch  2 taken 24
+        -:  103:#ifdef RW_DRIVER
+        -:  104:    /* A live remount must commit the old session before offline() discards its
+        -:  105:     * dirty state. Failure takes it offline with the original evidence intact. */
+        -:  106:    if (sd_write_enabled && media_online && rw_flush()) {
+        -:  107:        result=fs_error; offline(); return result;
+        -:  108:    }
+        -:  109:#endif
+       24:  110:    offline();
+call    0 returned 24
+        -:  111:#ifdef RW_DRIVER
+        -:  112:    start=sd_ticks();
+        -:  113:    result=(U16)sd_init();
+        -:  114:    mount_sd_ticks=(U16)(sd_ticks()-start); mount_fs_ticks=0;
+        -:  115:    if (result) { sd_release(); return E_NOTREADY; }
+        -:  116:    start=sd_ticks();
+        -:  117:    result=(U16)(sd_write_enabled ? rw_mount() : fs_mount());
+        -:  118:    mount_fs_ticks=(U16)(sd_ticks()-start);
+        -:  119:    if (result) {
+        -:  120:#else
+       24:  121:    if (sd_init()) { sd_release(); return E_NOTREADY; }
+call    0 returned 24
+branch  1 taken 1 (fallthrough)
+branch  2 taken 23
+call    3 returned 1
+       23:  122:    if (fs_mount()) {
+call    0 returned 23
+branch  1 taken 1 (fallthrough)
+branch  2 taken 22
+        -:  123:#endif
+        1:  124:        result=fs_error; offline(); return result;
+call    0 returned 1
+        -:  125:    }
+       22:  126:    media_online=1; return 0;
+        -:  127:}
+function ready called 142 returned 100% blocks executed 100%
+      142:  128:static int ready(void) {
+      142:  129:    if (!media_online) return 0;
+branch  0 taken 6 (fallthrough)
+branch  1 taken 136
+      136:  130:    if (sd_check_media()) { offline(); return 0; }
+call    0 returned 136
+branch  1 taken 4 (fallthrough)
+branch  2 taken 132
+call    3 returned 4
+      132:  131:    return 1;
+        -:  132:}
+function filesystem_error called 5 returned 100% blocks executed 100%
+        5:  133:static int filesystem_error(void) {
+        5:  134:    U16 code=fs_error;
+        -:  135:#ifdef RW_DRIVER
+        -:  136:    if (sd_diag.poisoned || code==E_WRITE) offline();
+        -:  137:    if (code>=SD_TIMEOUT) code=E_WRITE;
+        -:  138:#endif
+        5:  139:    if (code==E_READ || code==E_NOTREADY) offline();
+branch  0 taken 3 (fallthrough)
+branch  1 taken 2
+branch  2 taken 0 (fallthrough)
+branch  3 taken 3
+call    4 returned 2
+        5:  140:    return error(code);
+call    0 returned 5
+        -:  141:}
+function get_path called 108 returned 100% blocks executed 100%
+      108:  142:static int get_path(void) {
+        -:  143:    U8 FAR *p;
+        -:  144:    U16 i;
+      108:  145:    p=dos_sda+dos_name_offset;
+      108:  146:    if (p[0] != 'A'+drive_number || p[1]!=':') return 0;
+branch  0 taken 102 (fallthrough)
+branch  1 taken 6
+branch  2 taken 0 (fallthrough)
+branch  3 taken 102
+     1294:  147:    for (i=0; i<PATH_MAX; ++i) {
+branch  0 taken 1293
+branch  1 taken 1 (fallthrough)
+     1293:  148:        path[i]=p[i]; if (!p[i]) return 1;
+branch  0 taken 101 (fallthrough)
+branch  1 taken 1192
+        -:  149:    }
+        1:  150:    path[0]=0; return -1;
+        -:  151:}
+function our_sft called 64 returned 100% blocks executed 100%
+       64:  152:static int our_sft(U8 FAR *sft) {
+       64:  153:    return (get16(sft+5)&0x803f)==(0x8000|drive_number);
+call    0 returned 64
+        -:  154:}
+function our_cds called 4 returned 100% blocks executed 100%
+        4:  155:static int our_cds(U8 FAR *cds) {
+        4:  156:    return cds[0]=='A'+drive_number && cds[1]==':' && (get16(cds+0x43)&0x8000);
+branch  0 taken 3 (fallthrough)
+branch  1 taken 1
+branch  2 taken 3 (fallthrough)
+branch  3 taken 0
+call    4 returned 3
+branch  5 taken 3 (fallthrough)
+branch  6 taken 0
+        -:  157:}
+function find_file called 39 returned 100% blocks executed 100%
+       39:  158:static OpenFile *find_file(U8 FAR *sft) {
+        -:  159:    U16 i;
+      193:  160:    for (i=0; i<MAX_OPEN; ++i) if (files[i].sft==sft) return files+i;
+branch  0 taken 37 (fallthrough)
+branch  1 taken 154
+branch  2 taken 191
+branch  3 taken 2 (fallthrough)
+        2:  161:    return 0;
+        -:  162:}
+        -:  163:#ifdef RW_DRIVER
+        -:  164:#include "RWOPS.C"
+        -:  165:#endif
+function open_file called 43 returned 100% blocks executed 100%
+       43:  166:static int open_file(U8 FAR *sft, U16 mode, int extended) {
+        -:  167:    U16 i, action;
+        -:  168:    U32 cluster;
+        -:  169:#ifdef RW_DRIVER
+        -:  170:    if (sd_write_enabled)
+        -:  171:        return rw_open_file(sft,mode,extended?(get16(dos_sda+0x2dd)&255):1,
+        -:  172:                            extended?(U8)get16(dos_sda+0x2df):0);
+        -:  173:#endif
+       43:  174:    if ((mode&3)!=0) return error(E_ACCESS);
+branch  0 taken 3 (fallthrough)
+branch  1 taken 40
+call    2 returned 3
+       40:  175:    if (extended) {
+branch  0 taken 6 (fallthrough)
+branch  1 taken 34
+        6:  176:        action=dos_sda[0x2dd]; /* DOS also keeps internal flags in the next byte. */
+        -:  177:        /* DOS COPY uses open-or-create (11h), even for a read-only source.
+        -:  178:         * Permit its existing-file branch; lookup below never creates. */
+        6:  179:        if (action!=1 && action!=0x11) return error(E_ACCESS);
+branch  0 taken 5 (fallthrough)
+branch  1 taken 1
+branch  2 taken 4 (fallthrough)
+branch  3 taken 1
+call    4 returned 4
+        -:  180:    }
+       36:  181:    if (fs_lookup(path, entry)) return filesystem_error();
+call    0 returned 36
+branch  1 taken 2 (fallthrough)
+branch  2 taken 34
+call    3 returned 2
+       34:  182:    if (entry[11]&24) return error(E_ACCESS);
+branch  0 taken 1 (fallthrough)
+branch  1 taken 33
+call    2 returned 1
+       33:  183:    cluster=fs_entry_cluster(entry);
+call    0 returned 33
+      186:  184:    for (i=0; i<MAX_OPEN; ++i) if (!files[i].sft) break;
+branch  0 taken 31 (fallthrough)
+branch  1 taken 153
+branch  2 taken 184
+branch  3 taken 2 (fallthrough)
+       33:  185:    if (i==MAX_OPEN) return error(E_HANDLES);
+branch  0 taken 2 (fallthrough)
+branch  1 taken 31
+call    2 returned 2
+       31:  186:    files[i].sft=sft; FILE_CURSOR(files+i).first=cluster;
+       31:  187:    FILE_CURSOR(files+i).cluster=cluster; FILE_CURSOR(files+i).index=0;
+        -:  188:    /* Preserve reference count and DOS-owned sharing/PSP fields. */
+       31:  189:    put16(sft+2, mode);
+call    0 returned 31
+       31:  190:    sft[4]=entry[11]|1;
+       31:  191:    put16(sft+5, 0xc000|drive_number|((mode&0x80)?0x1000:0));
+call    0 returned 31
+       31:  192:    put32(sft+7, 0); put16(sft+11, 0);
+call    0 returned 31
+call    1 returned 31
+       31:  193:    put16(sft+13, get16(entry+22)); put16(sft+15, get16(entry+24));
+call    0 returned 31
+call    1 returned 31
+call    2 returned 31
+call    3 returned 31
+       31:  194:    put32(sft+17, get32(entry+28)); put32(sft+21, 0);
+call    0 returned 31
+call    1 returned 31
+call    2 returned 31
+       31:  195:    put32(sft+25, 0); sft[29]=sft[30]=sft[31]=0;
+call    0 returned 31
+      372:  196:    for (i=0; i<11; ++i) sft[32+i]=entry[i];
+branch  0 taken 341
+branch  1 taken 31 (fallthrough)
+       31:  197:    if (extended) regs.cx=1;
+branch  0 taken 2 (fallthrough)
+branch  1 taken 29
+       31:  198:    return success();
+call    0 returned 31
+        -:  199:}
+function read_file called 13 returned 100% blocks executed 100%
+       13:  200:static int read_file(U8 FAR *sft) {
+        -:  201:    OpenFile *file;
+        -:  202:    U32 position, size;
+        -:  203:    U16 count, done;
+        -:  204:    int result;
+        -:  205:    /* dispatch checks ready(); mounting refuses all open references, so an
+        -:  206:     * old file cannot coexist with newly mounted media. */
+       13:  207:    file=find_file(sft);
+call    0 returned 13
+       13:  208:    if (!file) { regs.cx=0; return error(6); }
+branch  0 taken 1 (fallthrough)
+branch  1 taken 12
+call    2 returned 1
+        -:  209:#ifdef RW_DRIVER
+        -:  210:    if (sd_write_enabled) {
+        -:  211:        if ((get16(sft+2)&3)==1) { regs.cx=0; return error(E_ACCESS); }
+        -:  212:        if (refresh_file(file)) { regs.cx=0; return filesystem_error(); }
+        -:  213:    }
+        -:  214:#endif
+       12:  215:    position=get32(sft+21); size=get32(sft+17); count=regs.cx;
+call    0 returned 12
+call    1 returned 12
+       12:  216:    if (position>=size || !count) { regs.cx=0; return success(); }
+branch  0 taken 11 (fallthrough)
+branch  1 taken 1
+branch  2 taken 1 (fallthrough)
+branch  3 taken 10
+call    4 returned 2
+       10:  217:    if (size-position<count) count=(U16)(size-position);
+branch  0 taken 3 (fallthrough)
+branch  1 taken 7
+        -:  218:#ifdef RW_DRIVER
+        -:  219:    if (sd_write_enabled) {
+        -:  220:        if (locked(file,position,count)) { regs.cx=0; return error(E_LOCK); }
+        -:  221:        result=rw_read(&FILE_DISK(file),position,pointer_at(dos_sda+12),count,&done);
+        -:  222:    } else
+        -:  223:#endif
+       10:  224:    result=fs_read(&FILE_CURSOR(file), position, pointer_at(dos_sda+12), count, &done);
+call    0 returned 10
+call    1 returned 10
+       10:  225:    put32(sft+21, position+done); regs.cx=done;
+call    0 returned 10
+       10:  226:    return result ? filesystem_error() : success();
+branch  0 taken 1 (fallthrough)
+branch  1 taken 9
+call    2 returned 1
+call    3 returned 9
+        -:  227:}
+        -:  228:
+function load_cursor called 43 returned 100% blocks executed 100%
+       43:  229:static void load_cursor(U8 FAR *dta, DirCursor *cursor) {
+       43:  230:    *cursor=searches[get16(dta+13)].cursor;
+call    0 returned 43
+       43:  231:}
+function save_cursor called 84 returned 100% blocks executed 100%
+       84:  232:static void save_cursor(U8 FAR *dta, DirCursor *cursor) {
+       84:  233:    searches[get16(dta+13)].cursor=*cursor;
+call    0 returned 84
+       84:  234:}
+function find_next called 48 returned 100% blocks executed 98%
+       48:  235:static int find_next(U8 FAR *dta) {
+        -:  236:    DirCursor cursor;
+        -:  237:    U16 i;
+        -:  238:    U8 attr;
+        -:  239:    int result, match;
+       48:  240:    U16 slot=get16(dta+13);
+call    0 returned 48
+       94:  241:    if (slot>=MAX_SEARCH || get16(dta+19)!=0x4f54 ||
+branch  0 taken 47 (fallthrough)
+branch  1 taken 1
+call    2 returned 47
+branch  3 taken 46 (fallthrough)
+branch  4 taken 1
+branch  5 taken 44 (fallthrough)
+branch  6 taken 2
+       90:  242:        searches[slot].serial!=get32(dta+15) || searches[slot].epoch!=media_epoch)
+call    0 returned 46
+branch  1 taken 1 (fallthrough)
+branch  2 taken 43
+        5:  243:        return error(E_NOMORE);
+call    0 returned 5
+       43:  244:    load_cursor(dta, &cursor);
+call    0 returned 43
+      106:  245:    while ((result=fs_next(&cursor, entry))==0) {
+call    0 returned 106
+branch  1 taken 104
+branch  2 taken 2 (fallthrough)
+      104:  246:        attr=entry[11];
+      104:  247:        if (attr&8) {
+branch  0 taken 40 (fallthrough)
+branch  1 taken 64
+       40:  248:            if (!(dta[12]&8)) continue;
+branch  0 taken 39 (fallthrough)
+branch  1 taken 1
+        -:  249:        } else {
+       64:  250:            if (dta[12]==8 || (attr & 0x16 & ~dta[12])) continue;
+branch  0 taken 56 (fallthrough)
+branch  1 taken 8
+branch  2 taken 4 (fallthrough)
+branch  3 taken 52
+        -:  251:        }
+       53:  252:        match=1;
+      517:  253:        for (i=0; i<11; ++i)
+branch  0 taken 476
+branch  1 taken 41 (fallthrough)
+      476:  254:            if (dta[i+1]!='?' && dta[i+1]!=entry[i]) { match=0; break; }
+branch  0 taken 142 (fallthrough)
+branch  1 taken 334
+branch  2 taken 12 (fallthrough)
+branch  3 taken 130
+       53:  255:        if (!match) continue;
+branch  0 taken 12 (fallthrough)
+branch  1 taken 41
+       41:  256:        save_cursor(dta, &cursor);
+call    0 returned 41
+        -:  257:        /* DOS expects a raw FAT directory entry at +21, not a public DTA. */
+     1353:  258:        for (i=0; i<32; ++i) dta[21+i]=entry[i];
+branch  0 taken 1312
+branch  1 taken 41 (fallthrough)
+        -:  259:#ifdef RW_DRIVER
+        -:  260:        if (!sd_write_enabled)
+        -:  261:#endif
+       41:  262:        dta[32]|=1;               /* report files as read-only */
+      902:  263:        for (i=0; i<21; ++i) dos_sda[dos_search_offset+i]=dta[i];
+branch  0 taken 861
+branch  1 taken 41 (fallthrough)
+     1353:  264:        for (i=0; i<32; ++i) dos_sda[dos_found_offset+i]=dta[21+i];
+branch  0 taken 1312
+branch  1 taken 41 (fallthrough)
+       41:  265:        return success();
+call    0 returned 41
+        -:  266:    }
+        2:  267:    save_cursor(dta, &cursor);
+call    0 returned 2
+       2*:  268:    return result<0 ? filesystem_error() : error(E_NOMORE);
+branch  0 taken 0 (fallthrough)
+branch  1 taken 2
+call    2 never executed
+call    3 returned 2
+        -:  269:}
+function find_first called 43 returned 100% blocks executed 100%
+       43:  270:static int find_first(U8 FAR *dta) {
+        -:  271:    U32 parent;
+        -:  272:    U8 pattern[11];
+        -:  273:    U16 i;
+        -:  274:    char leaf[13];
+        -:  275:    DirCursor cursor;
+       43:  276:    if (fs_parent(path, &parent, leaf)) return filesystem_error();
+call    0 returned 43
+branch  1 taken 1 (fallthrough)
+branch  2 taken 42
+call    3 returned 1
+       42:  277:    if (!leaf[0] || fs_pattern(leaf, pattern, 1)) return error(E_PATH);
+branch  0 taken 41 (fallthrough)
+branch  1 taken 1
+call    2 returned 41
+branch  3 taken 0 (fallthrough)
+branch  4 taken 41
+call    5 returned 1
+       41:  278:    dta[0]=0x80|drive_number;
+      492:  279:    for (i=0; i<11; ++i) dta[i+1]=pattern[i];
+branch  0 taken 451
+branch  1 taken 41 (fallthrough)
+       41:  280:    dta[12]=dos_sda[dos_attr_offset];
+       41:  281:    cursor.cluster=parent; cursor.slot=cursor.hops=0;
+       41:  282:    put16(dta+13,next_search); put32(dta+15,++search_serial);
+call    0 returned 41
+call    1 returned 41
+       41:  283:    put16(dta+19,0x4f54);
+call    0 returned 41
+       41:  284:    searches[next_search].serial=search_serial;
+       41:  285:    searches[next_search].epoch=media_epoch;
+       41:  286:    next_search=(next_search+1)%MAX_SEARCH;
+       41:  287:    save_cursor(dta, &cursor);
+call    0 returned 41
+       41:  288:    return find_next(dta);
+call    0 returned 41
+        -:  289:}
+        -:  290:
+function dispatch called 205 returned 100% blocks executed 98%
+      205:  291:int dispatch(void) {
+        -:  292:    U8 fn;
+        -:  293:    U8 FAR *sft, FAR *dta;
+        -:  294:    U32 size, offset, position;
+        -:  295:    int owned;
+        -:  296:    OpenFile *file;
+      205:  297:    if (regs.ax==0xd74f) {
+branch  0 taken 8 (fallthrough)
+branch  1 taken 197
+        8:  298:        if (regs.bx==0x4f54 && regs.dx==0x524f) {
+branch  0 taken 5 (fallthrough)
+branch  1 taken 3
+branch  2 taken 5 (fallthrough)
+branch  3 taken 0
+        5:  299:            if (regs.si==1 || regs.si==2) {
+branch  0 taken 3 (fallthrough)
+branch  1 taken 2
+branch  2 taken 2 (fallthrough)
+branch  3 taken 1
+        4:  300:                U16 code=regs.si==1 ? media_unmount() : media_mount();
+branch  0 taken 2 (fallthrough)
+branch  1 taken 2
+call    2 returned 2
+call    3 returned 2
+        4:  301:                return code ? error(code) : success();
+branch  0 taken 2 (fallthrough)
+branch  1 taken 2
+call    2 returned 2
+call    3 returned 2
+        -:  302:            }
+        -:  303:#ifdef RW_DRIVER
+        -:  304:            if (regs.si==8) {
+        -:  305:                DriverInfo info;
+        -:  306:                U16 i;
+        -:  307:                U8 FAR *out=far_at(regs.es,regs.di);
+        -:  308:                if (regs.cx<sizeof(info) || regs.di>65535U-sizeof(info)) return error(1);
+        -:  309:                info.flags=(U16)sd_card_info(info.cid,&info.last_lba);
+        -:  310:                if (sd_write_enabled) info.flags|=2;
+        -:  311:                if (media_online) info.flags|=4;
+        -:  312:                info.version=OTTER_VERSION; info.resident=resident_bytes;
+        -:  313:                info.sd_ticks=mount_sd_ticks; info.fs_ticks=mount_fs_ticks; info.abi=1;
+        -:  314:                for (i=0;i<sizeof(info);++i) out[i]=((U8 *)&info)[i];
+        -:  315:                success(); regs.cx=sizeof(info); return 1;
+        -:  316:            }
+        -:  317:            if (regs.si==4) {
+        -:  318:                U16 i;
+        -:  319:                U8 FAR *out=far_at(regs.es,regs.di);
+        -:  320:                if (regs.cx<sizeof(sd_diag) || regs.di>65535U-sizeof(sd_diag))
+        -:  321:                    return error(1);
+        -:  322:                for (i=0;i<sizeof(sd_diag);++i) out[i]=((U8 *)&sd_diag)[i];
+        -:  323:                success(); regs.cx=sizeof(sd_diag); return 1;
+        -:  324:            }
+        -:  325:            if (regs.si==7) {
+        -:  326:                /* Pattern scanning measures this run, not a proof of worst-
+        -:  327:                 * case stack space. See DOSREF.md for the private query ABI. */
+        -:  328:                U16 unused=0;
+        -:  329:                while (unused<sizeof(resident_stack) && resident_stack[unused]==0xa5) ++unused;
+        -:  330:                success(); regs.ax=sizeof(resident_stack)-unused;
+        -:  331:                regs.bx=unused; regs.cx=sizeof(resident_stack); return 1;
+        -:  332:            }
+        -:  333:            if (regs.si==6) {
+        -:  334:                success(); regs.ax=rw_error_function; regs.bx=rw_error_code; return 1;
+        -:  335:            }
+        -:  336:            if (regs.si==5) {
+        -:  337:                success(); regs.bx=sd_write_enabled; regs.dx=media_online;
+        -:  338:                regs.cx=3; return 1; /* maximum sector attempts */
+        -:  339:            }
+        -:  340:#endif
+        1:  341:            return error(1);
+call    0 returned 1
+        -:  342:        }
+        3:  343:        (void)ready();
+call    0 returned 3
+        3:  344:        regs.ax=0x4f54; regs.bx=0x524f; regs.cx=drive_number;
+        3:  345:        regs.dx=media_online; regs.si=open_count(); regs.di=sd_port; regs.bp=2;
+call    0 returned 3
+        -:  346:#ifdef RW_DRIVER
+        -:  347:        regs.bp=3;
+        -:  348:#endif
+        3:  349:        regs.flags &= ~1;
+        3:  350:        return 1;
+        -:  351:    }
+      197:  352:    if ((regs.ax&0xff00)!=0x1100) return 0;
+branch  0 taken 1 (fallthrough)
+branch  1 taken 196
+      196:  353:    fn=(U8)regs.ax;
+      196:  354:    sft=far_at(regs.es, regs.di); dta=pointer_at(dos_sda+12);
+call    0 returned 196
+call    1 returned 196
+      196:  355:    if (fn==0) { regs.ax=0x11ff; regs.flags &= ~1; return 1; }
+branch  0 taken 1 (fallthrough)
+branch  1 taken 195
+      195:  356:    if (fn==0x1c || fn==0x1a) {
+branch  0 taken 186 (fallthrough)
+branch  1 taken 9
+branch  2 taken 0 (fallthrough)
+branch  3 taken 186
+        9:  357:        if (dta[0]!=(0x80|drive_number)) return 0;
+branch  0 taken 1 (fallthrough)
+branch  1 taken 8
+        8:  358:        if (!ready()) return error(E_NOTREADY);
+call    0 returned 8
+branch  1 taken 1 (fallthrough)
+branch  2 taken 7
+call    3 returned 1
+        7:  359:        return find_next(dta);
+call    0 returned 7
+        -:  360:    }
+      186:  361:    if (fn==6 || fn==7 || fn==8 || fn==9 || fn==0x0a ||
+branch  0 taken 157 (fallthrough)
+branch  1 taken 29
+branch  2 taken 154 (fallthrough)
+branch  3 taken 3
+branch  4 taken 136 (fallthrough)
+branch  5 taken 18
+branch  6 taken 133 (fallthrough)
+branch  7 taken 3
+branch  8 taken 131 (fallthrough)
+branch  9 taken 2
+branch 10 taken 130 (fallthrough)
+branch 11 taken 1
+      130:  362:        fn==0x0b || fn==0x21 || fn==0x2d) {
+branch  0 taken 124 (fallthrough)
+branch  1 taken 6
+branch  2 taken 2 (fallthrough)
+branch  3 taken 122
+       64:  363:        if (!our_sft(sft)) return 0;
+call    0 returned 64
+branch  1 taken 7 (fallthrough)
+branch  2 taken 57
+       57:  364:        if (fn!=6 && fn!=7 && !ready()) {
+branch  0 taken 29 (fallthrough)
+branch  1 taken 28
+branch  2 taken 27 (fallthrough)
+branch  3 taken 2
+call    4 returned 27
+branch  5 taken 6 (fallthrough)
+branch  6 taken 21
+        6:  365:            if (fn==8 || fn==9) regs.cx=0;
+branch  0 taken 2 (fallthrough)
+branch  1 taken 4
+branch  2 taken 1 (fallthrough)
+branch  3 taken 1
+        6:  366:            return error(E_NOTREADY);
+call    0 returned 6
+        -:  367:        }
+       51:  368:        switch (fn) {
+branch  0 taken 28
+branch  1 taken 2
+branch  2 taken 13
+branch  3 taken 1
+branch  4 taken 1
+branch  5 taken 4
+branch  6 taken 2
+       28:  369:        case 6:
+        -:  370:#ifdef RW_DRIVER
+        -:  371:            if (sd_write_enabled) return rw_commit_file(sft,1);
+        -:  372:#endif
+       28:  373:            if (get16(sft)) put16(sft, get16(sft)-1);
+call    0 returned 28
+branch  1 taken 27 (fallthrough)
+branch  2 taken 1
+call    3 returned 27
+call    4 returned 27
+       28:  374:            if (!get16(sft)) { file=find_file(sft); if (file) file->sft=0; }
+call    0 returned 28
+branch  1 taken 26 (fallthrough)
+branch  2 taken 2
+call    3 returned 26
+branch  4 taken 25 (fallthrough)
+branch  5 taken 1
+       28:  375:            return success();
+call    0 returned 28
+        2:  376:        case 7:
+        -:  377:#ifdef RW_DRIVER
+        -:  378:            if (sd_write_enabled) return rw_commit_file(sft,0);
+        -:  379:#endif
+        2:  380:            return success(); /* read-only commit: no pending writes */
+call    0 returned 2
+       13:  381:        case 8: return read_file(sft);
+call    0 returned 13
+        1:  382:        case 9:
+        -:  383:#ifdef RW_DRIVER
+        -:  384:            if (sd_write_enabled) return rw_write_file(sft);
+        -:  385:#endif
+        1:  386:            regs.cx=0; return error(E_ACCESS);
+call    0 returned 1
+        1:  387:        case 0x0a:
+        -:  388:#ifdef RW_DRIVER
+        -:  389:            if (sd_write_enabled) return rw_lock_file(sft,fn);
+        -:  390:#endif
+        1:  391:            return success(); /* immutable files: locks are harmless */
+call    0 returned 1
+        -:  392:#ifdef RW_DRIVER
+        -:  393:        case 0x0b:
+        -:  394:            if (sd_write_enabled) return rw_lock_file(sft,fn);
+        -:  395:            return error(E_ACCESS);
+        -:  396:#endif
+        4:  397:        case 0x21:
+        -:  398:#ifdef RW_DRIVER
+        -:  399:            if (sd_write_enabled) {
+        -:  400:                file=find_file(sft);
+        -:  401:                if (!file) return error(6);
+        -:  402:                if (refresh_file(file)) return filesystem_error();
+        -:  403:            }
+        -:  404:#endif
+        4:  405:            size=get32(sft+17); offset=((U32)regs.cx<<16)|regs.dx;
+call    0 returned 4
+        4:  406:            if (offset&0x80000000UL) {
+branch  0 taken 2 (fallthrough)
+branch  1 taken 2
+        -:  407:                U32 magnitude;
+        2:  408:                magnitude=~offset+1;
+        2:  409:                if (magnitude>size) return error(1);
+branch  0 taken 1 (fallthrough)
+branch  1 taken 1
+call    2 returned 1
+        1:  410:                position=size-magnitude;
+        -:  411:            } else {
+        2:  412:                if (offset>0xffffffffUL-size) return error(1);
+branch  0 taken 1 (fallthrough)
+branch  1 taken 1
+call    2 returned 1
+        1:  413:                position=size+offset;
+        -:  414:            }
+        2:  415:            put32(sft+21, position); success();
+call    0 returned 2
+call    1 returned 2
+        2:  416:            regs.ax=(U16)position; regs.dx=(U16)(position>>16); return 1;
+        2:  417:        default: return error(E_ACCESS);
+call    0 returned 2
+        -:  418:        }
+        -:  419:    }
+      122:  420:    if (fn==0x0c) {
+branch  0 taken 4 (fallthrough)
+branch  1 taken 118
+        4:  421:        if (!our_cds(sft)) return 0;
+call    0 returned 4
+branch  1 taken 1 (fallthrough)
+branch  2 taken 3
+        3:  422:        if (!ready()) return error(E_NOTREADY);
+call    0 returned 3
+branch  1 taken 1 (fallthrough)
+branch  2 taken 2
+call    3 returned 1
+        2:  423:        success(); regs.ax=0xf800|volume.spc; regs.cx=512;
+call    0 returned 2
+       2*:  424:        regs.bx=volume.clusters>65535UL?65535U:(U16)volume.clusters;
+branch  0 taken 0 (fallthrough)
+branch  1 taken 2
+        2:  425:        regs.dx=0;
+        -:  426:#ifdef RW_DRIVER
+        -:  427:        if (sd_write_enabled) {
+        -:  428:            U32 free;
+        -:  429:            if (rw_free_space(&free)) return filesystem_error();
+        -:  430:            regs.dx=free>regs.bx?regs.bx:(U16)free;
+        -:  431:        }
+        -:  432:#endif
+        2:  433:        return 1;
+        -:  434:    }
+        -:  435:#ifdef RW_DRIVER
+        -:  436:    if (fn==0x20 && sd_write_enabled && media_online) {
+        -:  437:        /* Flush our volume, then chain with original registers so other
+        -:  438:         * redirectors can flush too. ENTRY discards changed regs on chaining. */
+        -:  439:        if (!ready()) return error(E_NOTREADY);
+        -:  440:        if (rw_flush()) return filesystem_error();
+        -:  441:        return 0;
+        -:  442:    }
+        -:  443:#endif
+        -:  444:    /* These calls are not associated with a filename or SFT. */
+      118:  445:    if (fn==0x1d || fn==0x1e || fn==0x1f || fn==0x20 || fn==0x22 ||
+branch  0 taken 117 (fallthrough)
+branch  1 taken 1
+branch  2 taken 116 (fallthrough)
+branch  3 taken 1
+branch  4 taken 115 (fallthrough)
+branch  5 taken 1
+branch  6 taken 114 (fallthrough)
+branch  7 taken 1
+branch  8 taken 113 (fallthrough)
+branch  9 taken 1
+branch 10 taken 112 (fallthrough)
+branch 11 taken 1
+      118:  446:        fn==0x23 || fn==0x24 || fn==0x25 || fn==0x26) return 0;
+branch  0 taken 111 (fallthrough)
+branch  1 taken 1
+branch  2 taken 110 (fallthrough)
+branch  3 taken 1
+branch  4 taken 1 (fallthrough)
+branch  5 taken 109
+      109:  447:    if (fn!=1 && fn!=2 && fn!=3 && fn!=4 && fn!=5 && fn!=0x0e &&
+branch  0 taken 107 (fallthrough)
+branch  1 taken 2
+branch  2 taken 106 (fallthrough)
+branch  3 taken 1
+branch  4 taken 105 (fallthrough)
+branch  5 taken 1
+branch  6 taken 104 (fallthrough)
+branch  7 taken 1
+branch  8 taken 100 (fallthrough)
+branch  9 taken 4
+branch 10 taken 99 (fallthrough)
+branch 11 taken 1
+branch 12 taken 97 (fallthrough)
+branch 13 taken 2
+       97:  448:        fn!=0x0f && fn!=0x11 && fn!=0x13 && fn!=0x16 && fn!=0x17 &&
+branch  0 taken 96 (fallthrough)
+branch  1 taken 1
+branch  2 taken 95 (fallthrough)
+branch  3 taken 1
+branch  4 taken 55 (fallthrough)
+branch  5 taken 40
+branch  6 taken 54 (fallthrough)
+branch  7 taken 1
+branch  8 taken 53 (fallthrough)
+branch  9 taken 1
+       53:  449:        fn!=0x18 && fn!=0x19 && fn!=0x1b && fn!=0x2e) return 0;
+branch  0 taken 9 (fallthrough)
+branch  1 taken 44
+branch  2 taken 9 (fallthrough)
+branch  3 taken 0
+branch  4 taken 1 (fallthrough)
+branch  5 taken 8
+      108:  450:    owned=get_path();
+call    0 returned 108
+      108:  451:    if (!owned) return 0;
+branch  0 taken 6 (fallthrough)
+branch  1 taken 102
+      102:  452:    if (owned<0) return error(E_PATH);
+branch  0 taken 1 (fallthrough)
+branch  1 taken 101
+call    2 returned 1
+      101:  453:    if (!ready()) return error(E_NOTREADY);
+call    0 returned 101
+branch  1 taken 1 (fallthrough)
+branch  2 taken 100
+call    3 returned 1
+      100:  454:    switch (fn) {
+branch  0 taken 3
+branch  1 taken 1
+branch  2 taken 37
+branch  3 taken 43
+branch  4 taken 7
+branch  5 taken 9
+        3:  455:    case 5:
+        3:  456:        if (fs_lookup(path, entry)) {
+call    0 returned 3
+branch  1 taken 1 (fallthrough)
+branch  2 taken 2
+        1:  457:            if (fs_error==E_NOTFOUND) fs_error=E_PATH;
+branch  0 taken 1 (fallthrough)
+branch  1 taken 0
+        1:  458:            return filesystem_error();
+call    0 returned 1
+        -:  459:        }
+        2:  460:        return (entry[11]&16) ? success() : error(E_PATH);
+branch  0 taken 1 (fallthrough)
+branch  1 taken 1
+call    2 returned 1
+call    3 returned 1
+        1:  461:    case 0x0f:
+       1*:  462:        if (fs_lookup(path, entry)) return filesystem_error();
+call    0 returned 1
+branch  1 taken 0 (fallthrough)
+branch  2 taken 1
+call    3 never executed
+        1:  463:        success(); regs.ax=entry[11]|1;
+call    0 returned 1
+        -:  464:#ifdef RW_DRIVER
+        -:  465:        if (sd_write_enabled) regs.ax=entry[11];
+        -:  466:#endif
+        1:  467:        size=get32(entry+28); regs.bx=(U16)(size>>16); regs.di=(U16)size;
+call    0 returned 1
+        1:  468:        regs.cx=get16(entry+22); regs.dx=get16(entry+24); return 1;
+call    0 returned 1
+call    1 returned 1
+       37:  469:    case 0x16: return open_file(sft, regs.param, 0);
+call    0 returned 37
+       43:  470:    case 0x19:
+       43:  471:    case 0x1b: return find_first(dta);
+call    0 returned 43
+        7:  472:    case 0x2e:
+        7:  473:        if (dos_major<4) return error(1);
+branch  0 taken 1 (fallthrough)
+branch  1 taken 6
+call    2 returned 1
+        6:  474:        return open_file(sft, get16(dos_sda+0x2e1), 1);
+call    0 returned 6
+call    1 returned 6
+        9:  475:    default:
+        -:  476:#ifdef RW_DRIVER
+        -:  477:        if (sd_write_enabled) return rw_path_operation(fn,sft);
+        -:  478:#endif
+        9:  479:        return error(E_ACCESS);
+call    0 returned 9
+        -:  480:
+        -:  481:    }
+        -:  482:}

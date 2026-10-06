@@ -12,7 +12,7 @@ static int replace_pending;
 static U8 *mutate_buffer;
 static U16 delay, pending, pending_offset;
 static U8 pending_value;
-unsigned rw_host_writes, rw_host_resets, rw_host_unfinished;
+unsigned rw_host_writes, rw_host_reads, rw_host_resets, rw_host_unfinished;
 /* Capture the first eight payload+CRC packets. writes counts observed CMD24
  * commands, unlike sd_diag.transmissions, which requires command acceptance. */
 U32 rw_host_lbas[8];
@@ -25,6 +25,7 @@ int rw_host_open(const char *path, unsigned flags) {
     repeat_option=repeat_value=delay=pending=flip_crc=0;
     replace_pending=0; mutate_buffer=0;
     rw_host_writes=rw_host_resets=rw_host_unfinished=packet_count=0;
+    rw_host_reads=0;
     memset(rw_host_lbas,0,sizeof(rw_host_lbas));
     memset(rw_host_packets,0,sizeof(rw_host_packets));
     return card?0:-1;
@@ -50,6 +51,7 @@ static void exchange(U16 offset,U8 value) {
                 command_bytes[command_count++]=value;
                 if (command_count==6) {
                     command_done=1;
+                    if ((command_bytes[0]&63)==17) ++rw_host_reads;
                     if ((command_bytes[0]&63)==0) {
                         ++rw_host_resets;
                         if (rw_host_writes && replace_pending) {

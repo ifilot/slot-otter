@@ -1,4 +1,43 @@
-# Resident memory measurements
+# Consolidated resident memory
+
+OTTERWR 0.4 retains **36,624 bytes (35.8 KiB)** including the PSP, in both /RO
+and /RW modes. The reviewed baseline was 39,888 bytes; the net reduction is
+**3,264 bytes (8.2%)**, including new card/version/timing diagnostics.
+
+| Change | Effect |
+|---|---|
+| Far installer in discarded INITTAIL/INITDATA | Releases installer code and strings |
+| Shared filesystem comparison/transport readback scratch | Removes one 512-byte buffer |
+| Bytewise table-free CRC16 | Reduces CRC work and code versus bitwise loop |
+| New identity/timing query and retained far gates | Small resident cost included above |
+| Stack and capacities | 2,048-byte private stack, 16 handles and 32 searches retained |
+
+BOOT uses normal Turbo C startup and explicit far gates to retained near code.
+INSTALL uses original DGROUP but lives beyond _BSSEND; code/data classes are
+transformed only after checking every generated call. Installer literals and
+argv do not escape into callbacks. The build proves released segments lie
+inside the temporary 8 KiB heap reserve, below the 2 KiB startup stack, and that
+all reservations fit DGROUP. keep() restores CRT vectors before DOS releases
+the installer. Native tests overwrite all free DOS memory and then exercise
+callbacks/remount/EXEC; checking only EXE size or the MAP is insufficient.
+
+Ordinary close no longer reads both complete FATs. Twenty closes on the kit's
+547-sector FATs formerly read 21,940 sectors; the regression now requires fewer
+than 240. Each sector store remains CRC/exact-readback verified. Full mount,
+explicit commit and unmount retain complete enabled mirror comparisons. A
+single-FAT volume skips a nonexistent comparison. It still checks flags and
+all relevant mount geometry.
+
+Startup retains mandatory bulk I/O and identity checks. Faster CRC reduces CPU
+work; physical improvements must be measured on the next hardware run using
+INSTALL.LOG and HWRT mount/phase timing. Emulator timing is not a prediction
+for a 286/8088 or a particular SD card. A carefully measured assembly receive
+loop or custom startup are future opportunities; neither was introduced here.
+
+The history below describes the archived, smaller read-only driver only.
+It is not the current /RO mode or the consolidated build's regression ceiling.
+
+# Archived read-only measurements
 
 Measurements use booted MS-DOS 5.0 and 6.22 with 1 MiB emulated RAM. The integration
 probe reads the actual DOS MCB allocation and checks it against installer output;

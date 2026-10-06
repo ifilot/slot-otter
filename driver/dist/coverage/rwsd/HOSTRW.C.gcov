@@ -1,0 +1,195 @@
+        -:    0:Source:/mnt/d/PROGRAMMING/KiCAD/slot-otter/driver/tests/HOSTRW.C
+        -:    0:Graph:/mnt/d/PROGRAMMING/KiCAD/slot-otter/driver/dist/coverage/rwsd/hostrw.gcno
+        -:    0:Data:/mnt/d/PROGRAMMING/KiCAD/slot-otter/driver/dist/coverage/rwsd/hostrw.gcda
+        -:    0:Runs:1
+        -:    1:/* Test-only bridge to the byte-level card model; not resident. */
+        -:    2:#include "RWSD.H"
+        -:    3:#include "../emulation/slot_model.h"
+        -:    4:#include <string.h>
+        -:    5:static slot_model *card;
+        -:    6:static U32 clocks;
+        -:    7:static U8 selected, command_bytes[6], command_count, command_done;
+        -:    8:static U16 repeat_option, repeat_value;
+        -:    9:static U16 flip_crc;
+        -:   10:static char replacement[256];
+        -:   11:static int replace_pending;
+        -:   12:static U8 *mutate_buffer;
+        -:   13:static U16 delay, pending, pending_offset;
+        -:   14:static U8 pending_value;
+        -:   15:unsigned rw_host_writes, rw_host_reads, rw_host_resets, rw_host_unfinished;
+        -:   16:/* Capture the first eight payload+CRC packets. writes counts observed CMD24
+        -:   17: * commands, unlike sd_diag.transmissions, which requires command acceptance. */
+        -:   18:U32 rw_host_lbas[8];
+        -:   19:U8 rw_host_packets[8][514];
+        -:   20:static unsigned packet_index, packet_count;
+function rw_host_open called 26 returned 100% blocks executed 88%
+       26:   21:int rw_host_open(const char *path, unsigned flags) {
+       26:   22:    if (card) slot_model_close(card);
+branch  0 taken 5 (fallthrough)
+branch  1 taken 21
+call    2 returned 5
+       26:   23:    card=slot_model_open_ex(path,flags);
+call    0 returned 26
+       26:   24:    clocks=0; selected=command_count=command_done=0;
+       26:   25:    repeat_option=repeat_value=delay=pending=flip_crc=0;
+       26:   26:    replace_pending=0; mutate_buffer=0;
+       26:   27:    rw_host_writes=rw_host_resets=rw_host_unfinished=packet_count=0;
+       26:   28:    rw_host_reads=0;
+       26:   29:    memset(rw_host_lbas,0,sizeof(rw_host_lbas));
+       26:   30:    memset(rw_host_packets,0,sizeof(rw_host_packets));
+      26*:   31:    return card?0:-1;
+branch  0 taken 26 (fallthrough)
+branch  1 taken 0
+        -:   32:}
+function rw_host_close called 21 returned 100% blocks executed 100%
+       21:   33:void rw_host_close(void) { if (card) slot_model_close(card); card=0; }
+branch  0 taken 21 (fallthrough)
+branch  1 taken 0
+call    2 returned 21
+function rw_host_config called 18 returned 100% blocks executed 100%
+       18:   34:void rw_host_config(unsigned option,unsigned value) { slot_model_config(card,option,value); }
+call    0 returned 18
+function rw_host_replace called 0 returned 0% blocks executed 0%
+    #####:   35:int rw_host_replace(const char *path) { return slot_model_replace(card,path); }
+call    0 never executed
+function rw_host_repeat called 4 returned 100% blocks executed 100%
+        4:   36:void rw_host_repeat(U16 option,U16 value) { repeat_option=option; repeat_value=value; }
+function rw_host_replace_on_reset called 2 returned 100% blocks executed 100%
+        2:   37:void rw_host_replace_on_reset(const char *path) {
+        2:   38:    strncpy(replacement,path,sizeof(replacement)-1);
+        2:   39:    replacement[sizeof(replacement)-1]=0; replace_pending=1;
+        2:   40:}
+function rw_host_mutate_on_reset called 2 returned 100% blocks executed 100%
+        2:   41:void rw_host_mutate_on_reset(U8 *p) { mutate_buffer=p; }
+function rw_host_timing called 1 returned 100% blocks executed 100%
+        1:   42:void rw_host_timing(U16 accesses) { delay=accesses; }
+function rw_host_flip_crc called 2 returned 100% blocks executed 100%
+        2:   43:void rw_host_flip_crc(U16 count) { flip_crc=count; }
+function exchange called 333122 returned 100% blocks executed 100%
+   333122:   44:static void exchange(U16 offset,U8 value) {
+        -:   45:    /* Reset injection tests identity replacement and caller-buffer mutation;
+        -:   46:     * repeat_option is reapplied at each CMD24 to create persistent faults. */
+   333122:   47:    if (offset<=1) {
+branch  0 taken 330054 (fallthrough)
+branch  1 taken 3068
+   330054:   48:        ++clocks;
+   330054:   49:        if (selected && offset==0) {
+branch  0 taken 322657 (fallthrough)
+branch  1 taken 7397
+branch  2 taken 322657 (fallthrough)
+branch  3 taken 0
+   322657:   50:            if (!command_done && (command_count || (value&192)==64)) {
+branch  0 taken 5566 (fallthrough)
+branch  1 taken 317091
+branch  2 taken 1361 (fallthrough)
+branch  3 taken 4205
+branch  4 taken 841 (fallthrough)
+branch  5 taken 520
+     5046:   51:                command_bytes[command_count++]=value;
+     5046:   52:                if (command_count==6) {
+branch  0 taken 841 (fallthrough)
+branch  1 taken 4205
+      841:   53:                    command_done=1;
+      841:   54:                    if ((command_bytes[0]&63)==17) ++rw_host_reads;
+branch  0 taken 38 (fallthrough)
+branch  1 taken 803
+      841:   55:                    if ((command_bytes[0]&63)==0) {
+branch  0 taken 344 (fallthrough)
+branch  1 taken 497
+      344:   56:                        ++rw_host_resets;
+      344:   57:                        if (rw_host_writes && replace_pending) {
+branch  0 taken 318 (fallthrough)
+branch  1 taken 26
+branch  2 taken 2 (fallthrough)
+branch  3 taken 316
+        2:   58:                            (void)slot_model_replace(card,replacement); replace_pending=0;
+call    0 returned 2
+        -:   59:                        }
+      344:   60:                        if (rw_host_writes && mutate_buffer) {
+branch  0 taken 318 (fallthrough)
+branch  1 taken 26
+branch  2 taken 2 (fallthrough)
+branch  3 taken 316
+        2:   61:                            memset(mutate_buffer,0x73,512); mutate_buffer=0;
+        -:   62:                        }
+        -:   63:                    }
+      841:   64:                    if ((command_bytes[0]&63)==24) {
+branch  0 taken 31 (fallthrough)
+branch  1 taken 810
+       31:   65:                        U32 lba=((U32)command_bytes[1]<<24)|((U32)command_bytes[2]<<16)|
+       31:   66:                            ((U32)command_bytes[3]<<8)|command_bytes[4];
+       31:   67:                        if (rw_host_writes<8) rw_host_lbas[rw_host_writes]=lba;
+branch  0 taken 31 (fallthrough)
+branch  1 taken 0
+       31:   68:                        packet_index=rw_host_writes++; packet_count=0;
+       31:   69:                        if (repeat_option) slot_model_config(card,repeat_option,repeat_value);
+branch  0 taken 9 (fallthrough)
+branch  1 taken 22
+call    2 returned 9
+        -:   70:                    }
+        -:   71:                }
+   317611:   72:            } else if (command_done && (command_bytes[0]&63)==24 && packet_index<8) {
+branch  0 taken 317091 (fallthrough)
+branch  1 taken 520
+branch  2 taken 199944 (fallthrough)
+branch  3 taken 117147
+branch  4 taken 199944 (fallthrough)
+branch  5 taken 0
+   199944:   73:                if (!packet_count) { if (value==254) packet_count=1; }
+branch  0 taken 124 (fallthrough)
+branch  1 taken 199820
+branch  2 taken 31 (fallthrough)
+branch  3 taken 93
+   199820:   74:                else if (packet_count<=514) {
+branch  0 taken 15934 (fallthrough)
+branch  1 taken 183886
+    15934:   75:                    if (packet_count==514 && flip_crc) { value^=1; --flip_crc; }
+branch  0 taken 31 (fallthrough)
+branch  1 taken 15903
+branch  2 taken 2 (fallthrough)
+branch  3 taken 29
+    15934:   76:                    rw_host_packets[packet_index][packet_count++-1]=value;
+        -:   77:                }
+        -:   78:            }
+        -:   79:        }
+        -:   80:    }
+   333122:   81:    slot_model_write(card,offset,value);
+call    0 returned 333122
+   333122:   82:}
+        -:   83:/* Delayed completion advances by register accesses, not electrical time. */
+function advance called 1325338 returned 100% blocks executed 100%
+  1325338:   84:static void advance(void) { if (pending && !--pending) exchange(pending_offset,pending_value); }
+branch  0 taken 4194 (fallthrough)
+branch  1 taken 1321144
+branch  2 taken 1398 (fallthrough)
+branch  3 taken 2796
+call    4 returned 1398
+function rw_reg_write called 333122 returned 100% blocks executed 91%
+   333122:   85:void rw_reg_write(U16 offset,U8 value) {
+   333122:   86:    advance();
+call    0 returned 333122
+  333122*:   87:    if (pending) { ++rw_host_unfinished; pending=0; }
+branch  0 taken 0 (fallthrough)
+branch  1 taken 333122
+   333122:   88:    if (offset==2 || offset==3) {
+branch  0 taken 330895 (fallthrough)
+branch  1 taken 2227
+branch  2 taken 841 (fallthrough)
+branch  3 taken 330054
+     3068:   89:        selected=(U8)(offset==3); command_count=command_done=0;
+        -:   90:    }
+   333122:   91:    if (offset<=1 && delay) { pending_offset=offset; pending_value=value; pending=delay; }
+branch  0 taken 330054 (fallthrough)
+branch  1 taken 3068
+branch  2 taken 1398 (fallthrough)
+branch  3 taken 328656
+   331724:   92:    else exchange(offset,value);
+call    0 returned 331724
+   333122:   93:}
+function rw_reg_read called 992216 returned 100% blocks executed 100%
+   992216:   94:U8 rw_reg_read(U16 offset) { advance(); return slot_model_read(card,offset); }
+call    0 returned 992216
+call    1 returned 992216
+        -:   95:/* Synthetic ticks count byte exchanges; they are not hardware speed evidence. */
+function rw_ticks called 257737 returned 100% blocks executed 100%
+   257737:   96:U16 rw_ticks(void) { return (U16)(clocks/2048UL); }

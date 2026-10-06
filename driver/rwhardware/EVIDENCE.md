@@ -1,55 +1,28 @@
-# Software qualification, 2026-10-06
+# Consolidated qualification evidence
 
-These results qualify the software package for the next physical test. They do
-not qualify the ISA electrical interface, either physical card with the resident
-writer, or an 8088/5150. The physical read-only/standalone-writer logs are kept
-unchanged in their existing directories.
+The current release is driver/dist, separate from the preserved earlier kit.
+EVIDENCE/QUALIFICATION.JSON records actual gate outcomes and log hashes; its
+full field must be true for actual-kernel/final-image qualification. Gate logs
+and coverage counters accompany the release. Build equality proves the packaged
+executables match those tested; final-image checks also compare KIT binaries.
 
-| Gate | Result |
-|---|---|
-| Combined host regression | 223 tests pass |
-| Mutation sensitivity | 95 behavioral mutations detected after successful compilation |
-| Coverage | all old and resident-writer floors pass |
-| Original read-only executable | rebuilt bytes identical; resident 17,632 bytes |
-| Writable memory | 39,888 bytes incl PSP; linker allocation matches DOS MCB |
-| Private callback stack | highest observed use 524/2,048 bytes |
-| Three read-only comment reviewers | feedback applied by root; comment-only resident builds identical |
-| DOS 5 and 6.22 HWRT /TEST | 278 checks pass per run |
-| HWRT /STRESS | 221 checks pass; twenty allocation/write/verify/delete cycles |
-| HWRT /MEMORY | 48 checks pass, including all-free-DOS-memory overwrite |
-| Fresh-boot HWRT /VERIFY | 62 checks pass; entire card image unchanged |
-| HWRT /SWAP under DOS 5 | 67 checks pass through private input wrapper |
-| Actual candidate SD image | full program/stress/memory/reboot suite passes |
-| Independent tools | exact file bytes via mtools; fsck.fat -n succeeds |
+The baseline physical SanDisk run passed INFO 43, TEST 278 and VERIFY 62,
+with 1,777 verified sectors/transmissions and no retries. That evidence applies
+to the earlier 39,888-byte binary, not this consolidation. Original hardware
+logs/releases remain unchanged. No new physical card or 8088 is yet qualified.
 
-Native transport profiles pass for strict CRC/cold startup, slow busy completion,
-one rejected CRC, one corrupted readback and one status error. Recovery statistics
-show exactly one extra transmission/retry for each single recoverable write
-fault. Some profile runs predate the 192-byte handle union; transport source is
-unchanged, and the final layout is covered by the full native hardware suite.
+Required current gates include host regression/coverage/behavioral mutations;
+DOS 5 and 6.22 read-only CLI/EXEC/copy/empty-slot/swap; strict CRC, slow busy,
+recoverable corruption/rejection/status, removal and pre-write CRC faults;
+tester /RO and default-RO/marker/ERASE guards; seventeen self-exec children;
+all-free-memory overwrite; fresh-boot exact verification without image writes;
+and independent mtools file comparison/fsck.fat -n on the distributed image.
 
-Removal after programming reports poison and stops subsequent mutations; the
-first target sector can change. A pre-write read-CRC fault produces zero payload
-transmissions and no image changes. Hardware tester guards stop without card
-mutations for a read-only installation, missing image marker and missing /ERASE.
+The single-FAT shortcut and deferred-close behavior have explicit I/O-count and
+failure tests. Full commit/unmount must still detect corruption of an untouched
+mirror sector; abrupt dirty remount must refuse further writes. Shared scratch
+has a recovery-mutation test proving frozen expected payload survives.
 
-Native rejection checks confirm the callback's reason and online state. On these
-DOS kernels, the application often sees error 5 while the redirector correctly
-reports lock reason 33 or sharing reason 32. A failed operation alone is not
-treated as a successful lock/sharing test.
-
-Normal process termination is tested with seventeen children, each leaving six
-direct-DOS handles and one lock unclosed. Abnormal abort and FCB record-I/O are
-not qualified. Standard FCB wildcard deletion and COMMAND.COM DEL pass across
-grown directories. The optional server-interface experiment remains unqualified.
-
-The original thirteen log hashes and original OTTERFS.EXE remain unchanged.
-Resident comment changes were checked through full EXE equality before and after
-both passes; separate behavior and memory changes have their own tests. The
-tester embeds a generated source identifier, so its comment edits can intentionally
-change that string; final package rebuilds must equal the validated executables.
-
-`dist/EVIDENCE` contains retained native logs, coverage and host-gate output. Host
-output includes intentionally failing card/test cases whose assertions pass;
-the unittest result and mutation totals are the gate results. No bootable DOS
-image, emulator binary or licensed compiler is redistributed.
+Qualification does not cover physical electrical behavior, power-loss atomicity,
+FCB record I/O/abnormal abort, DOS 3/4 kernels or a physical 5150. The next card
+run follows MANUAL.md and must save brand/model/CID and separate logs.

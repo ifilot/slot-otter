@@ -18,15 +18,14 @@ MARKER=b'OTTER RESIDENT WRITE KIT v1\r\n'
 def compile_test(output,swap_adapter=False):
     output=Path(output); output.mkdir(parents=True,exist_ok=True)
     work=Path(tempfile.mkdtemp(prefix='otter-hwrt-build-'))
-    sources=[HERE/'HWRT.C',HERE/'RWCHILD.C',ROOT/'tests/RWPROBE.C',ROOT/'OTTER.H',ROOT/'RWSD.H',ROOT/'PORT.C']
+    sources=[HERE/'HWRT.C',HERE/'RWCHILD.C',ROOT/'tests/RWPROBE.C',ROOT/'OTTER.H',ROOT/'RWSD.H',ROOT/'PORT.C',ROOT/'PORTBODY.H']
     source_hash=hashlib.sha256(b''.join(p.name.encode()+b'\0'+p.read_bytes() for p in sources)).hexdigest()
     for p in sources:
         (work/p.name).write_bytes(p.read_bytes().replace(b'\r\n',b'\n').replace(b'\n',b'\r\n'))
     (work/'KITHASH.H').write_text('#define KIT_SOURCE "'+source_hash[:16]+'"\n')
     toolchain=Path(os.environ.get('TOOLCHAIN_DIR',ROOT.parent/'buildenv')).resolve()
     commands=[f'mount c "{toolchain}"',f'mount d "{work}"',r'set PATH=C:\TC','d:',
-              'tcc -ms -O -M -eHWRT.EXE HWRT.C PORT.C > BUILD.TXT',
-              'tcc -ms -O -eRWCHILD.EXE RWCHILD.C > CHILD.TXT','exit']
+              'tcc -ms -O -M -eHWRT.EXE HWRT.C PORT.C > BUILD.TXT','exit']
     if swap_adapter:
         # Only this private wrapper drives the emulator's test port. The
         # physical executable above has no emulator control or input shim.
@@ -42,10 +41,10 @@ def compile_test(output,swap_adapter=False):
                         *sum((['-c',c] for c in commands),[])],
                        env=dict(os.environ,SDL_VIDEODRIVER='dummy',SDL_AUDIODRIVER='dummy'),
                        stdout=log,stderr=log,check=True,timeout=60)
-    text=(work/'BUILD.TXT').read_text()+(work/'CHILD.TXT').read_text(); print(text,flush=True)
-    if not all((work/n).is_file() for n in ('HWRT.EXE','RWCHILD.EXE')) or re.search(r'(?m)^(Error|Fatal|Warning)[ :]|Undefined symbol',text):
+    text=(work/'BUILD.TXT').read_text(); print(text,flush=True)
+    if not (work/'HWRT.EXE').is_file() or re.search(r'(?m)^(Error|Fatal|Warning)[ :]|Undefined symbol',text):
         raise RuntimeError(f'Compilation failed or warned: {work}')
-    for name in ('HWRT.EXE','RWCHILD.EXE','HWRT.MAP','KITHASH.H'):
+    for name in ('HWRT.EXE','HWRT.MAP','KITHASH.H'):
         shutil.copyfile(work/name,output/name)
     if swap_adapter:
         text=(work/'SWAP.TXT').read_text(); print(text,flush=True)

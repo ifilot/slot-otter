@@ -3,6 +3,7 @@ import binascii
 import ctypes as C
 import hashlib
 import pathlib
+import random
 import tempfile
 import unittest
 from fixture import create, TEXT
@@ -85,6 +86,29 @@ class ResidentTransportTests(unittest.TestCase):
         self.assertEqual(self.lib.sd_crc16(b'123456789', 9), 0x31c3)
         for payload in (bytes(512), bytes([255])*512, self.payload):
             self.assertEqual(self.lib.sd_crc16(payload, 512), binascii.crc_hqx(payload, 0))
+
+    def test_crc_all_single_bytes_and_variable_packet_lengths(self):
+        for value in range(256):
+            payload = bytes([value])
+            self.assertEqual(self.lib.sd_crc16(payload, 1), binascii.crc_hqx(payload, 0))
+        generator = random.Random(8088)
+        for count in (0, 1, 2, 6, 16, 31, 255, 511, 512, 513, 1024, 65535):
+            payload = bytes(generator.randrange(256) for _ in range(count))
+            self.assertEqual(self.lib.sd_crc16(payload, count), binascii.crc_hqx(payload, 0), count)
+
+    def test_shared_scratch_input_restored_after_recovery(self):
+        self.arm()
+        scratch = (C.c_uint8 * 512).in_dll(self.lib, 'sd_scratch')
+        C.memmove(scratch, self.payload, 512)
+        self.lib.rw_host_config(8, 1)
+        self.lib.rw_host_mutate_on_reset(scratch)
+        self.assertEqual(self.lib.sd_write(self.scratch, scratch), 0)
+        self.assertEqual(self.sector(), self.payload)
+        self.assertEqual(bytes(scratch), self.payload)
+        self.assertEqual((self.diag.attempts, self.diag.retries), (2, 1))
+        packets = bytes((C.c_uint8 * (514 * 8)).in_dll(self.lib, 'rw_host_packets'))
+        self.assertEqual(packets[:512], self.payload)
+        self.assertEqual(packets[:514], packets[514:1028])
 
     def test_readonly_initialization_and_crc_checked_read(self):
         before = self.digest()

@@ -1,0 +1,128 @@
+        -:    0:Source:/mnt/d/PROGRAMMING/KiCAD/slot-otter/driver/write/HOSTIO.C
+        -:    0:Graph:/mnt/d/PROGRAMMING/KiCAD/slot-otter/driver/dist/coverage/write/hostio.gcno
+        -:    0:Data:/mnt/d/PROGRAMMING/KiCAD/slot-otter/driver/dist/coverage/write/hostio.gcda
+        -:    0:Runs:1
+        -:    1:/* Host bridge: exercise the actual transport byte by byte through the card
+        -:    2: * model. */
+        -:    3:#include "../emulation/slot_model.h"
+        -:    4:#include "WRITE.H"
+        -:    5:static unsigned delay, pending;
+        -:    6:unsigned wt_host_unfinished, wt_host_idle_loads, wt_host_idle_repeats;
+        -:    7:static slot_model *card;
+        -:    8:static U32 clocks;
+        -:    9:static U16 tick_base;
+        -:   10:static int tick_frozen;
+        -:   11:unsigned wt_host_pull_high_calls, wt_host_startup_clocks;
+        -:   12:static int startup_selected;
+        -:   13:int wt_host_selected;
+function wt_host_open called 118 returned 100% blocks executed 75%
+      118:   14:int wt_host_open(const char *path, unsigned flags) {
+      118:   15:  if (card)
+branch  0 taken 0 (fallthrough)
+branch  1 taken 118
+    #####:   16:    slot_model_close(card);
+call    0 never executed
+      118:   17:  card = slot_model_open_ex(path, flags);
+call    0 returned 118
+      118:   18:  clocks = 0;
+      118:   19:  tick_base = 0; tick_frozen = 0;
+      118:   20:  delay = pending = wt_host_unfinished = wt_host_idle_loads = wt_host_idle_repeats = 0;
+      118:   21:  wt_host_pull_high_calls = wt_host_startup_clocks = 0;
+      118:   22:  startup_selected = wt_host_selected = 0;
+     118*:   23:  return card ? 0 : -1;
+branch  0 taken 118 (fallthrough)
+branch  1 taken 0
+        -:   24:}
+function wt_host_close called 118 returned 100% blocks executed 100%
+      118:   25:void wt_host_close(void) {
+      118:   26:  if (card)
+branch  0 taken 118 (fallthrough)
+branch  1 taken 0
+      118:   27:    slot_model_close(card);
+call    0 returned 118
+      118:   28:  card = 0;
+      118:   29:}
+function wt_host_config called 100 returned 100% blocks executed 100%
+      100:   30:void wt_host_config(unsigned option, unsigned value) {
+      100:   31:  slot_model_config(card, option, value);
+call    0 returned 100
+      100:   32:}
+        -:   33:/* Optional transaction-delayed bridge: completion takes N I/O accesses. */
+        -:   34:static unsigned pending_offset;
+        -:   35:static U8 pending_value;
+function exchange called 92943791 returned 100% blocks executed 100%
+ 92943791:   36:static void exchange(unsigned offset, U8 value) {
+ 92943791:   37:  if (offset <= 1) {
+branch  0 taken 92268579 (fallthrough)
+branch  1 taken 675212
+ 92268579:   38:    ++clocks;
+ 92268579:   39:    if (!startup_selected && !wt_host_selected && value == 255) {
+branch  0 taken 1770 (fallthrough)
+branch  1 taken 92266809
+branch  2 taken 1770 (fallthrough)
+branch  3 taken 0
+branch  4 taken 1770 (fallthrough)
+branch  5 taken 0
+     1770:   40:      ++wt_host_startup_clocks;
+     1770:   41:      if (offset == 0) ++wt_host_idle_loads;
+branch  0 taken 354 (fallthrough)
+branch  1 taken 1416
+     1416:   42:      else ++wt_host_idle_repeats;
+        -:   43:    }
+        -:   44:  }
+ 92943791:   45:  slot_model_write(card, offset, value);
+call    0 returned 92943791
+ 92943791:   46:}
+function advance called 371095563 returned 100% blocks executed 100%
+371095563:   47:static void advance(void) {
+371095563:   48:  if (pending && !--pending) exchange(pending_offset, pending_value);
+branch  0 taken 5448 (fallthrough)
+branch  1 taken 371090115
+branch  2 taken 1816 (fallthrough)
+branch  3 taken 3632
+call    4 returned 1816
+371095563:   49:}
+function wt_host_timing called 3 returned 100% blocks executed 100%
+        3:   50:void wt_host_timing(unsigned accesses) { delay = accesses; }
+function wt_reg_write called 92943791 returned 100% blocks executed 92%
+ 92943791:   51:void wt_reg_write(unsigned offset, U8 value) {
+ 92943791:   52:  advance();
+call    0 returned 92943791
+92943791*:   53:  if (pending) { ++wt_host_unfinished; pending = 0; }
+branch  0 taken 0 (fallthrough)
+branch  1 taken 92943791
+ 92943791:   54:  if (offset == 2 || offset == 3) {
+branch  0 taken 92493499 (fallthrough)
+branch  1 taken 450292
+branch  2 taken 224920 (fallthrough)
+branch  3 taken 92268579
+   675212:   55:    wt_host_selected = offset == 3;
+   675212:   56:    if (wt_host_selected) startup_selected = 1;
+branch  0 taken 224920 (fallthrough)
+branch  1 taken 450292
+        -:   57:  }
+ 92943791:   58:  if (offset <= 1 && delay) {
+branch  0 taken 92268579 (fallthrough)
+branch  1 taken 675212
+branch  2 taken 1816 (fallthrough)
+branch  3 taken 92266763
+     1816:   59:    pending_offset = offset; pending_value = value; pending = delay;
+ 92941975:   60:  } else exchange(offset, value);
+call    0 returned 92941975
+ 92943791:   61:}
+function wt_reg_read called 278151772 returned 100% blocks executed 100%
+278151772:   62:U8 wt_reg_read(unsigned offset) {
+278151772:   63:  advance();
+call    0 returned 278151772
+278151772:   64:  if (offset == 3) ++wt_host_pull_high_calls;
+branch  0 taken 148 (fallthrough)
+branch  1 taken 278151624
+278151772:   65:  return slot_model_read(card, offset);
+call    0 returned 278151772
+        -:   66:}
+function wt_host_clock called 2 returned 100% blocks executed 100%
+        2:   67:void wt_host_clock(unsigned base, int frozen) { tick_base = (U16)base; clocks = 0; tick_frozen = frozen; }
+function wt_ticks called 6092619 returned 100% blocks executed 100%
+  6092619:   68:U16 wt_ticks(void) { return (U16)(tick_base + (tick_frozen ? 0 : clocks / 2048UL)); }
+branch  0 taken 2092616 (fallthrough)
+branch  1 taken 4000003

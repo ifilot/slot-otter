@@ -1,0 +1,31 @@
+{
+  "cycles": 300000,
+  "scope": "emulated CPU comparison; physical timing remains unqualified",
+  "results": [
+    {
+      "build": "baseline",
+      "driver_sha256": "39d7872ee310c7c3277aa4765549912835e3ce20442bf9fd528f727f11a8af04",
+      "ticks": 41,
+      "seconds": 2.252,
+      "logs": {
+        "INSTALL.TXT": "OTTERFS: S: verified read/write, port 330, resident 39888 bytes.\r\nCard mounted. Run OTTERFS /UNMOUNT before removing it or running OTTERNAV.\r\n",
+        "STATUS.TXT": "OTTERFS S: mounted, 0 open files, port 330.\r\n",
+        "UNMOUNT.TXT": "OTTERFS drive is offline; card may be removed.\r\n",
+        "TIME.TXT": "STARTUP TICKS=41\r\n"
+      }
+    },
+    {
+      "build": "current",
+      "driver_sha256": "32c4fa3a6ee59ae445757ffb6bdc4cff54f77444b385f1e1bef5ca6bcb5586d8",
+      "ticks": 38,
+      "seconds": 2.087,
+      "logs": {
+        "INSTALL.TXT": "Initializing SD card and checking filesystem; FAT comparison may take time.\r\nMount timing: SD 0, filesystem 38 BIOS ticks (about 18.2 ticks/second).\r\nOTTERWR: S: verified read/write, port 330, resident 36624 bytes.\r\nCard mounted. Run OTTERWR /UNMOUNT before removing it or running OTTERNAV.\r\n",
+        "STATUS.TXT": "OTTERWR S: mounted, 0 open files, port 330.\r\n",
+        "UNMOUNT.TXT": "OTTERWR drive is offline; card may be removed.\r\n",
+        "TIME.TXT": "STARTUP TICKS=38\r\n"
+      }
+    }
+  ],
+  "tick_ratio": 1.0789473684210527
+}

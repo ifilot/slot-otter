@@ -3,7 +3,7 @@
  * Turbo C 2.0 / 8086. GPL-3.0-or-later. */
 #include <dos.h>
 #include <string.h>
-int main(void) {
+static int process_exit_child(void) {
     union REGS r;
     unsigned i,first=0;
     static char name[]="S:\\RWTEMP\\DATA.BIN";

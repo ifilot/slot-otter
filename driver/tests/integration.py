@@ -27,6 +27,7 @@ def main():
                         help="Executable to install in read-only mode as OTTERFS.EXE")
     parser.add_argument("--timeout", type=float, default=45)
     parser.add_argument("--swap", action="store_true", help="Exercise empty slot and swapping; requires OTTER_MODEL_TEST adapter")
+    parser.add_argument("--consolidated",action="store_true",help="Qualify explicit /RO and conflicting access options")
     parser.add_argument("--max-resident", type=int, default=17632, help="Resident DOS allocation ceiling in bytes")
     args = parser.parse_args()
     work = pathlib.Path(tempfile.mkdtemp(prefix="otterfs-integration-"))
@@ -40,6 +41,7 @@ def main():
             (work / filename).write_bytes(content.replace(b"\n", b"\r\n"))
     for probe in probes:
         source = (ROOT / f"tests/{probe}.C").read_bytes().replace(b"\r\n", b"\n")
+        if args.consolidated and probe=='CLIPROBE': source=b'#define UNIFIED_DRIVER\n'+source
         (work / f"{probe}.C").write_bytes(source.replace(b"\n", b"\r\n"))
         commands = ["tasm /mx SDCMDS.ASM > ASM.TXT",
                     "tcc -ms -eSDPROBE.EXE SDPROBE.C SD.C SDCMDS.OBJ > BUILD.TXT"] if probe == "SDPROBE" else [f"tcc -ms -e{probe}.EXE {probe}.C > BUILD.TXT"]

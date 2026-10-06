@@ -22,7 +22,10 @@ Resident callbacks must not call DOS, allocate memory, or print diagnostics.
 The interrupt bridge provides a static stack and prevents nested use of shared
 scratch. Installation code may use DOS before becoming resident. The linker
 boundary includes all resident code/data and the private stack, and releases
-the startup stack/heap after installation.
+the startup stack/heap and explicit far installer tail after installation.
+BOOT gates are the only external far targets permitted in installer assembly;
+local far frames must also be verified before linking. PORTBODY.H shares the
+parser implementation between retained test utilities and the far installer.
 
 Verified sector writes do not make FAT operations atomic. Mount preflight is
 not a complete consistency scan. Any claim about recovery, memory use, or a

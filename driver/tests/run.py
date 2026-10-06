@@ -78,7 +78,7 @@ def main():
         for key, line_floor, branch_floor in [("fat32/FAT32.C", 95, 80),
                                                ("redirector/REDIR.C", 99, 90),
                                                ("model/slot_model.c", 95, 80),
-                                               ("port/PORT.C", 100, 100),
+                                               ("port/PORTBODY.H", 100, 100),
                                                ("write/WFS.C", 80, 65),
                                                ("write/WSD.C", 80, 65),
                                                ("write/WTEST.C", 85, 60),
@@ -96,7 +96,7 @@ def main():
         for name in ("rw_mutations.py", "rw_fs_mutations.py", "rw_redirector_mutations.py"):
             subprocess.run([sys.executable, str(TESTS / name)], check=True)
     if args.build:
-        subprocess.run(["bash", str(TESTS.parent / "build.sh")], check=True)
+        subprocess.run(["bash", str(TESTS / "legacy-build.sh")], check=True)
     for boot in args.boot_image:
         command = [sys.executable, str(TESTS / "integration.py"),
                    "--dosbox", args.dosbox, "--boot-image", str(boot),

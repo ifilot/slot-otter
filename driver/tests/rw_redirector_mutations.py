@@ -9,6 +9,13 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 CASES = [
+    ('scan FATs on every close', 'RWOPS.C', '!code && !closing && rw_flush()',
+     '!code && rw_flush()', 'test_twenty_closes_do_not_rescan_fats'),
+    ('skip explicit commit verification', 'RWOPS.C', '!code && !closing && rw_flush()',
+     '!code && 0 && rw_flush()', 'test_commit_detects_untouched_mirror_corruption_after_close'),
+    ('discard dirty session on live remount', 'REDIR.C',
+     'if (sd_write_enabled && media_online && rw_flush()) {\n        result=fs_error;',
+     'if (0) {\n        result=fs_error;', 'test_online_remount_flushes_dirty_closed_files_first'),
     ('write through read-only open', 'RWOPS.C',
      'if (!(get16(sft+2)&3)) return error(E_ACCESS);',
      'if (0) return error(E_ACCESS);', 'test_access_modes_and_invalid_open_modes'),

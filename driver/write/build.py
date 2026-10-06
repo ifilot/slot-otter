@@ -65,7 +65,7 @@ def prepare(path,files=None,spc=1):
 
 def main():
     work=Path(tempfile.mkdtemp(prefix='otter-write-build-')); dist=HERE/'dist'; dist.mkdir(exist_ok=True)
-    for source in [HERE/n for n in ('WRITE.H','WTEST.C','WSD.C','WFS.C')]+[ROOT/n for n in ('OTTER.H','FAT32.C','PORT.C')]:
+    for source in [HERE/n for n in ('WRITE.H','WTEST.C','WSD.C','WFS.C')]+[ROOT/n for n in ('OTTER.H','FAT32.C','PORT.C','PORTBODY.H')]:
         (work/source.name).write_bytes(source.read_bytes().replace(b'\r\n',b'\n').replace(b'\n',b'\r\n'))
     toolchain=Path(os.environ.get('TOOLCHAIN_DIR',ROOT.parent/'buildenv')).resolve()
     commands=[f'mount c "{toolchain}"',f'mount d "{work}"',r'set PATH=C:\TC;C:\TASM','d:',

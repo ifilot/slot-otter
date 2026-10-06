@@ -18,6 +18,7 @@ U8 FAR *drive_cds;
 U8 media_online;
 #ifdef RW_DRIVER
 static U16 rw_error_function,rw_error_code;
+U16 resident_bytes, mount_sd_ticks, mount_fs_ticks;
 #endif
 static U32 media_epoch=1;
 #define MAX_OPEN 16
@@ -95,12 +96,29 @@ U16 media_unmount(void) {
 }
 U16 media_mount(void) {
     U16 result;
-    if (open_count()) return E_ACCESS;
-    offline();
-    if (sd_init()) { sd_release(); return E_NOTREADY; }
 #ifdef RW_DRIVER
-    if (sd_write_enabled ? rw_mount() : fs_mount()) {
+    U16 start;
+#endif
+    if (open_count()) return E_ACCESS;
+#ifdef RW_DRIVER
+    /* A live remount must commit the old session before offline() discards its
+     * dirty state. Failure takes it offline with the original evidence intact. */
+    if (sd_write_enabled && media_online && rw_flush()) {
+        result=fs_error; offline(); return result;
+    }
+#endif
+    offline();
+#ifdef RW_DRIVER
+    start=sd_ticks();
+    result=(U16)sd_init();
+    mount_sd_ticks=(U16)(sd_ticks()-start); mount_fs_ticks=0;
+    if (result) { sd_release(); return E_NOTREADY; }
+    start=sd_ticks();
+    result=(U16)(sd_write_enabled ? rw_mount() : fs_mount());
+    mount_fs_ticks=(U16)(sd_ticks()-start);
+    if (result) {
 #else
+    if (sd_init()) { sd_release(); return E_NOTREADY; }
     if (fs_mount()) {
 #endif
         result=fs_error; offline(); return result;
@@ -283,6 +301,19 @@ int dispatch(void) {
                 return code ? error(code) : success();
             }
 #ifdef RW_DRIVER
+            if (regs.si==8) {
+                DriverInfo info;
+                U16 i;
+                U8 FAR *out=far_at(regs.es,regs.di);
+                if (regs.cx<sizeof(info) || regs.di>65535U-sizeof(info)) return error(1);
+                info.flags=(U16)sd_card_info(info.cid,&info.last_lba);
+                if (sd_write_enabled) info.flags|=2;
+                if (media_online) info.flags|=4;
+                info.version=OTTER_VERSION; info.resident=resident_bytes;
+                info.sd_ticks=mount_sd_ticks; info.fs_ticks=mount_fs_ticks; info.abi=1;
+                for (i=0;i<sizeof(info);++i) out[i]=((U8 *)&info)[i];
+                success(); regs.cx=sizeof(info); return 1;
+            }
             if (regs.si==4) {
                 U16 i;
                 U8 FAR *out=far_at(regs.es,regs.di);

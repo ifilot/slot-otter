@@ -9,6 +9,9 @@ import tempfile
 
 ROOT=Path(__file__).resolve().parents[1]
 CASES=[
+    ('scan a nonexistent single-FAT mirror','if (!mirrored || fat_count<2) return 0;',
+     'if (!mirrored) return 0;',
+     'test_single_fat_mount_skips_empty_comparison_and_preserves_writes'),
     ('hide directory chain read error','if (chain_valid(parent)) return -1;',
      'if (chain_valid(parent)) return fail(E_INVALID);',
      'test_clean_preflight_read_errors_remain_transport_errors'),

@@ -1,0 +1,888 @@
+        -:    0:Source:/mnt/d/PROGRAMMING/KiCAD/slot-otter/driver/RWOPS.C
+        -:    0:Graph:/mnt/d/PROGRAMMING/KiCAD/slot-otter/driver/dist/coverage/rwredir/hostrwd.gcno
+        -:    0:Data:/mnt/d/PROGRAMMING/KiCAD/slot-otter/driver/dist/coverage/rwredir/hostrwd.gcda
+        -:    0:Runs:1
+        -:    1:/* Included by REDIR.C after its private helpers; do not compile separately.
+        -:    2: * DOS callbacks never invoke INT 21h. GPL-3.0-or-later. */
+        -:    3:#define E_SHARE 32
+        -:    4:#define E_LOCK 33
+        -:    5:#define MAX_LOCKS 16
+        -:    6:typedef struct {
+        -:    7:    U8 FAR *sft;
+        -:    8:    U32 lba, start, length;
+        -:    9:    U16 offset;
+        -:   10:} RegionLock;
+        -:   11:static RegionLock locks[MAX_LOCKS];
+        -:   12:#ifdef HOST_TEST
+        -:   13:U32 rw_bios_ticks;
+        -:   14:#endif
+function rw_result called 9 returned 100% blocks executed 100%
+        9:   15:static int rw_result(int result) {
+        9:   16:    return result ? filesystem_error() : success();
+branch  0 taken 3 (fallthrough)
+branch  1 taken 6
+call    2 returned 3
+call    3 returned 6
+        -:   17:}
+function same_file called 409 returned 100% blocks executed 83%
+      409:   18:static int same_file(const RwFile *a,const RwFile *b) {
+        -:   19:    /* Directory location is stable while open: rename/delete are refused. */
+     409*:   20:    return a->lba==b->lba && a->offset==b->offset;
+branch  0 taken 409 (fallthrough)
+branch  1 taken 0
+branch  2 taken 409 (fallthrough)
+branch  3 taken 0
+        -:   21:}
+function access_bits called 259 returned 100% blocks executed 100%
+      259:   22:static U16 access_bits(U16 mode) {
+      259:   23:    return (mode&3)==0?1:(mode&3)==1?2:3;
+branch  0 taken 252 (fallthrough)
+branch  1 taken 7
+branch  2 taken 4 (fallthrough)
+branch  3 taken 248
+        -:   24:}
+function denied_bits called 257 returned 100% blocks executed 100%
+      257:   25:static U16 denied_bits(U16 mode) {
+      257:   26:    switch ((mode>>4)&7) {
+branch  0 taken 2
+branch  1 taken 2
+branch  2 taken 2
+branch  3 taken 251
+        2:   27:    case 1: return 3;
+        2:   28:    case 2: return 2;
+        2:   29:    case 3: return 1;
+      251:   30:    default: return 0;
+        -:   31:    }
+        -:   32:}
+function shared called 48 returned 100% blocks executed 96%
+       48:   33:static int shared(const RwFile *f,U16 mode) {
+       48:   34:    U16 i,old,owner=get16(dos_sda+0x10);
+call    0 returned 48
+      704:   35:    for (i=0;i<MAX_OPEN;++i) {
+branch  0 taken 663
+branch  1 taken 41 (fallthrough)
+      663:   36:        if (!files[i].sft || !same_file(f,&FILE_DISK(files+i))) continue;
+branch  0 taken 130 (fallthrough)
+branch  1 taken 533
+call    2 returned 130
+branch  3 taken 0 (fallthrough)
+branch  4 taken 130
+      130:   37:        old=get16(files[i].sft+2);
+call    0 returned 130
+      130:   38:        if (denied_bits(old)&access_bits(mode)) return 1;
+call    0 returned 130
+call    1 returned 130
+branch  2 taken 3 (fallthrough)
+branch  3 taken 127
+      127:   39:        if (denied_bits(mode)&access_bits(old)) return 1;
+call    0 returned 127
+call    1 returned 127
+branch  2 taken 3 (fallthrough)
+branch  3 taken 124
+        -:   40:        /* Compatibility opens may coexist within their opening process.
+        -:   41:         * Across processes, a compatibility writer excludes other opens. */
+      124:   42:        if (owner!=files[i].owner &&
+branch  0 taken 1 (fallthrough)
+branch  1 taken 123
+       1*:   43:            (!(old&0x70) || !(mode&0x70)) &&
+branch  0 taken 0 (fallthrough)
+branch  1 taken 1
+branch  2 never executed (fallthrough)
+branch  3 never executed
+        1:   44:            ((access_bits(old)|access_bits(mode))&2)) return 1;
+call    0 returned 1
+call    1 returned 1
+branch  2 taken 1 (fallthrough)
+branch  3 taken 0
+        -:   45:    }
+       41:   46:    return 0;
+        -:   47:}
+function file_busy called 33 returned 100% blocks executed 100%
+       33:   48:static int file_busy(const RwFile *f) {
+        -:   49:    U16 i;
+      545:   50:    for (i=0;i<MAX_OPEN;++i)
+branch  0 taken 513
+branch  1 taken 32 (fallthrough)
+      513:   51:        if (files[i].sft && same_file(f,&FILE_DISK(files+i))) return 1;
+branch  0 taken 1 (fallthrough)
+branch  1 taken 512
+call    2 returned 1
+branch  3 taken 1 (fallthrough)
+branch  4 taken 0
+       32:   52:    return 0;
+        -:   53:}
+function timestamp called 113 returned 100% blocks executed 77%
+      113:   54:static void timestamp(U16 *time,U16 *date) {
+        -:   55:    /* Resident callbacks cannot ask DOS for the clock. DOS keeps the date in
+        -:   56:     * SDA; BIOS ticks supply time. Sample high/low/high on the 16-bit CPU so
+        -:   57:     * an IRQ increment between word reads cannot tear the 32-bit counter. */
+     113*:   58:    U16 off=dos_major==3?0x2e:0x30;
+branch  0 taken 0 (fallthrough)
+branch  1 taken 113
+      113:   59:    U16 day=dos_sda[off],month=dos_sda[off+1],year=get16(dos_sda+off+2);
+call    0 returned 113
+        -:   60:    U32 ticks,seconds;
+        -:   61:#ifndef HOST_TEST
+        -:   62:    U16 high,low;
+        -:   63:    volatile U16 far *clock=(volatile U16 far *)MK_FP(0x40,0x6c);
+        -:   64:#endif
+        -:   65:#ifdef HOST_TEST
+      113:   66:    ticks=rw_bios_ticks;
+        -:   67:#else
+        -:   68:    do { high=clock[1]; low=clock[0]; } while (high!=clock[1]);
+        -:   69:    ticks=((U32)high<<16)|low;
+        -:   70:#endif
+     113*:   71:    if (ticks>=1573040UL) ticks=0;
+branch  0 taken 0 (fallthrough)
+branch  1 taken 113
+        -:   72:    /* Approximate 65536/1193180 seconds per tick within FAT's two-second
+        -:   73:     * resolution, using a multiplier that cannot overflow over one day. */
+      113:   74:    seconds=(ticks*1080UL)/19663UL;
+      113:   75:    *time=(U16)(((seconds/3600)<<11)|(((seconds/60)%60)<<5)|((seconds%60)>>1));
+      113:   76:    if (!day || day>31 || !month || month>12 || year>127) {
+branch  0 taken 113 (fallthrough)
+branch  1 taken 0
+branch  2 taken 113 (fallthrough)
+branch  3 taken 0
+branch  4 taken 113 (fallthrough)
+branch  5 taken 0
+branch  6 taken 113 (fallthrough)
+branch  7 taken 0
+branch  8 taken 0 (fallthrough)
+branch  9 taken 113
+    #####:   77:        year=0; month=day=1;
+        -:   78:    }
+      113:   79:    *date=(U16)((year<<9)|(month<<5)|day);
+      113:   80:}
+        -:   81:/* A differing SFT time/date is a pending DOS handle-time update. Preserve it
+        -:   82: * while refreshing metadata changed by another independently opened handle. */
+function refresh_file called 59 returned 100% blocks executed 88%
+       59:   83:static int refresh_file(OpenFile *file) {
+       59:   84:    U16 time=get16(file->sft+13),date=get16(file->sft+15);
+call    0 returned 59
+call    1 returned 59
+      59*:   85:    int pending=time!=FILE_DISK(file).time || date!=FILE_DISK(file).date;
+branch  0 taken 59 (fallthrough)
+branch  1 taken 0
+branch  2 taken 0 (fallthrough)
+branch  3 taken 59
+      59*:   86:    if (rw_refresh(&FILE_DISK(file))) return -1;
+call    0 returned 59
+branch  1 taken 0 (fallthrough)
+branch  2 taken 59
+       59:   87:    put32(file->sft+17,FILE_DISK(file).size); file->sft[4]=FILE_DISK(file).attr;
+call    0 returned 59
+       59:   88:    if (!pending) { time=FILE_DISK(file).time; date=FILE_DISK(file).date; }
+branch  0 taken 59 (fallthrough)
+branch  1 taken 0
+       59:   89:    put16(file->sft+13,time); put16(file->sft+15,date);
+call    0 returned 59
+call    1 returned 59
+       59:   90:    return 0;
+        -:   91:}
+        -:   92:/* DOS caches EOF in each SFT, including for seek. Publish size immediately
+        -:   93: * to all independent handles without changing their individual positions. */
+function sync_files called 151 returned 100% blocks executed 100%
+      151:   94:static void sync_files(OpenFile *file) {
+        -:   95:    U16 i,time,date;
+     2567:   96:    for (i=0;i<MAX_OPEN;++i) {
+branch  0 taken 2416
+branch  1 taken 151 (fallthrough)
+     2416:   97:        if (!files[i].sft || !same_file(&FILE_DISK(file),&FILE_DISK(files+i))) continue;
+branch  0 taken 278 (fallthrough)
+branch  1 taken 2138
+call    2 returned 278
+branch  3 taken 0 (fallthrough)
+branch  4 taken 278
+      278:   98:        time=get16(files[i].sft+13); date=get16(files[i].sft+15);
+call    0 returned 278
+call    1 returned 278
+      278:   99:        if (time==FILE_DISK(files+i).time && date==FILE_DISK(files+i).date) {
+branch  0 taken 278 (fallthrough)
+branch  1 taken 0
+branch  2 taken 278 (fallthrough)
+branch  3 taken 0
+      278:  100:            time=FILE_DISK(file).time; date=FILE_DISK(file).date;
+        -:  101:        }
+      278:  102:        FILE_DISK(files+i)=FILE_DISK(file);
+      278:  103:        put32(files[i].sft+17,FILE_DISK(file).size); files[i].sft[4]=FILE_DISK(file).attr;
+call    0 returned 278
+      278:  104:        put16(files[i].sft+13,time); put16(files[i].sft+15,date);
+call    0 returned 278
+call    1 returned 278
+        -:  105:    }
+      151:  106:}
+function rw_open_file called 117 returned 100% blocks executed 81%
+      117:  107:static int rw_open_file(U8 FAR *sft,U16 mode,U16 action,U8 attr) {
+        -:  108:    U16 i,branch,time,date;
+        -:  109:    U32 parent;
+        -:  110:    char leaf[13];
+        -:  111:    U8 name[11];
+        -:  112:    RwFile f;
+        -:  113:    int exists;
+      117:  114:    if ((mode&0xff0c) || (mode&3)==3 || ((mode>>4)&7)>4) return error(12);
+branch  0 taken 115 (fallthrough)
+branch  1 taken 2
+branch  2 taken 114 (fallthrough)
+branch  3 taken 1
+branch  4 taken 2 (fallthrough)
+branch  5 taken 112
+call    6 returned 5
+     112*:  115:    if ((action&~0x13) || (action&3)>2) return error(12);
+branch  0 taken 112 (fallthrough)
+branch  1 taken 0
+branch  2 taken 0 (fallthrough)
+branch  3 taken 112
+call    4 never executed
+     112*:  116:    if (attr&0xd8) return error(E_ACCESS);
+branch  0 taken 0 (fallthrough)
+branch  1 taken 112
+call    2 never executed
+      258:  117:    for (i=0;i<MAX_OPEN;++i) if (!files[i].sft) break;
+branch  0 taken 111 (fallthrough)
+branch  1 taken 146
+branch  2 taken 257
+branch  3 taken 1 (fallthrough)
+      112:  118:    if (i==MAX_OPEN) return error(E_HANDLES);
+branch  0 taken 1 (fallthrough)
+branch  1 taken 111
+call    2 returned 1
+      111:  119:    exists=rw_lookup(path,&f)==0;
+call    0 returned 111
+      111:  120:    if (!exists && fs_error!=E_NOTFOUND) return filesystem_error();
+branch  0 taken 62 (fallthrough)
+branch  1 taken 49
+branch  2 taken 1 (fallthrough)
+branch  3 taken 61
+call    4 returned 1
+      110:  121:    if (exists) {
+branch  0 taken 49 (fallthrough)
+branch  1 taken 61
+      49*:  122:        if (f.directory) return error(E_ACCESS);
+branch  0 taken 0 (fallthrough)
+branch  1 taken 49
+call    2 never executed
+       49:  123:        if (!(action&3)) return error(E_EXISTS);
+branch  0 taken 1 (fallthrough)
+branch  1 taken 48
+call    2 returned 1
+       48:  124:        if (shared(&f,mode)) return error(E_SHARE);
+call    0 returned 48
+branch  1 taken 7 (fallthrough)
+branch  2 taken 41
+call    3 returned 7
+       41:  125:        if ((f.attr&1) && ((mode&3) || (action&3)==2)) return error(E_ACCESS);
+branch  0 taken 2 (fallthrough)
+branch  1 taken 39
+branch  2 taken 1 (fallthrough)
+branch  3 taken 1
+branch  4 taken 0 (fallthrough)
+branch  5 taken 1
+call    6 returned 1
+       40:  126:        branch=(action&3)==2?3:1;
+branch  0 taken 3 (fallthrough)
+branch  1 taken 37
+      40*:  127:        if (branch==3 && rw_truncate(&f,0)) return filesystem_error();
+branch  0 taken 3 (fallthrough)
+branch  1 taken 37
+call    2 returned 3
+branch  3 taken 0 (fallthrough)
+branch  4 taken 3
+call    5 never executed
+        -:  128:    } else {
+      61*:  129:        if (!(action&0x10)) return error(E_NOTFOUND);
+branch  0 taken 0 (fallthrough)
+branch  1 taken 61
+call    2 never executed
+      61*:  130:        if (fs_parent(path,&parent,leaf)) return filesystem_error();
+call    0 returned 61
+branch  1 taken 0 (fallthrough)
+branch  2 taken 61
+call    3 never executed
+      61*:  131:        if (rw_create(parent,leaf,&f)) return filesystem_error();
+call    0 returned 61
+branch  1 taken 0 (fallthrough)
+branch  2 taken 61
+call    3 never executed
+       61:  132:        branch=2;
+        -:  133:    }
+      101:  134:    if (branch!=1) {
+branch  0 taken 64 (fallthrough)
+branch  1 taken 37
+       64:  135:        timestamp(&time,&date);
+call    0 returned 64
+      64*:  136:        if (rw_metadata(&f,attr|32,time,date)) return filesystem_error();
+call    0 returned 64
+branch  1 taken 0 (fallthrough)
+branch  2 taken 64
+call    3 never executed
+        -:  137:    }
+     101*:  138:    if (fs_parent(path,&parent,leaf) || fs_pattern(leaf,name,0)) return filesystem_error();
+call    0 returned 101
+branch  1 taken 101 (fallthrough)
+branch  2 taken 0
+call    3 returned 101
+branch  4 taken 0 (fallthrough)
+branch  5 taken 101
+call    6 never executed
+      101:  139:    files[i].sft=sft; FILE_DISK(files+i)=f; files[i].owner=get16(dos_sda+0x10);
+call    0 returned 101
+      101:  140:    files[i].created_ro=(U8)(branch!=1 && (attr&1));
+branch  0 taken 64 (fallthrough)
+branch  1 taken 37
+branch  2 taken 1 (fallthrough)
+branch  3 taken 63
+        -:  141:    /* DOS owns SFT reference count at +0 and sharing/PSP fields at +43 onward.
+        -:  142:     * Open fills our fields only; final-close reference cleanup is below. */
+      101:  143:    put16(sft+2,mode); sft[4]=f.attr;
+call    0 returned 101
+      101:  144:    put16(sft+5,0xc000|drive_number|((mode&0x80)?0x1000:0));
+call    0 returned 101
+      101:  145:    put32(sft+7,0); put16(sft+11,0);
+call    0 returned 101
+call    1 returned 101
+      101:  146:    put16(sft+13,f.time); put16(sft+15,f.date);
+call    0 returned 101
+call    1 returned 101
+      101:  147:    put32(sft+17,f.size); put32(sft+21,0); put32(sft+25,0);
+call    0 returned 101
+call    1 returned 101
+call    2 returned 101
+      101:  148:    sft[29]=sft[30]=sft[31]=0;
+     1212:  149:    for (i=0;i<11;++i) sft[32+i]=name[i];
+branch  0 taken 1111
+branch  1 taken 101 (fallthrough)
+      101:  150:    sync_files(find_file(sft));
+call    0 returned 101
+call    1 returned 101
+      101:  151:    success(); regs.cx=branch; return 1;
+call    0 returned 101
+        -:  152:}
+function overlap called 141 returned 100% blocks executed 100%
+      141:  153:static int overlap(U32 start,U32 length,U32 a,U32 n) {
+        -:  154:    /* Overflow-free half-open interval comparison. */
+      141:  155:    return length && n && (start>=a ? start-a<n : a-start<length);
+branch  0 taken 141 (fallthrough)
+branch  1 taken 0
+branch  2 taken 141 (fallthrough)
+branch  3 taken 0
+branch  4 taken 138 (fallthrough)
+branch  5 taken 3
+branch  6 taken 2
+branch  7 taken 136
+branch  8 taken 3 (fallthrough)
+branch  9 taken 0
+        -:  156:}
+function locked called 58 returned 100% blocks executed 100%
+       58:  157:static int locked(OpenFile *file,U32 start,U32 length) {
+        -:  158:    U16 i;
+      922:  159:    for (i=0;i<MAX_LOCKS;++i)
+branch  0 taken 868
+branch  1 taken 54 (fallthrough)
+      868:  160:        if (locks[i].sft && locks[i].sft!=file->sft &&
+branch  0 taken 4 (fallthrough)
+branch  1 taken 864
+branch  2 taken 4 (fallthrough)
+branch  3 taken 0
+        8:  161:            locks[i].lba==FILE_DISK(file).lba && locks[i].offset==FILE_DISK(file).offset &&
+branch  0 taken 4 (fallthrough)
+branch  1 taken 0
+branch  2 taken 4 (fallthrough)
+branch  3 taken 0
+branch  4 taken 4 (fallthrough)
+branch  5 taken 0
+        8:  162:            overlap(start,length,locks[i].start,locks[i].length)) return 1;
+call    0 returned 4
+       54:  163:    return 0;
+        -:  164:}
+function unlock_file called 101 returned 100% blocks executed 100%
+      101:  165:static void unlock_file(U8 FAR *sft) {
+        -:  166:    U16 i;
+     1717:  167:    for (i=0;i<MAX_LOCKS;++i) if (locks[i].sft==sft) locks[i].sft=0;
+branch  0 taken 18 (fallthrough)
+branch  1 taken 1598
+branch  2 taken 1616
+branch  3 taken 101 (fallthrough)
+      101:  168:}
+function rw_lock_file called 30 returned 100% blocks executed 94%
+       30:  169:static int rw_lock_file(U8 FAR *sft,U8 fn) {
+       30:  170:    OpenFile *file=find_file(sft);
+call    0 returned 30
+        -:  171:    U8 FAR *p;
+        -:  172:    U32 start,length;
+       30:  173:    U16 i,slot=MAX_LOCKS;
+        -:  174:    int unlock;
+      30*:  175:    if (!file) return error(6);
+branch  0 taken 0 (fallthrough)
+branch  1 taken 30
+call    2 never executed
+        -:  176:    /* DOS 3: CX:DX position, SI:caller-stack-word length. DOS 4-6: DS:DX
+        -:  177:     * points to two DWORDs, CX=1, BL selects unlock. Unlock is an exact match. */
+       30:  178:    if (dos_major==3) {
+branch  0 taken 3 (fallthrough)
+branch  1 taken 27
+        3:  179:        start=((U32)regs.cx<<16)|regs.dx;
+        3:  180:        length=((U32)regs.si<<16)|regs.param; unlock=fn==0x0b;
+        -:  181:    } else {
+       27:  182:        if (fn!=0x0a || regs.cx!=1 || (regs.bx&255)>1) return error(1);
+branch  0 taken 27 (fallthrough)
+branch  1 taken 0
+branch  2 taken 26 (fallthrough)
+branch  3 taken 1
+branch  4 taken 1 (fallthrough)
+branch  5 taken 25
+call    6 returned 2
+       25:  183:        p=far_at(regs.ds,regs.dx); start=get32(p); length=get32(p+4);
+call    0 returned 25
+call    1 returned 25
+call    2 returned 25
+       25:  184:        unlock=(regs.bx&255)==1;
+        -:  185:    }
+       28:  186:    if (!length || length-1>0xffffffffUL-start) return error(E_LOCK);
+branch  0 taken 27 (fallthrough)
+branch  1 taken 1
+branch  2 taken 1 (fallthrough)
+branch  3 taken 26
+call    4 returned 2
+      394:  187:    for (i=0;i<MAX_LOCKS;++i) {
+branch  0 taken 371
+branch  1 taken 23 (fallthrough)
+      371:  188:        if (!locks[i].sft) { if (slot==MAX_LOCKS) slot=i; continue; }
+branch  0 taken 230 (fallthrough)
+branch  1 taken 141
+branch  2 taken 22 (fallthrough)
+branch  3 taken 208
+     141*:  189:        if (locks[i].lba!=FILE_DISK(file).lba || locks[i].offset!=FILE_DISK(file).offset) continue;
+branch  0 taken 141 (fallthrough)
+branch  1 taken 0
+branch  2 taken 0 (fallthrough)
+branch  3 taken 141
+      141:  190:        if (unlock && locks[i].sft==sft && locks[i].start==start && locks[i].length==length) {
+branch  0 taken 4 (fallthrough)
+branch  1 taken 137
+branch  2 taken 4 (fallthrough)
+branch  3 taken 0
+branch  4 taken 4 (fallthrough)
+branch  5 taken 0
+branch  6 taken 2 (fallthrough)
+branch  7 taken 2
+        2:  191:            locks[i].sft=0; return success();
+call    0 returned 2
+        -:  192:        }
+      139:  193:        if (!unlock && overlap(start,length,locks[i].start,locks[i].length)) return error(E_LOCK);
+branch  0 taken 137 (fallthrough)
+branch  1 taken 2
+call    2 returned 137
+branch  3 taken 1 (fallthrough)
+branch  4 taken 136
+call    5 returned 1
+        -:  194:    }
+       23:  195:    if (unlock) return error(E_LOCK);
+branch  0 taken 2 (fallthrough)
+branch  1 taken 21
+call    2 returned 2
+       21:  196:    if (slot==MAX_LOCKS) return error(36);
+branch  0 taken 1 (fallthrough)
+branch  1 taken 20
+call    2 returned 1
+       20:  197:    locks[slot].sft=sft; locks[slot].lba=FILE_DISK(file).lba; locks[slot].offset=FILE_DISK(file).offset;
+       20:  198:    locks[slot].start=start; locks[slot].length=length; return success();
+call    0 returned 20
+        -:  199:}
+function rw_write_file called 53 returned 100% blocks executed 81%
+       53:  200:static int rw_write_file(U8 FAR *sft) {
+       53:  201:    OpenFile *file=find_file(sft);
+call    0 returned 53
+        -:  202:    U32 position,old_size,range_start,range_length;
+       53:  203:    U16 done,time,date,count=regs.cx;
+        -:  204:    U8 attr;
+        -:  205:    int result;
+       53:  206:    regs.cx=0;
+      53*:  207:    if (!file) return error(6);
+branch  0 taken 0 (fallthrough)
+branch  1 taken 53
+call    2 never executed
+       53:  208:    if (!(get16(sft+2)&3)) return error(E_ACCESS);
+call    0 returned 53
+branch  1 taken 2 (fallthrough)
+branch  2 taken 51
+call    3 returned 2
+      51*:  209:    if (refresh_file(file)) return filesystem_error();
+call    0 returned 51
+branch  1 taken 0 (fallthrough)
+branch  2 taken 51
+call    3 never executed
+       51:  210:    position=get32(sft+21); old_size=FILE_DISK(file).size;
+call    0 returned 51
+       51:  211:    range_start=position; range_length=count;
+       51:  212:    if (!count || position>old_size) {
+branch  0 taken 47 (fallthrough)
+branch  1 taken 4
+branch  2 taken 1 (fallthrough)
+branch  3 taken 46
+        5:  213:        range_start=position<old_size?position:old_size;
+        5:  214:        range_length=position>old_size?position-old_size:old_size-position;
+branch  0 taken 2 (fallthrough)
+branch  1 taken 3
+       5*:  215:        if (range_length>0xffffffffUL-count) return error(E_INVALID);
+branch  0 taken 0 (fallthrough)
+branch  1 taken 5
+call    2 never executed
+        5:  216:        range_length+=count;
+        -:  217:    }
+       51:  218:    if (locked(file,range_start,range_length)) return error(E_LOCK);
+call    0 returned 51
+branch  1 taken 2 (fallthrough)
+branch  2 taken 49
+call    3 returned 2
+       49:  219:    attr=FILE_DISK(file).attr;
+       49:  220:    if (file->created_ro) FILE_DISK(file).attr&=~1;
+branch  0 taken 1 (fallthrough)
+branch  1 taken 48
+       49:  221:    result=rw_write(&FILE_DISK(file),position,pointer_at(dos_sda+12),count,&done);
+call    0 returned 49
+call    1 returned 49
+       49:  222:    FILE_DISK(file).attr|=attr&1;
+       49:  223:    put32(sft+21,position+done); put32(sft+17,FILE_DISK(file).size); regs.cx=done;
+call    0 returned 49
+call    1 returned 49
+       49:  224:    if (!result || fs_error==E_FULL) {
+branch  0 taken 2 (fallthrough)
+branch  1 taken 47
+branch  2 taken 1 (fallthrough)
+branch  3 taken 1
+       48:  225:        U16 code=fs_error;
+       48:  226:        timestamp(&time,&date);
+call    0 returned 48
+       96:  227:        if ((done || old_size!=FILE_DISK(file).size) &&
+branch  0 taken 3 (fallthrough)
+branch  1 taken 45
+branch  2 taken 3 (fallthrough)
+branch  3 taken 0
+branch  4 taken 0 (fallthrough)
+branch  5 taken 48
+      48*:  228:            rw_metadata(&FILE_DISK(file),FILE_DISK(file).attr|32,time,date)) return filesystem_error();
+call    0 returned 48
+call    1 never executed
+       48:  229:        put16(sft+13,FILE_DISK(file).time); put16(sft+15,FILE_DISK(file).date);
+call    0 returned 48
+call    1 returned 48
+       48:  230:        sync_files(file);
+call    0 returned 48
+        -:  231:        /* DOS reports disk full as a successful short write; zero-count
+        -:  232:         * resize has no short-count channel and returns disk-full instead. */
+      48*:  233:        if (result && !count) return error(code);
+branch  0 taken 1 (fallthrough)
+branch  1 taken 47
+branch  2 taken 0 (fallthrough)
+branch  3 taken 1
+call    4 never executed
+       48:  234:        return success();
+call    0 returned 48
+        -:  235:    }
+        1:  236:    return filesystem_error();
+call    0 returned 1
+        -:  237:}
+function rw_commit_file called 106 returned 100% blocks executed 89%
+      106:  238:static int rw_commit_file(U8 FAR *sft,int closing) {
+        -:  239:    /* Commit failure must not strand a final close: release our slot/locks
+        -:  240:     * even with removed/poisoned media. Duplicate handles share an SFT, so
+        -:  241:     * locks survive until its last DOS reference has closed. */
+      106:  242:    OpenFile *file=find_file(sft);
+call    0 returned 106
+      106:  243:    U16 code=0,time,date;
+      106:  244:    int was_online=media_online;
+     106*:  245:    if (!file) { if (!closing) return error(6); }
+branch  0 taken 0 (fallthrough)
+branch  1 taken 106
+branch  2 never executed (fallthrough)
+branch  3 never executed
+call    4 never executed
+      106:  246:    else if (media_online && ready()) {
+branch  0 taken 103 (fallthrough)
+branch  1 taken 3
+call    2 returned 103
+branch  3 taken 102 (fallthrough)
+branch  4 taken 1
+      102:  247:        time=get16(sft+13); date=get16(sft+15);
+call    0 returned 102
+call    1 returned 102
+      102:  248:        if (time!=FILE_DISK(file).time || date!=FILE_DISK(file).date) {
+branch  0 taken 100 (fallthrough)
+branch  1 taken 2
+branch  2 taken 0 (fallthrough)
+branch  3 taken 100
+       2*:  249:            if (!(get16(sft+2)&3)) code=E_ACCESS;
+call    0 returned 2
+branch  1 taken 0 (fallthrough)
+branch  2 taken 2
+        4:  250:            else if (rw_refresh(&FILE_DISK(file)) ||
+call    0 returned 2
+branch  1 taken 2 (fallthrough)
+branch  2 taken 0
+branch  3 taken 0 (fallthrough)
+branch  4 taken 2
+       2*:  251:                     rw_metadata(&FILE_DISK(file),FILE_DISK(file).attr,time,date)) code=fs_error;
+call    0 returned 2
+        2:  252:            else sync_files(file);
+call    0 returned 2
+        -:  253:        }
+        -:  254:        /* All file bytes and pending metadata are synchronously verified.
+        -:  255:         * Ordinary close releases its reference without publishing clean state.
+        -:  256:         * Explicit commit/global flush/unmount retain the full FAT comparison. */
+      102:  257:        if (!code && !closing && rw_flush()) code=fs_error;
+branch  0 taken 102 (fallthrough)
+branch  1 taken 0
+branch  2 taken 4 (fallthrough)
+branch  3 taken 98
+call    4 returned 4
+branch  5 taken 1 (fallthrough)
+branch  6 taken 3
+        4:  258:    } else if (!closing || was_online) code=E_NOTREADY;
+branch  0 taken 4 (fallthrough)
+branch  1 taken 0
+branch  2 taken 1 (fallthrough)
+branch  3 taken 3
+      106:  259:    if (closing) {
+branch  0 taken 102 (fallthrough)
+branch  1 taken 4
+      102:  260:        if (get16(sft)) put16(sft,get16(sft)-1);
+call    0 returned 102
+branch  1 taken 102 (fallthrough)
+branch  2 taken 0
+call    3 returned 102
+call    4 returned 102
+      102:  261:        if (!get16(sft)) { unlock_file(sft); if (file) file->sft=0; }
+call    0 returned 102
+branch  1 taken 101 (fallthrough)
+branch  2 taken 1
+call    3 returned 101
+branch  4 taken 101 (fallthrough)
+branch  5 taken 0
+        -:  262:    }
+      106:  263:    if (code) { fs_error=code; return filesystem_error(); }
+branch  0 taken 2 (fallthrough)
+branch  1 taken 104
+call    2 returned 2
+      104:  264:    return success();
+call    0 returned 104
+        -:  265:}
+function cwd_busy called 3 returned 100% blocks executed 85%
+        3:  266:static int cwd_busy(void) {
+        -:  267:    U16 i;
+       3*:  268:    if (!drive_cds) return 0;
+branch  0 taken 0 (fallthrough)
+branch  1 taken 3
+       18:  269:    for (i=0;path[i] && path[i]==drive_cds[i];++i) ;
+branch  0 taken 17 (fallthrough)
+branch  1 taken 1
+branch  2 taken 15
+branch  3 taken 2 (fallthrough)
+       3*:  270:    return !path[i] && (!drive_cds[i] || drive_cds[i]=='\\');
+branch  0 taken 1 (fallthrough)
+branch  1 taken 2
+branch  2 taken 0 (fallthrough)
+branch  3 taken 1
+branch  4 never executed (fallthrough)
+branch  5 never executed
+        -:  271:}
+function delete_pattern called 2 returned 100% blocks executed 81%
+        2:  272:static int delete_pattern(void) {
+        -:  273:    DirCursor cursor;
+        -:  274:    RwFile f;
+        -:  275:    U32 parent;
+        2:  276:    U16 i,found=0;
+        -:  277:    U8 pattern[11],e[32];
+        -:  278:    char leaf[13];
+        -:  279:    int result,match;
+        2:  280:    if (fs_parent(path,&parent,leaf) || fs_pattern(leaf,pattern,1))
+call    0 returned 2
+branch  1 taken 2 (fallthrough)
+branch  2 taken 0
+call    3 returned 2
+branch  4 taken 0 (fallthrough)
+branch  5 taken 2
+    #####:  281:        return filesystem_error();
+call    0 never executed
+        2:  282:    cursor.cluster=parent; cursor.slot=cursor.hops=0;
+       51:  283:    while ((result=fs_next(&cursor,e))==0) {
+call    0 returned 51
+branch  1 taken 49
+branch  2 taken 2 (fallthrough)
+       49:  284:        if ((e[11]&24) || (e[11]&6&~dos_sda[dos_attr_offset])) continue;
+branch  0 taken 43 (fallthrough)
+branch  1 taken 6
+branch  2 taken 2 (fallthrough)
+branch  3 taken 41
+       41:  285:        match=1;
+      316:  286:        for (i=0;i<11;++i) if (pattern[i]!='?' && pattern[i]!=e[i]) { match=0; break; }
+branch  0 taken 116 (fallthrough)
+branch  1 taken 175
+branch  2 taken 16 (fallthrough)
+branch  3 taken 100
+branch  4 taken 291
+branch  5 taken 25 (fallthrough)
+       41:  287:        if (!match) continue;
+branch  0 taken 16 (fallthrough)
+branch  1 taken 25
+       25:  288:        memset(&f,0,sizeof(f)); f.first=fs_entry_cluster(e); f.size=get32(e+28);
+call    0 returned 25
+call    1 returned 25
+       25:  289:        f.parent=parent; f.attr=e[11]; f.time=get16(e+22); f.date=get16(e+24);
+call    0 returned 25
+call    1 returned 25
+       25:  290:        f.lba=volume.data+(cursor.cluster-2)*volume.spc+(cursor.slot-1)/16;
+       25:  291:        f.offset=(U16)((cursor.slot-1)%16)*32;
+      25*:  292:        if (file_busy(&f)) return error(E_SHARE);
+call    0 returned 25
+branch  1 taken 0 (fallthrough)
+branch  2 taken 25
+call    3 never executed
+      25*:  293:        if (rw_delete(&f)) return filesystem_error();
+call    0 returned 25
+branch  1 taken 0 (fallthrough)
+branch  2 taken 25
+call    3 never executed
+       25:  294:        found=1;
+        -:  295:    }
+       2*:  296:    if (result<0) return filesystem_error();
+branch  0 taken 0 (fallthrough)
+branch  1 taken 2
+call    2 never executed
+        2:  297:    return found?success():error(E_NOTFOUND);
+branch  0 taken 1 (fallthrough)
+branch  1 taken 1
+call    2 returned 1
+call    3 returned 1
+        -:  298:}
+function rw_path_operation called 78 returned 100% blocks executed 71%
+       78:  299:static int rw_path_operation(U8 fn,U8 FAR *sft) {
+        -:  300:    RwFile f;
+        -:  301:    U32 parent;
+        -:  302:    U16 i,time,date,action,mode;
+        -:  303:    char leaf[13];
+        -:  304:    U8 FAR *destination;
+       78:  305:    if (fn==0x17 || fn==0x18) {
+branch  0 taken 13 (fallthrough)
+branch  1 taken 65
+branch  2 taken 0 (fallthrough)
+branch  3 taken 13
+      65*:  306:        if ((regs.param>>8)>1) return error(12);
+branch  0 taken 0 (fallthrough)
+branch  1 taken 65
+call    2 never executed
+       65:  307:        return rw_open_file(sft,2,(regs.param&0x100)?0x10:0x12,(U8)regs.param);
+branch  0 taken 1 (fallthrough)
+branch  1 taken 64
+call    2 returned 65
+        -:  308:    }
+       13:  309:    if (fn==0x2e) {
+branch  0 taken 0 (fallthrough)
+branch  1 taken 13
+    #####:  310:        if (dos_major<4) return error(1);
+branch  0 never executed (fallthrough)
+branch  1 never executed
+call    2 never executed
+    #####:  311:        action=get16(dos_sda+0x2dd)&255; mode=get16(dos_sda+0x2e1);
+call    0 never executed
+call    1 never executed
+    #####:  312:        return rw_open_file(sft,mode,action,(U8)get16(dos_sda+0x2df));
+call    0 never executed
+call    1 never executed
+        -:  313:    }
+       13:  314:    if (fn==3 || fn==4) {
+branch  0 taken 12 (fallthrough)
+branch  1 taken 1
+branch  2 taken 0 (fallthrough)
+branch  3 taken 12
+       1*:  315:        if (fs_parent(path,&parent,leaf)) return filesystem_error();
+call    0 returned 1
+branch  1 taken 0 (fallthrough)
+branch  2 taken 1
+call    3 never executed
+       1*:  316:        if (rw_mkdir(parent,leaf,&f)) return filesystem_error();
+call    0 returned 1
+branch  1 taken 0 (fallthrough)
+branch  2 taken 1
+call    3 never executed
+        1:  317:        timestamp(&time,&date);
+call    0 returned 1
+        1:  318:        return rw_result(rw_metadata(&f,f.attr,time,date));
+call    0 returned 1
+call    1 returned 1
+        -:  319:    }
+       12:  320:    if (fn==0x13 && (strchr(path,'*') || strchr(path,'?'))) return delete_pattern();
+branch  0 taken 6 (fallthrough)
+branch  1 taken 6
+branch  2 taken 5 (fallthrough)
+branch  3 taken 1
+branch  4 taken 1 (fallthrough)
+branch  5 taken 4
+call    6 returned 2
+      10*:  321:    if (rw_lookup(path,&f)) return filesystem_error();
+call    0 returned 10
+branch  1 taken 0 (fallthrough)
+branch  2 taken 10
+call    3 never executed
+       10:  322:    if (fn==0x0e) return rw_result(rw_metadata(&f,(U8)regs.param,f.time,f.date));
+branch  0 taken 2 (fallthrough)
+branch  1 taken 8
+call    2 returned 2
+call    3 returned 2
+        8:  323:    if (file_busy(&f)) return error(E_SHARE);
+call    0 returned 8
+branch  1 taken 1 (fallthrough)
+branch  2 taken 7
+call    3 returned 1
+        7:  324:    if (fn==1 || fn==2) {
+branch  0 taken 4 (fallthrough)
+branch  1 taken 3
+branch  2 taken 0 (fallthrough)
+branch  3 taken 4
+        3:  325:        if (cwd_busy()) return error(16);
+call    0 returned 3
+branch  1 taken 1 (fallthrough)
+branch  2 taken 2
+call    3 returned 1
+        2:  326:        return rw_result(rw_rmdir(&f));
+call    0 returned 2
+call    1 returned 2
+        -:  327:    }
+        4:  328:    if (fn==0x13) return rw_result(rw_delete(&f));
+branch  0 taken 3 (fallthrough)
+branch  1 taken 1
+call    2 returned 3
+call    3 returned 3
+        1:  329:    if (fn==0x11) {
+branch  0 taken 1 (fallthrough)
+branch  1 taken 0
+       1*:  330:        if (f.directory && cwd_busy()) return error(E_ACCESS);
+branch  0 taken 0 (fallthrough)
+branch  1 taken 1
+call    2 never executed
+branch  3 never executed (fallthrough)
+branch  4 never executed
+call    5 never executed
+        1:  331:        destination=dos_sda+dos_name_offset+128;
+       1*:  332:        if (destination[0]!='A'+drive_number || destination[1]!=':') return error(17);
+branch  0 taken 1 (fallthrough)
+branch  1 taken 0
+branch  2 taken 0 (fallthrough)
+branch  3 taken 1
+call    4 never executed
+       13:  333:        for (i=0;i<PATH_MAX;++i) { path[i]=destination[i]; if (!path[i]) break; }
+branch  0 taken 1 (fallthrough)
+branch  1 taken 12
+branch  2 taken 13
+branch  3 taken 0 (fallthrough)
+       1*:  334:        if (i==PATH_MAX) return error(E_PATH);
+branch  0 taken 0 (fallthrough)
+branch  1 taken 1
+call    2 never executed
+        1:  335:        return rw_result(rw_rename(&f,path));
+call    0 returned 1
+call    1 returned 1
+        -:  336:    }
+    #####:  337:    return error(E_ACCESS);
+call    0 never executed
+        -:  338:}

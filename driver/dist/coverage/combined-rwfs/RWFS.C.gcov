@@ -1,0 +1,2002 @@
+        -:    0:Source:/mnt/d/PROGRAMMING/KiCAD/slot-otter/driver/RWFS.C
+        -:    0:Graph:/mnt/d/PROGRAMMING/KiCAD/slot-otter/driver/dist/coverage/combined-rwfs/rwfs.gcno
+        -:    0:Data:/mnt/d/PROGRAMMING/KiCAD/slot-otter/driver/dist/coverage/combined-rwfs/rwfs.gcda
+        -:    0:Runs:2
+        -:    1:/* Resident SFN FAT32 writer, adapted from the independently tested writer.
+        -:    2: * GPL-3.0-or-later. Data is initialized before links; directory size is
+        -:    3: * published after data. Transport write failures, dirty-session read failures
+        -:    4: * and dirty-session FAT mirror mismatches poison the session. Ordinary input
+        -:    5: * validation errors need not do so. Verified sectors do not make a multi-sector
+        -:    6: * operation atomic; interrupted operations require external checking/repair. */
+        -:    7:#include "RWFS.H"
+        -:    8:#include <string.h>
+        -:    9:U32 rw_start, rw_end, rw_fatsz, rw_allocated, rw_freed;
+        -:   10:/* Fixed scratch keeps the resident code heap-free and non-reentrant.
+        -:   11: * ENTRY's busy guard serializes dispatch. begun means mounted and armed;
+        -:   12: * dirty means mutations have begun, not that a sector awaits transmission. */
+        -:   13:static U8 block[512];
+        -:   14:/* This scratch is dead across a block[] store. An other[] store snapshots
+        -:   15: * before readback and restores it on success, including reset/retry paths. */
+        -:   16:#define other sd_scratch
+        -:   17:static U32 hint, first_fat, fsinfo_lba, backup_info, backup_boot;
+        -:   18:static U8 fat_count, active_fat, mirrored;
+        -:   19:static unsigned begun, dirty;
+        -:   20:static int chain_valid(U32 c);
+        -:   21:static int validate_file(RwFile *f);
+        -:   22:static int erase_lfn(RwFile *f);
+function same_name called 2608 returned 100% blocks executed 89%
+     2608:   23:static int same_name(const U8 *raw,const U8 *pattern) {
+    2608*:   24:  return (raw[0]==5?229:raw[0])==pattern[0] && !memcmp(raw+1,pattern+1,10);
+branch  0 taken 2608 (fallthrough)
+branch  1 taken 0
+branch  2 taken 962 (fallthrough)
+branch  3 taken 1646
+branch  4 taken 1 (fallthrough)
+branch  5 taken 961
+        -:   25:}
+function fail called 143 returned 100% blocks executed 100%
+      143:   26:static int fail(unsigned code) {
+      143:   27:  fs_error = code;
+      143:   28:  return -1;
+        -:   29:}
+function inconsistent called 4 returned 100% blocks executed 100%
+        4:   30:static int inconsistent(void) {
+        4:   31:  if (dirty) sd_diag.poisoned=1;
+branch  0 taken 3 (fallthrough)
+branch  1 taken 1
+        4:   32:  return fail(E_INVALID);
+call    0 returned 4
+        -:   33:}
+function read_sector called 174236 returned 100% blocks executed 89%
+   174236:   34:static int read_sector(U32 lba,U8 *p) {
+   174236:   35:  int result=sd_read(lba,p);
+call    0 returned 174236
+  174236*:   36:  if (result && dirty) sd_diag.poisoned=1;
+branch  0 taken 1 (fallthrough)
+branch  1 taken 174235
+branch  2 taken 0 (fallthrough)
+branch  3 taken 1
+   174236:   37:  return result?fail((U16)result):0;
+branch  0 taken 1 (fallthrough)
+branch  1 taken 174235
+call    2 returned 1
+        -:   38:}
+function valid called 6708 returned 100% blocks executed 100%
+     6708:   39:static int valid(U32 c) { return c >= 2 && c - 2 < volume.clusters; }
+branch  0 taken 6707 (fallthrough)
+branch  1 taken 1
+branch  2 taken 6707 (fallthrough)
+branch  3 taken 0
+function address called 3362 returned 100% blocks executed 100%
+     3362:   40:static U32 address(U32 c) { return volume.data + (c - 2) * volume.spc; }
+function raw_store called 2445 returned 100% blocks executed 80%
+     2445:   41:static int raw_store(U32 lba, const U8 *p) {
+        -:   42:  int result;
+    2445*:   43:  if (!begun || sd_diag.poisoned) return fail(E_NOTREADY);
+branch  0 taken 2445 (fallthrough)
+branch  1 taken 0
+branch  2 taken 0 (fallthrough)
+branch  3 taken 2445
+call    4 never executed
+     2445:   44:  if (lba < rw_start || lba >= rw_end || lba == rw_start || lba == backup_boot ||
+branch  0 taken 2445 (fallthrough)
+branch  1 taken 0
+branch  2 taken 2445 (fallthrough)
+branch  3 taken 0
+branch  4 taken 2445 (fallthrough)
+branch  5 taken 0
+branch  6 taken 2445 (fallthrough)
+branch  7 taken 0
+     2445:   45:      (lba < first_fat && lba != fsinfo_lba && lba != backup_info))
+branch  0 taken 149 (fallthrough)
+branch  1 taken 2296
+branch  2 taken 74 (fallthrough)
+branch  3 taken 75
+branch  4 taken 0 (fallthrough)
+branch  5 taken 74
+    #####:   46:    return fail(E_ACCESS);
+call    0 never executed
+     2445:   47:  result=sd_write(lba,p);
+call    0 returned 2445
+     2445:   48:  if (result) return fail((U16)result);
+branch  0 taken 14 (fallthrough)
+branch  1 taken 2431
+call    2 returned 14
+     2431:   49:  fs_invalidate(); return 0;
+call    0 returned 2431
+        -:   50:}
+function store called 2033 returned 100% blocks executed 60%
+     2033:   51:static int store(U32 lba, const U8 *p) {
+    2033*:   52:  if (!dirty) return fail(E_INVALID);
+branch  0 taken 0 (fallthrough)
+branch  1 taken 2033
+call    2 never executed
+     2033:   53:  return raw_store(lba,p);
+call    0 returned 2033
+        -:   54:}
+function rw_fat called 2119 returned 100% blocks executed 80%
+     2119:   55:U32 rw_fat(U32 c) {
+     2119:   56:  if (!valid(c)) {
+call    0 returned 2119
+branch  1 taken 0 (fallthrough)
+branch  2 taken 2119
+    #####:   57:    fail(E_INVALID);
+call    0 never executed
+    #####:   58:    return 0;
+        -:   59:  }
+     2119:   60:  if (read_sector(volume.fat + (c >> 7), block))
+call    0 returned 2119
+branch  1 taken 1 (fallthrough)
+branch  2 taken 2118
+        1:   61:    return 0;
+     2118:   62:  return get32(block + (unsigned)(c & 127) * 4) & 0x0fffffffUL;
+call    0 returned 2118
+        -:   63:}
+function rw_lookup called 186 returned 100% blocks executed 90%
+      186:   64:int rw_lookup(const char *path, RwFile *f) {
+        -:   65:  U32 parent;
+        -:   66:  char leaf[13];
+        -:   67:  U8 pattern[11], e[32];
+        -:   68:  DirCursor cursor;
+        -:   69:  int result;
+      186:   70:  fs_error=0;
+     186*:   71:  if (fs_parent(path,&parent,leaf)) return -1;
+call    0 returned 186
+branch  1 taken 0 (fallthrough)
+branch  2 taken 186
+      186:   72:  if (!leaf[0] || !strcmp(leaf,".") || (!strcmp(leaf,"..") && parent==volume.root)) {
+branch  0 taken 186 (fallthrough)
+branch  1 taken 0
+branch  2 taken 186 (fallthrough)
+branch  3 taken 0
+branch  4 taken 1 (fallthrough)
+branch  5 taken 185
+branch  6 taken 0 (fallthrough)
+branch  7 taken 1
+    #####:   73:    memset(f,0,sizeof(*f)); f->first=parent; f->parent=parent;
+    #####:   74:    f->directory=1; f->attr=16; return 0;
+        -:   75:  }
+     186*:   76:  if (fs_pattern(leaf,pattern,0)) return -1;
+call    0 returned 186
+branch  1 taken 0 (fallthrough)
+branch  2 taken 186
+      186:   77:  cursor.cluster=parent; cursor.slot=cursor.hops=0;
+     2533:   78:  while ((result=fs_next(&cursor,e))==0) {
+call    0 returned 2533
+branch  1 taken 2462
+branch  2 taken 71 (fallthrough)
+     2462:   79:    if ((e[11]&8) || memcmp(e,pattern,11)) continue;
+branch  0 taken 2285 (fallthrough)
+branch  1 taken 177
+branch  2 taken 2170 (fallthrough)
+branch  3 taken 115
+      115:   80:    memset(f,0,sizeof(*f)); f->first=fs_entry_cluster(e); f->size=get32(e+28);
+call    0 returned 115
+call    1 returned 115
+      115:   81:    f->lba=address(cursor.cluster)+(cursor.slot-1)/16;
+call    0 returned 115
+      115:   82:    f->offset=(U16)((cursor.slot-1)%16)*32; f->parent=parent;
+      115:   83:    f->attr=e[11]; f->directory=(U8)((e[11]&16)!=0);
+      115:   84:    f->time=get16(e+22); f->date=get16(e+24); return 0;
+call    0 returned 115
+call    1 returned 115
+        -:   85:  }
+       71:   86:  return result<0?-1:fail(E_NOTFOUND);
+branch  0 taken 70 (fallthrough)
+branch  1 taken 1
+call    2 returned 70
+        -:   87:}
+function rw_free_space called 4 returned 100% blocks executed 92%
+        4:   88:int rw_free_space(U32 *count) {
+        4:   89:  U32 c,tag=0xffffffffUL,lba;
+        4:   90:  *count=0;
+   280004:   91:  for (c=2;c<volume.clusters+2;++c) {
+branch  0 taken 280000
+branch  1 taken 4 (fallthrough)
+   280000:   92:    lba=volume.fat+(c>>7);
+  280000*:   93:    if (lba!=tag) { if (read_sector(lba,block)) return -1; tag=lba; }
+branch  0 taken 2188 (fallthrough)
+branch  1 taken 277812
+call    2 returned 2188
+branch  3 taken 0 (fallthrough)
+branch  4 taken 2188
+   280000:   94:    if (!(get32(block+(U16)(c&127)*4)&0x0fffffffUL)) ++*count;
+call    0 returned 280000
+branch  1 taken 279396 (fallthrough)
+branch  2 taken 604
+        -:   95:  }
+        4:   96:  return 0;
+        -:   97:}
+        -:   98:/* Open handles identify a directory slot, not a cached starting cluster.
+        -:   99: * Another permitted handle may allocate the first cluster or truncate it. */
+function rw_refresh called 61 returned 100% blocks executed 71%
+       61:  100:int rw_refresh(RwFile *f) {
+        -:  101:  U8 *e;
+      61*:  102:  if (!begun || sd_diag.poisoned) return fail(E_NOTREADY);
+branch  0 taken 61 (fallthrough)
+branch  1 taken 0
+branch  2 taken 0 (fallthrough)
+branch  3 taken 61
+call    4 never executed
+       61:  103:  if (f->lba<volume.data || f->lba>=rw_end || (f->offset&31) || f->offset>480)
+branch  0 taken 61 (fallthrough)
+branch  1 taken 0
+branch  2 taken 61 (fallthrough)
+branch  3 taken 0
+branch  4 taken 61 (fallthrough)
+branch  5 taken 0
+branch  6 taken 0 (fallthrough)
+branch  7 taken 61
+    #####:  104:    return fail(E_INVALID);
+call    0 never executed
+      61*:  105:  if (read_sector(f->lba,block)) return -1;
+call    0 returned 61
+branch  1 taken 0 (fallthrough)
+branch  2 taken 61
+       61:  106:  e=block+f->offset;
+      61*:  107:  if (!e[0] || e[0]==229 || (e[11]&24)) return fail(E_INVALID);
+branch  0 taken 61 (fallthrough)
+branch  1 taken 0
+branch  2 taken 61 (fallthrough)
+branch  3 taken 0
+branch  4 taken 0 (fallthrough)
+branch  5 taken 61
+call    6 never executed
+       61:  108:  f->first=fs_entry_cluster(e); f->last=0; f->size=get32(e+28);
+call    0 returned 61
+call    1 returned 61
+       61:  109:  f->attr=e[11]; f->time=get16(e+22); f->date=get16(e+24);
+call    0 returned 61
+call    1 returned 61
+       61:  110:  fs_error=0; return 0;
+        -:  111:}
+function rw_metadata called 124 returned 100% blocks executed 89%
+      124:  112:int rw_metadata(RwFile *f,U8 attr,U16 time,U16 date) {
+      124:  113:  if (!f->lba || (attr&0xd8)!=(f->attr&0x10)) return fail(E_ACCESS);
+branch  0 taken 123 (fallthrough)
+branch  1 taken 1
+branch  2 taken 0 (fallthrough)
+branch  3 taken 123
+call    4 returned 1
+      123:  114:  if (validate_file(f)) return -1;
+call    0 returned 123
+branch  1 taken 4 (fallthrough)
+branch  2 taken 119
+     119*:  115:  if (rw_begin() || read_sector(f->lba,block)) return -1;
+call    0 returned 119
+branch  1 taken 119 (fallthrough)
+branch  2 taken 0
+call    3 returned 119
+branch  4 taken 0 (fallthrough)
+branch  5 taken 119
+      119:  116:  block[f->offset+11]=attr;
+      119:  117:  put16(block+f->offset+22,time); put16(block+f->offset+24,date);
+call    0 returned 119
+call    1 returned 119
+     119*:  118:  if (store(f->lba,block)) return -1;
+call    0 returned 119
+branch  1 taken 0 (fallthrough)
+branch  2 taken 119
+      119:  119:  f->attr=attr; f->time=time; f->date=date; return 0;
+        -:  120:}
+function setfat called 563 returned 100% blocks executed 81%
+      563:  121:static int setfat(U32 c, U32 value) {
+      563:  122:  U32 lba=volume.fat+(c>>7);
+      563:  123:  unsigned offset=(unsigned)(c&127)*4, i;
+     563*:  124:  if (!valid(c)) return fail(E_INVALID);
+call    0 returned 563
+branch  1 taken 0 (fallthrough)
+branch  2 taken 563
+call    3 never executed
+     563*:  125:  if (read_sector(lba,block)) return -1;
+call    0 returned 563
+branch  1 taken 0 (fallthrough)
+branch  2 taken 563
+     1124:  126:  if (mirrored) for (i=1;i<fat_count;++i) {
+branch  0 taken 562 (fallthrough)
+branch  1 taken 1
+branch  2 taken 561
+branch  3 taken 562 (fallthrough)
+     561*:  127:    if (read_sector(first_fat+(U32)i*rw_fatsz+(c>>7),other)) return -1;
+call    0 returned 561
+branch  1 taken 0 (fallthrough)
+branch  2 taken 561
+     561*:  128:    if (memcmp(block,other,512)) return inconsistent();
+branch  0 taken 0 (fallthrough)
+branch  1 taken 561
+call    2 never executed
+        -:  129:  }
+      563:  130:  put32(block+offset,(get32(block+offset)&0xf0000000UL)|value);
+call    0 returned 563
+call    1 returned 563
+      563:  131:  if (store(lba,block)) return -1;
+call    0 returned 563
+branch  1 taken 2 (fallthrough)
+branch  2 taken 561
+     1119:  132:  if (mirrored) for (i=1;i<fat_count;++i)
+branch  0 taken 560 (fallthrough)
+branch  1 taken 1
+branch  2 taken 559
+branch  3 taken 559 (fallthrough)
+      559:  133:    if (store(first_fat+(U32)i*rw_fatsz+(c>>7),block)) return -1;
+call    0 returned 559
+branch  1 taken 1 (fallthrough)
+branch  2 taken 558
+      560:  134:  return 0;
+        -:  135:}
+function allocate called 235 returned 100% blocks executed 91%
+      235:  136:static U32 allocate(void) {
+        -:  137:  /* Reserve as EOF and zero the entire cluster before linking it into a live
+        -:  138:   * chain. An interruption can leak this reservation; there is no journal. */
+      235:  139:  U32 c, i, value, tag = 0xffffffffUL, lba;
+        -:  140:  unsigned s;
+     235*:  141:  if (rw_begin()) return 0;
+call    0 returned 235
+branch  1 taken 0 (fallthrough)
+branch  2 taken 235
+      235:  142:  c = hint;
+   142118:  143:  for (i = 0; i < volume.clusters; ++i) {
+branch  0 taken 142116
+branch  1 taken 2 (fallthrough)
+   142116:  144:    lba = volume.fat + (c >> 7);
+   142116:  145:    if (lba != tag) {
+branch  0 taken 1341 (fallthrough)
+branch  1 taken 140775
+     1341:  146:      if (read_sector(lba, block))
+call    0 returned 1341
+branch  1 taken 0 (fallthrough)
+branch  2 taken 1341
+    #####:  147:        return 0;
+     1341:  148:      tag = lba;
+        -:  149:    }
+   142116:  150:    value = get32(block + (unsigned)(c & 127) * 4) & 0x0fffffffUL;
+call    0 returned 142116
+   142116:  151:    if (!value) {
+branch  0 taken 233 (fallthrough)
+branch  1 taken 141883
+      233:  152:      if (setfat(c, 0x0fffffffUL))
+call    0 returned 233
+branch  1 taken 3 (fallthrough)
+branch  2 taken 230
+        3:  153:        return 0;
+      230:  154:      memset(other, 0, 512);
+      480:  155:      for (s = 0; s < volume.spc; ++s)
+branch  0 taken 251
+branch  1 taken 229 (fallthrough)
+      251:  156:        if (store(address(c) + s, other))
+call    0 returned 251
+call    1 returned 251
+branch  2 taken 1 (fallthrough)
+branch  3 taken 250
+        1:  157:          return 0;
+      229:  158:      hint = c + 1;
+      229:  159:      if (!valid(hint))
+call    0 returned 229
+branch  1 taken 0 (fallthrough)
+branch  2 taken 229
+    #####:  160:        hint = 2;
+      229:  161:      ++rw_allocated;
+      229:  162:      return c;
+        -:  163:    }
+   141883:  164:    if (++c == volume.clusters + 2)
+branch  0 taken 2 (fallthrough)
+branch  1 taken 141881
+        2:  165:      c = 2;
+        -:  166:  }
+        2:  167:  fail(E_FULL);
+call    0 returned 2
+        2:  168:  return 0;
+        -:  169:}
+function chain_valid called 456 returned 100% blocks executed 91%
+      456:  170:static int chain_valid(U32 c) {
+      456:  171:  U32 n, i, slow = c;
+      456:  172:  if (!c)
+branch  0 taken 141 (fallthrough)
+branch  1 taken 315
+      141:  173:    return 0;
+      814:  174:  for (i = 0; i < volume.clusters; ++i) {
+branch  0 taken 814
+branch  1 taken 0 (fallthrough)
+      814:  175:    if (!valid(c))
+call    0 returned 814
+branch  1 taken 1 (fallthrough)
+branch  2 taken 813
+        1:  176:      return fail(E_INVALID);
+call    0 returned 1
+      813:  177:    fs_error = 0;
+      813:  178:    n = rw_fat(c);
+call    0 returned 813
+      813:  179:    if (fs_error)
+branch  0 taken 1 (fallthrough)
+branch  1 taken 812
+        1:  180:      return -1;
+      812:  181:    if (n >= 0x0ffffff8UL)
+branch  0 taken 312 (fallthrough)
+branch  1 taken 500
+      312:  182:      return 0;
+      500:  183:    c = n;
+      500:  184:    if (i & 1) {
+branch  0 taken 178 (fallthrough)
+branch  1 taken 322
+      178:  185:      fs_error = 0;
+      178:  186:      slow = rw_fat(slow);
+call    0 returned 178
+      178:  187:      if (fs_error)
+branch  0 taken 0 (fallthrough)
+branch  1 taken 178
+    #####:  188:        return -1;
+        -:  189:    }
+      500:  190:    if (c == slow)
+branch  0 taken 1 (fallthrough)
+branch  1 taken 499
+        1:  191:      return fail(E_INVALID);
+call    0 returned 1
+        -:  192:  }
+    #####:  193:  return fail(E_INVALID);
+call    0 never executed
+        -:  194:}
+        -:  195:/* Verify both the directory location and every FAT link before mutation. */
+function validate_file called 275 returned 100% blocks executed 87%
+      275:  196:static int validate_file(RwFile *f) {
+      275:  197:  U32 c,n,count=0,needed;
+        -:  198:  U8 *e;
+     275*:  199:  if (!begun || sd_diag.poisoned) return fail(E_NOTREADY);
+branch  0 taken 275 (fallthrough)
+branch  1 taken 0
+branch  2 taken 0 (fallthrough)
+branch  3 taken 275
+call    4 never executed
+      275:  200:  if (f->lba<volume.data || f->lba>=rw_end || f->offset>480 || (f->offset&31))
+branch  0 taken 274 (fallthrough)
+branch  1 taken 1
+branch  2 taken 274 (fallthrough)
+branch  3 taken 0
+branch  4 taken 273 (fallthrough)
+branch  5 taken 1
+branch  6 taken 2 (fallthrough)
+branch  7 taken 271
+        4:  201:    return fail(E_INVALID);
+call    0 returned 4
+     271*:  202:  if (read_sector(f->lba,block)) return -1;
+call    0 returned 271
+branch  1 taken 0 (fallthrough)
+branch  2 taken 271
+      271:  203:  e=block+f->offset;
+      271:  204:  if (!e[0] || e[0]==229 || (e[11]&8) ||
+branch  0 taken 271 (fallthrough)
+branch  1 taken 0
+branch  2 taken 271 (fallthrough)
+branch  3 taken 0
+branch  4 taken 271 (fallthrough)
+branch  5 taken 0
+      271:  205:      fs_entry_cluster(e)!=f->first || get32(e+28)!=f->size ||
+call    0 returned 271
+branch  1 taken 271 (fallthrough)
+branch  2 taken 0
+call    3 returned 271
+branch  4 taken 271 (fallthrough)
+branch  5 taken 0
+     271*:  206:      ((e[11]&16)!=0)!=f->directory) return fail(E_INVALID);
+branch  0 taken 0 (fallthrough)
+branch  1 taken 271
+call    2 never executed
+      271:  207:  if (chain_valid(f->first)) return -1;
+call    0 returned 271
+branch  1 taken 2 (fallthrough)
+branch  2 taken 269
+      269:  208:  needed=f->size?((f->size-1)/512)/volume.spc+1:0;
+branch  0 taken 118 (fallthrough)
+branch  1 taken 151
+      269:  209:  c=f->first;
+      681:  210:  while (c) {
+branch  0 taken 412
+branch  1 taken 269 (fallthrough)
+      412:  211:    ++count;
+     412*:  212:    fs_error=0; n=rw_fat(c); if (fs_error) return -1;
+call    0 returned 412
+branch  1 taken 0 (fallthrough)
+branch  2 taken 412
+      412:  213:    c=n>=0x0ffffff8UL?0:n;
+branch  0 taken 284 (fallthrough)
+branch  1 taken 128
+        -:  214:  }
+      269:  215:  if (count<needed || (f->directory && !count)) return fail(E_INVALID);
+branch  0 taken 268 (fallthrough)
+branch  1 taken 1
+branch  2 taken 9 (fallthrough)
+branch  3 taken 259
+branch  4 taken 0 (fallthrough)
+branch  5 taken 9
+call    6 returned 1
+      268:  216:  return 0;
+        -:  217:}
+function release_chain called 41 returned 100% blocks executed 84%
+       41:  218:static int release_chain(U32 c) {
+       41:  219:  U32 next, i, first = c;
+      219:  220:  for (i = 0; c && i < volume.clusters; ++i) {
+branch  0 taken 178 (fallthrough)
+branch  1 taken 41
+branch  2 taken 178
+branch  3 taken 0 (fallthrough)
+      178:  221:    fs_error = 0;
+      178:  222:    next = rw_fat(c);
+call    0 returned 178
+      178:  223:    if (fs_error || setfat(c, 0))
+branch  0 taken 178 (fallthrough)
+branch  1 taken 0
+call    2 returned 178
+branch  3 taken 0 (fallthrough)
+branch  4 taken 178
+    #####:  224:      return -1;
+      178:  225:    ++rw_freed;
+      178:  226:    c = next >= 0x0ffffff8UL ? 0 : next;
+branch  0 taken 139 (fallthrough)
+branch  1 taken 39
+        -:  227:  }
+       41:  228:  if (c)
+branch  0 taken 0 (fallthrough)
+branch  1 taken 41
+    #####:  229:    return fail(E_INVALID);
+call    0 never executed
+       41:  230:  if (first)
+branch  0 taken 39 (fallthrough)
+branch  1 taken 2
+       39:  231:    hint = first;
+       41:  232:  return 0;
+        -:  233:}
+function publish called 95 returned 100% blocks executed 88%
+       95:  234:static int publish(RwFile *f) {
+       95:  235:  if (read_sector(f->lba, block))
+call    0 returned 95
+branch  1 taken 0 (fallthrough)
+branch  2 taken 95
+    #####:  236:    return -1;
+       95:  237:  put16(block + f->offset + 20, (U16)(f->first >> 16));
+call    0 returned 95
+       95:  238:  put16(block + f->offset + 26, (U16)f->first);
+call    0 returned 95
+       95:  239:  put32(block + f->offset + 28, f->size);
+call    0 returned 95
+       95:  240:  block[f->offset+11]|=32; f->attr|=32;
+       95:  241:  return store(f->lba, block);
+call    0 returned 95
+        -:  242:}
+        -:  243:/* Raw directory iteration retains LFN positions; fs_next deliberately skips
+        -:  244: * them. Constant memory, including when the sequence crosses a FAT boundary. */
+function dir_slot called 2287 returned 100% blocks executed 68%
+     2287:  245:static int dir_slot(DirCursor *cur,U32 *lba,U16 *offset) {
+        -:  246:  U32 next;
+    2287*:  247:  if (!valid(cur->cluster)) return fail(E_INVALID);
+call    0 returned 2287
+branch  1 taken 0 (fallthrough)
+branch  2 taken 2287
+call    3 never executed
+     2287:  248:  if (cur->slot>=(U16)volume.spc*16) {
+branch  0 taken 93 (fallthrough)
+branch  1 taken 2194
+      93*:  249:    if (++cur->hops==0 || (U32)cur->hops>=volume.clusters) return fail(E_INVALID);
+branch  0 taken 93 (fallthrough)
+branch  1 taken 0
+branch  2 taken 0 (fallthrough)
+branch  3 taken 93
+call    4 never executed
+      93*:  250:    fs_error=0; next=rw_fat(cur->cluster); if (fs_error) return -1;
+call    0 returned 93
+branch  1 taken 0 (fallthrough)
+branch  2 taken 93
+       93:  251:    if (next>=0x0ffffff8UL) return 1;
+branch  0 taken 3 (fallthrough)
+branch  1 taken 90
+      90*:  252:    if (!valid(next)) return fail(E_INVALID);
+call    0 returned 90
+branch  1 taken 0 (fallthrough)
+branch  2 taken 90
+call    3 never executed
+       90:  253:    cur->cluster=next; cur->slot=0;
+        -:  254:  }
+     2284:  255:  *lba=address(cur->cluster)+cur->slot/16;
+call    0 returned 2284
+     2284:  256:  *offset=(U16)(cur->slot%16)*32; return 0;
+        -:  257:}
+function name_checksum called 38 returned 100% blocks executed 100%
+       38:  258:static U8 name_checksum(const U8 *name) {
+       38:  259:  U8 sum=0;
+        -:  260:  U16 i;
+      456:  261:  for (i=0;i<11;++i) sum=(U8)(((sum&1)?128:0)+(sum>>1)+name[i]);
+branch  0 taken 418
+branch  1 taken 38 (fallthrough)
+       38:  262:  return sum;
+        -:  263:}
+function erase_lfn called 38 returned 100% blocks executed 81%
+       38:  264:static int erase_lfn(RwFile *f) {
+        -:  265:  DirCursor cur,start;
+        -:  266:  U32 lba;
+       38:  267:  U16 off,remaining=0,count=0,i;
+       38:  268:  U8 wanted,checksum=0,*e,ordinal;
+        -:  269:  int result;
+      38*:  270:  if (chain_valid(f->parent) || read_sector(f->lba,block)) return -1;
+call    0 returned 38
+branch  1 taken 38 (fallthrough)
+branch  2 taken 0
+call    3 returned 38
+branch  4 taken 0 (fallthrough)
+branch  5 taken 38
+       38:  271:  wanted=name_checksum(block+f->offset);
+call    0 returned 38
+       38:  272:  cur.cluster=f->parent; cur.slot=cur.hops=0;
+       38:  273:  memset(&start,0,sizeof(start));
+        -:  274:  for (;;) {
+      698:  275:    result=dir_slot(&cur,&lba,&off);
+call    0 returned 698
+     698*:  276:    if (result) return result<0?-1:fail(E_INVALID);
+branch  0 taken 0 (fallthrough)
+branch  1 taken 698
+branch  2 never executed (fallthrough)
+branch  3 never executed
+call    4 never executed
+     698*:  277:    if (read_sector(lba,block)) return -1;
+call    0 returned 698
+branch  1 taken 0 (fallthrough)
+branch  2 taken 698
+      698:  278:    e=block+off;
+      698:  279:    if (lba==f->lba && off==f->offset) break;
+branch  0 taken 330 (fallthrough)
+branch  1 taken 368
+branch  2 taken 38 (fallthrough)
+branch  3 taken 292
+     660*:  280:    if (!e[0]) return fail(E_INVALID);
+branch  0 taken 0 (fallthrough)
+branch  1 taken 660
+call    2 never executed
+      660:  281:    if (e[11]==15 && e[12]==0 && get16(e+26)==0 && !(e[0]&128)) {
+branch  0 taken 9 (fallthrough)
+branch  1 taken 651
+branch  2 taken 9 (fallthrough)
+branch  3 taken 0
+call    4 returned 9
+branch  5 taken 9 (fallthrough)
+branch  6 taken 0
+branch  7 taken 9 (fallthrough)
+branch  8 taken 0
+        9:  282:      ordinal=(U8)(e[0]&63);
+        9:  283:      if (e[0]&64) {
+branch  0 taken 3 (fallthrough)
+branch  1 taken 6
+        3:  284:        count=0;
+        3:  285:        if (ordinal && ordinal<=20) {
+branch  0 taken 3 (fallthrough)
+branch  1 taken 0
+branch  2 taken 3 (fallthrough)
+branch  3 taken 0
+        3:  286:          start=cur; count=ordinal; remaining=ordinal; checksum=e[13];
+        -:  287:        }
+        -:  288:      }
+       9*:  289:      if (!count || !remaining || ordinal!=remaining || e[13]!=checksum) count=0;
+branch  0 taken 9 (fallthrough)
+branch  1 taken 0
+branch  2 taken 9 (fallthrough)
+branch  3 taken 0
+branch  4 taken 9 (fallthrough)
+branch  5 taken 0
+branch  6 taken 0 (fallthrough)
+branch  7 taken 9
+        9:  290:      else --remaining;
+      651:  291:    } else count=0;
+      660:  292:    ++cur.slot;
+        -:  293:  }
+       38:  294:  if (!count || remaining || checksum!=wanted) return 0;
+branch  0 taken 3 (fallthrough)
+branch  1 taken 35
+branch  2 taken 3 (fallthrough)
+branch  3 taken 0
+branch  4 taken 0 (fallthrough)
+branch  5 taken 3
+        3:  295:  cur=start;
+       12:  296:  for (i=0;i<count;++i) {
+branch  0 taken 9
+branch  1 taken 3 (fallthrough)
+       9*:  297:    if (dir_slot(&cur,&lba,&off) || read_sector(lba,block)) return -1;
+call    0 returned 9
+branch  1 taken 9 (fallthrough)
+branch  2 taken 0
+call    3 returned 9
+branch  4 taken 0 (fallthrough)
+branch  5 taken 9
+        9:  298:    block[off]=229;
+       9*:  299:    if (store(lba,block)) return -1;
+call    0 returned 9
+branch  1 taken 0 (fallthrough)
+branch  2 taken 9
+        9:  300:    ++cur.slot;
+        -:  301:  }
+        3:  302:  return 0;
+        -:  303:}
+function valid_fsinfo called 192 returned 100% blocks executed 90%
+      192:  304:static int valid_fsinfo(const U8 *p) {
+     384*:  305:  return get32(p) == 0x41615252UL && get32(p + 484) == 0x61417272UL &&
+call    0 returned 192
+branch  1 taken 192 (fallthrough)
+branch  2 taken 0
+call    3 returned 192
+branch  4 taken 192 (fallthrough)
+branch  5 taken 0
+branch  6 taken 192 (fallthrough)
+branch  7 taken 0
+      192:  306:         get32(p + 508) == 0xaa550000UL;
+call    0 returned 192
+        -:  307:}
+function rw_invalidate called 173 returned 100% blocks executed 100%
+      173:  308:void rw_invalidate(void) {
+      173:  309:  begun=dirty=0; sd_write_disarm();
+call    0 returned 173
+      173:  310:}
+function mirrors called 158 returned 100% blocks executed 90%
+      158:  311:static int mirrors(void) {
+        -:  312:  U32 i;
+        -:  313:  unsigned f;
+      158:  314:  if (!mirrored || fat_count<2) return 0;
+branch  0 taken 156 (fallthrough)
+branch  1 taken 2
+branch  2 taken 2 (fallthrough)
+branch  3 taken 154
+    82404:  315:  for (i=0;i<rw_fatsz;++i) {
+branch  0 taken 82254
+branch  1 taken 150 (fallthrough)
+   82254*:  316:    if (read_sector(first_fat+i,block)) return -1;
+call    0 returned 82254
+branch  1 taken 0 (fallthrough)
+branch  2 taken 82254
+   164504:  317:    for (f=1;f<fat_count;++f) {
+branch  0 taken 82254
+branch  1 taken 82250 (fallthrough)
+   82254*:  318:      if (read_sector(first_fat+(U32)f*rw_fatsz+i,other)) return -1;
+call    0 returned 82254
+branch  1 taken 0 (fallthrough)
+branch  2 taken 82254
+    82254:  319:      if (memcmp(block,other,512)) return inconsistent();
+branch  0 taken 4 (fallthrough)
+branch  1 taken 82250
+call    2 returned 4
+        -:  320:    }
+        -:  321:  }
+      150:  322:  return 0;
+        -:  323:}
+function rw_mount called 99 returned 100% blocks executed 75%
+       99:  324:int rw_mount(void) {
+        -:  325:  /* Read-only preflight precedes arming: geometry/capacity, backup BPB, enabled
+        -:  326:   * FAT mirrors, clean/error flags and optional FSInfo signatures. This is
+        -:  327:   * not a whole-volume consistency or cross-linked-cluster scan. */
+       99:  328:  U32 start=0,total;
+        -:  329:  U16 i,reserved,flags,info,backup;
+        -:  330:  int result;
+       99:  331:  rw_invalidate(); rw_allocated=rw_freed=0;
+call    0 returned 99
+      99*:  332:  if (fs_mount()) return -1;
+call    0 returned 99
+branch  1 taken 0 (fallthrough)
+branch  2 taken 99
+      99*:  333:  if (read_sector(0,block)) return -1;
+call    0 returned 99
+branch  1 taken 0 (fallthrough)
+branch  2 taken 99
+       99:  334:  if (get16(block+11)!=512 || !block[16] || get16(block+17) || get16(block+22)) {
+call    0 returned 99
+branch  1 taken 1 (fallthrough)
+branch  2 taken 98
+branch  3 taken 1 (fallthrough)
+branch  4 taken 0
+call    5 returned 1
+branch  6 taken 1 (fallthrough)
+branch  7 taken 0
+call    8 returned 1
+branch  9 taken 0 (fallthrough)
+branch 10 taken 1
+      98*:  335:    for (i=0;i<4;++i) {
+branch  0 taken 98
+branch  1 taken 0 (fallthrough)
+       98:  336:      U8 *p=block+446+i*16;
+      98*:  337:      if (p[4]==11 || p[4]==12 || p[4]==27 || p[4]==28) { start=get32(p+8); break; }
+branch  0 taken 98 (fallthrough)
+branch  1 taken 0
+branch  2 taken 0 (fallthrough)
+branch  3 taken 98
+branch  4 never executed (fallthrough)
+branch  5 never executed
+branch  6 never executed (fallthrough)
+branch  7 never executed
+call    8 returned 98
+        -:  338:    }
+      98*:  339:    if (i==4) return fail(E_INVALID);
+branch  0 taken 0 (fallthrough)
+branch  1 taken 98
+call    2 never executed
+      98*:  340:    if (read_sector(start,block)) return -1;
+call    0 returned 98
+branch  1 taken 0 (fallthrough)
+branch  2 taken 98
+        -:  341:  }
+       99:  342:  reserved=get16(block+14); fat_count=block[16]; flags=get16(block+40);
+call    0 returned 99
+call    1 returned 99
+       99:  343:  mirrored=(U8)((flags&128)==0); active_fat=mirrored?0:(U8)(flags&15);
+branch  0 taken 1 (fallthrough)
+branch  1 taken 98
+       99:  344:  rw_fatsz=get32(block+36); total=get32(block+32);
+call    0 returned 99
+call    1 returned 99
+       99:  345:  rw_start=start; rw_end=start+total; first_fat=start+reserved;
+       99:  346:  if (rw_end-1>sd_last_lba || volume.fat!=first_fat+(U32)active_fat*rw_fatsz)
+branch  0 taken 99 (fallthrough)
+branch  1 taken 0
+branch  2 taken 0 (fallthrough)
+branch  3 taken 99
+    #####:  347:    return fail(E_INVALID);
+call    0 never executed
+       99:  348:  info=get16(block+48); backup=get16(block+50);
+call    0 returned 99
+call    1 returned 99
+       99:  349:  fsinfo_lba=backup_info=backup_boot=0xffffffffUL;
+       99:  350:  if (backup && backup!=65535U) {
+branch  0 taken 99 (fallthrough)
+branch  1 taken 0
+branch  2 taken 99 (fallthrough)
+branch  3 taken 0
+      99*:  351:    if (backup>=reserved) return fail(E_INVALID);
+branch  0 taken 0 (fallthrough)
+branch  1 taken 99
+call    2 never executed
+       99:  352:    backup_boot=start+backup;
+        -:  353:  }
+       99:  354:  if (info && info!=65535U) {
+branch  0 taken 99 (fallthrough)
+branch  1 taken 0
+branch  2 taken 99 (fallthrough)
+branch  3 taken 0
+      99*:  355:    if (info>=reserved || start+info==backup_boot) return fail(E_INVALID);
+branch  0 taken 99 (fallthrough)
+branch  1 taken 0
+branch  2 taken 0 (fallthrough)
+branch  3 taken 99
+call    4 never executed
+       99:  356:    fsinfo_lba=start+info;
+       99:  357:    if (backup_boot!=0xffffffffUL && (U32)backup+info<reserved)
+branch  0 taken 99 (fallthrough)
+branch  1 taken 0
+branch  2 taken 99 (fallthrough)
+branch  3 taken 0
+       99:  358:      backup_info=backup_boot+info;
+        -:  359:  }
+       99:  360:  if (backup_boot!=0xffffffffUL) {
+branch  0 taken 99 (fallthrough)
+branch  1 taken 0
+       99:  361:    memcpy(other,block,512);
+      99*:  362:    if (read_sector(backup_boot,block)) return -1;
+call    0 returned 99
+branch  1 taken 0 (fallthrough)
+branch  2 taken 99
+       99:  363:    if (get16(block+510)!=0xaa55 || memcmp(block+11,other+11,41))
+call    0 returned 99
+branch  1 taken 99 (fallthrough)
+branch  2 taken 0
+branch  3 taken 1 (fallthrough)
+branch  4 taken 98
+        1:  364:      return fail(E_INVALID);
+call    0 returned 1
+        -:  365:  }
+       98:  366:  if (mirrors()) return -1;
+call    0 returned 98
+branch  1 taken 1 (fallthrough)
+branch  2 taken 97
+      97*:  367:  if (read_sector(volume.fat,block)) return -1;
+call    0 returned 97
+branch  1 taken 0 (fallthrough)
+branch  2 taken 97
+       97:  368:  if ((get32(block+4)&0x0c000000UL)!=0x0c000000UL) return fail(E_INVALID);
+call    0 returned 97
+branch  1 taken 1 (fallthrough)
+branch  2 taken 96
+call    3 returned 1
+       96:  369:  if (fsinfo_lba!=0xffffffffUL) {
+branch  0 taken 96 (fallthrough)
+branch  1 taken 0
+      96*:  370:    if (read_sector(fsinfo_lba,block)) return -1;
+call    0 returned 96
+branch  1 taken 0 (fallthrough)
+branch  2 taken 96
+      96*:  371:    if (!valid_fsinfo(block)) return fail(E_INVALID);
+call    0 returned 96
+branch  1 taken 0 (fallthrough)
+branch  2 taken 96
+call    3 never executed
+       96:  372:    if (backup_info!=0xffffffffUL) {
+branch  0 taken 96 (fallthrough)
+branch  1 taken 0
+      96*:  373:      if (read_sector(backup_info,block)) return -1;
+call    0 returned 96
+branch  1 taken 0 (fallthrough)
+branch  2 taken 96
+      96*:  374:      if (!valid_fsinfo(block)) return fail(E_INVALID);
+call    0 returned 96
+branch  1 taken 0 (fallthrough)
+branch  2 taken 96
+call    3 never executed
+        -:  375:    }
+        -:  376:  }
+       96:  377:  result=sd_write_arm(start+1,rw_end);
+call    0 returned 96
+      96*:  378:  if (result) return fail((U16)result);
+branch  0 taken 0 (fallthrough)
+branch  1 taken 96
+call    2 never executed
+       96:  379:  hint=2; begun=1; fs_error=0; return 0;
+        -:  380:}
+function mark_clean called 135 returned 100% blocks executed 95%
+      135:  381:static int mark_clean(int clean) {
+        -:  382:  unsigned f;
+        -:  383:  U32 flags;
+     135*:  384:  if (read_sector(volume.fat,block)) return -1;
+call    0 returned 135
+branch  1 taken 0 (fallthrough)
+branch  2 taken 135
+      135:  385:  flags=get32(block+4);
+call    0 returned 135
+      135:  386:  if (clean) flags|=0x08000000UL; else flags&=~0x08000000UL;
+branch  0 taken 57 (fallthrough)
+branch  1 taken 78
+      135:  387:  put32(block+4,flags);
+call    0 returned 135
+      135:  388:  if (raw_store(volume.fat,block)) return -1;
+call    0 returned 135
+branch  1 taken 3 (fallthrough)
+branch  2 taken 132
+      258:  389:  if (mirrored) for (f=1;f<fat_count;++f)
+branch  0 taken 130 (fallthrough)
+branch  1 taken 2
+branch  2 taken 128
+branch  3 taken 128 (fallthrough)
+      128:  390:    if (raw_store(first_fat+(U32)f*rw_fatsz,block)) return -1;
+call    0 returned 128
+branch  1 taken 2 (fallthrough)
+branch  2 taken 126
+      130:  391:  return 0;
+        -:  392:}
+function rw_begin called 637 returned 100% blocks executed 85%
+      637:  393:int rw_begin(void) {
+        -:  394:  /* Clear the clean flag before mutations; discard both FSInfo hints. The
+        -:  395:   * flag detects interruption but is neither a journal nor automatic repair. */
+        -:  396:  U32 lba;
+        -:  397:  unsigned i;
+     637*:  398:  if (!begun || sd_diag.poisoned) return fail(E_NOTREADY);
+branch  0 taken 637 (fallthrough)
+branch  1 taken 0
+branch  2 taken 0 (fallthrough)
+branch  3 taken 637
+call    4 never executed
+      637:  399:  if (dirty) return 0;
+branch  0 taken 559 (fallthrough)
+branch  1 taken 78
+       78:  400:  if (mark_clean(0)) return -1;
+call    0 returned 78
+branch  1 taken 3 (fallthrough)
+branch  2 taken 75
+       75:  401:  dirty=1;
+      222:  402:  for (i=0;i<2;++i) {
+branch  0 taken 149
+branch  1 taken 73 (fallthrough)
+      149:  403:    lba=i?backup_info:fsinfo_lba;
+branch  0 taken 74 (fallthrough)
+branch  1 taken 75
+     149*:  404:    if (lba==0xffffffffUL) continue;
+branch  0 taken 0 (fallthrough)
+branch  1 taken 149
+     149*:  405:    if (read_sector(lba,other)) return -1;
+call    0 returned 149
+branch  1 taken 0 (fallthrough)
+branch  2 taken 149
+      149:  406:    put32(other+488,0xffffffffUL); put32(other+492,0xffffffffUL);
+call    0 returned 149
+call    1 returned 149
+      149:  407:    if (raw_store(lba,other)) return -1;
+call    0 returned 149
+branch  1 taken 2 (fallthrough)
+branch  2 taken 147
+        -:  408:  }
+       73:  409:  return 0;
+        -:  410:}
+function rw_flush called 92 returned 100% blocks executed 100%
+       92:  411:int rw_flush(void) {
+        -:  412:  /* Every store is already verified. Commit checks mirrors before publishing
+        -:  413:   * the clean flag; FAT-mirror-inconsistent or poisoned sessions cannot become
+        -:  414:   * clean. Flush does not perform a global chain/crosslink consistency scan. */
+       92:  415:  if (!begun || sd_diag.poisoned) return fail(E_NOTREADY);
+branch  0 taken 92 (fallthrough)
+branch  1 taken 0
+branch  2 taken 13 (fallthrough)
+branch  3 taken 79
+call    4 returned 13
+       79:  416:  if (!dirty) return 0;
+branch  0 taken 19 (fallthrough)
+branch  1 taken 60
+       60:  417:  if (mirrors() || mark_clean(1)) return -1;
+call    0 returned 60
+branch  1 taken 57 (fallthrough)
+branch  2 taken 3
+call    3 returned 57
+branch  4 taken 2 (fallthrough)
+branch  5 taken 55
+       55:  418:  dirty=0; return 0;
+        -:  419:}
+function reserve_slot called 161 returned 100% blocks executed 85%
+      161:  420:static int reserve_slot(U32 parent,const U8 pattern[11],U32 *target,U16 *slot) {
+      161:  421:  U32 c,next,i,free_lba=0;
+      161:  422:  unsigned sector,offset,free_offset=0;
+      161:  423:  int end=0;
+      161:  424:  if (!begun || sd_diag.poisoned) return fail(E_NOTREADY);
+branch  0 taken 161 (fallthrough)
+branch  1 taken 0
+branch  2 taken 14 (fallthrough)
+branch  3 taken 147
+call    4 returned 14
+     147*:  425:  if (!valid(parent)) return fail(E_INVALID);
+call    0 returned 147
+branch  1 taken 0 (fallthrough)
+branch  2 taken 147
+call    3 never executed
+      147:  426:  if (chain_valid(parent)) return -1;
+call    0 returned 147
+branch  1 taken 1 (fallthrough)
+branch  2 taken 146
+      146:  427:  c = parent;
+      298:  428:  for (i = 0; i < volume.clusters; ++i) {
+branch  0 taken 298
+branch  1 taken 0 (fallthrough)
+      298:  429:    if (!valid(c))
+call    0 returned 298
+branch  1 taken 0 (fallthrough)
+branch  2 taken 298
+    #####:  430:      return fail(E_INVALID);
+call    0 never executed
+      602:  431:    for (sector = 0; sector < volume.spc && !end; ++sector) {
+branch  0 taken 306 (fallthrough)
+branch  1 taken 296
+branch  2 taken 305
+branch  3 taken 1 (fallthrough)
+      305:  432:      if (read_sector(address(c) + sector, block))
+call    0 returned 305
+call    1 returned 305
+branch  2 taken 0 (fallthrough)
+branch  3 taken 305
+    #####:  433:        return -1;
+     3642:  434:      for (offset = 0; offset < 512; offset += 32) {
+branch  0 taken 3481
+branch  1 taken 161 (fallthrough)
+     3481:  435:        if (block[offset] == 0 || block[offset] == 0xe5) {
+branch  0 taken 3338 (fallthrough)
+branch  1 taken 143
+branch  2 taken 730 (fallthrough)
+branch  3 taken 2608
+      873:  436:          if (!free_lba) {
+branch  0 taken 143 (fallthrough)
+branch  1 taken 730
+      143:  437:            free_lba = address(c) + sector;
+call    0 returned 143
+      143:  438:            free_offset = offset;
+        -:  439:          }
+      873:  440:          if (!block[offset]) {
+branch  0 taken 143 (fallthrough)
+branch  1 taken 730
+      143:  441:            end = 1;
+      143:  442:            break;
+        -:  443:          }
+     2608:  444:        } else if (same_name(block + offset, pattern))
+call    0 returned 2608
+branch  1 taken 1 (fallthrough)
+branch  2 taken 2607
+        1:  445:          return fail(E_EXISTS);
+call    0 returned 1
+        -:  446:      }
+        -:  447:    }
+      297:  448:    if (end)
+branch  0 taken 143 (fallthrough)
+branch  1 taken 154
+      143:  449:      break;
+      154:  450:    fs_error = 0;
+      154:  451:    next = rw_fat(c);
+call    0 returned 154
+      154:  452:    if (fs_error)
+branch  0 taken 0 (fallthrough)
+branch  1 taken 154
+    #####:  453:      return -1;
+      154:  454:    if (next >= 0x0ffffff8UL) {
+branch  0 taken 2 (fallthrough)
+branch  1 taken 152
+        2:  455:      if (!free_lba) {
+branch  0 taken 2 (fallthrough)
+branch  1 taken 0
+        2:  456:        next = allocate();
+call    0 returned 2
+        2:  457:        if (!next || setfat(c, next))
+branch  0 taken 2 (fallthrough)
+branch  1 taken 0
+call    2 returned 2
+branch  3 taken 0 (fallthrough)
+branch  4 taken 2
+    #####:  458:          return -1;
+        2:  459:        free_lba = address(next);
+call    0 returned 2
+        2:  460:        free_offset = 0;
+        -:  461:      }
+        2:  462:      break;
+        -:  463:    }
+      152:  464:    c = next;
+        -:  465:  }
+      145:  466:  if (!free_lba || i == volume.clusters)
+branch  0 taken 145 (fallthrough)
+branch  1 taken 0
+branch  2 taken 0 (fallthrough)
+branch  3 taken 145
+    #####:  467:    return fail(E_INVALID);
+call    0 never executed
+      145:  468:  *target=free_lba; *slot=(U16)free_offset; return 0;
+        -:  469:}
+function write_entry called 140 returned 100% blocks executed 68%
+      140:  470:static int write_entry(U32 parent,U32 lba,U16 off,const U8 entry[32]) {
+        -:  471:  /* Replacing an end marker must first establish the next zero marker, even
+        -:  472:   * when that slot lies in the next sector/cluster. Otherwise stale entries
+        -:  473:   * beyond the former end would become visible. */
+        -:  474:  DirCursor cur;
+        -:  475:  U32 next_lba;
+        -:  476:  U16 next_off;
+        -:  477:  int result;
+     140*:  478:  if (read_sector(lba,block)) return -1;
+call    0 returned 140
+branch  1 taken 0 (fallthrough)
+branch  2 taken 140
+      140:  479:  if (!block[off]) {
+branch  0 taken 57 (fallthrough)
+branch  1 taken 83
+       57:  480:    cur.cluster=parent; cur.slot=cur.hops=0;
+        -:  481:    for (;;) {
+     1523:  482:      result=dir_slot(&cur,&next_lba,&next_off);
+call    0 returned 1523
+    1523*:  483:      if (result) return result<0?-1:fail(E_INVALID);
+branch  0 taken 0 (fallthrough)
+branch  1 taken 1523
+branch  2 never executed (fallthrough)
+branch  3 never executed
+call    4 never executed
+     1523:  484:      if (next_lba==lba && next_off==off) break;
+branch  0 taken 467 (fallthrough)
+branch  1 taken 1056
+branch  2 taken 57 (fallthrough)
+branch  3 taken 410
+     1466:  485:      ++cur.slot;
+        -:  486:    }
+       57:  487:    ++cur.slot;
+       57:  488:    result=dir_slot(&cur,&next_lba,&next_off);
+call    0 returned 57
+      57*:  489:    if (result<0) return -1;
+branch  0 taken 0 (fallthrough)
+branch  1 taken 57
+       57:  490:    if (!result) {
+branch  0 taken 54 (fallthrough)
+branch  1 taken 3
+      54*:  491:      if (read_sector(next_lba,block)) return -1;
+call    0 returned 54
+branch  1 taken 0 (fallthrough)
+branch  2 taken 54
+       54:  492:      block[next_off]=0;
+      54*:  493:      if (next_lba!=lba && store(next_lba,block)) return -1;
+branch  0 taken 0 (fallthrough)
+branch  1 taken 54
+call    2 never executed
+branch  3 never executed (fallthrough)
+branch  4 never executed
+        -:  494:    }
+       57:  495:    if (result || next_lba!=lba) {
+branch  0 taken 54 (fallthrough)
+branch  1 taken 3
+branch  2 taken 0 (fallthrough)
+branch  3 taken 54
+       3*:  496:      if (read_sector(lba,block)) return -1;
+call    0 returned 3
+branch  1 taken 0 (fallthrough)
+branch  2 taken 3
+        -:  497:    }
+        -:  498:  }
+      140:  499:  memcpy(block+off,entry,32);
+      140:  500:  return store(lba,block);
+call    0 returned 140
+        -:  501:}
+function create called 160 returned 100% blocks executed 93%
+      160:  502:static int create(U32 parent, const char *name, RwFile *f, int directory) {
+        -:  503:  U8 pattern[11],entry[32];
+        -:  504:  U32 next,free_lba;
+        -:  505:  U16 free_offset;
+      160:  506:  if (fs_pattern(name,pattern,0)) return -1;
+call    0 returned 160
+branch  1 taken 1 (fallthrough)
+branch  2 taken 159
+      159:  507:  if (!strcmp(name,".") || !strcmp(name,"..")) return fail(E_INVALID);
+branch  0 taken 159 (fallthrough)
+branch  1 taken 0
+branch  2 taken 1 (fallthrough)
+branch  3 taken 158
+call    4 returned 1
+      158:  508:  if (reserve_slot(parent,pattern,&free_lba,&free_offset)) return -1;
+call    0 returned 158
+branch  1 taken 16 (fallthrough)
+branch  2 taken 142
+      142:  509:  if (rw_begin()) return -1;
+call    0 returned 142
+branch  1 taken 5 (fallthrough)
+branch  2 taken 137
+      137:  510:  memset(f, 0, sizeof(*f));
+      137:  511:  f->lba = free_lba;
+      137:  512:  f->offset = free_offset;
+      137:  513:  f->directory = (U8)directory;
+      137:  514:  f->parent=parent; f->attr=(U8)(directory?16:32);
+branch  0 taken 8 (fallthrough)
+branch  1 taken 129
+      137:  515:  if (directory) {
+branch  0 taken 8 (fallthrough)
+branch  1 taken 129
+        8:  516:    f->first = f->last = allocate();
+call    0 returned 8
+        8:  517:    if (!f->first)
+branch  0 taken 0 (fallthrough)
+branch  1 taken 8
+    #####:  518:      return -1;
+        8:  519:    memset(other, 0, 512);
+        8:  520:    memset(other, ' ', 11);
+        8:  521:    other[0] = '.';
+        8:  522:    other[11] = 16;
+        8:  523:    put16(other + 20, (U16)(f->first >> 16));
+call    0 returned 8
+        8:  524:    put16(other + 26, (U16)f->first);
+call    0 returned 8
+        8:  525:    memset(other + 32, ' ', 11);
+        8:  526:    other[32] = '.';
+        8:  527:    other[33] = '.';
+        8:  528:    other[43] = 16;
+        8:  529:    next = parent == volume.root ? 0 : parent;
+branch  0 taken 1 (fallthrough)
+branch  1 taken 7
+        8:  530:    put16(other + 52, (U16)(next >> 16));
+call    0 returned 8
+        8:  531:    put16(other + 58, (U16)next);
+call    0 returned 8
+        8:  532:    if (store(address(f->first), other))
+call    0 returned 8
+call    1 returned 8
+branch  2 taken 0 (fallthrough)
+branch  3 taken 8
+    #####:  533:      return -1;
+        -:  534:  }
+      137:  535:  memset(entry, 0, 32);
+      137:  536:  memcpy(entry, pattern, 11);
+     137*:  537:  if (entry[0]==229) entry[0]=5;
+branch  0 taken 0 (fallthrough)
+branch  1 taken 137
+      137:  538:  entry[11] = (U8)(directory ? 16 : 32);
+branch  0 taken 8 (fallthrough)
+branch  1 taken 129
+      137:  539:  put16(entry + 22, f->time);
+call    0 returned 137
+      137:  540:  put16(entry + 24, f->date);
+call    0 returned 137
+      137:  541:  put16(entry + 20, (U16)(f->first >> 16));
+call    0 returned 137
+      137:  542:  put16(entry + 26, (U16)f->first);
+call    0 returned 137
+      137:  543:  if (write_entry(parent,free_lba,free_offset,entry))
+call    0 returned 137
+branch  1 taken 1 (fallthrough)
+branch  2 taken 136
+        1:  544:    return -1;
+      136:  545:  fs_error = 0;
+      136:  546:  return 0;
+        -:  547:}
+function rw_mkdir called 8 returned 100% blocks executed 100%
+        8:  548:int rw_mkdir(U32 p, const char *n, RwFile *f) { return create(p, n, f, 1); }
+call    0 returned 8
+function rw_create called 152 returned 100% blocks executed 100%
+      152:  549:int rw_create(U32 p, const char *n, RwFile *f) { return create(p, n, f, 0); }
+call    0 returned 152
+function rw_rename called 10 returned 100% blocks executed 79%
+       10:  550:int rw_rename(RwFile *f,const char *destination) {
+        -:  551:  /* Cross-parent moves update '..', publish destination, then erase source.
+        -:  552:   * Interrupted moves may leave duplicates or an inconsistent parent link.
+        -:  553:   * Same-parent rename only replaces the alias in its existing slot. */
+        -:  554:  U32 parent,c,next,target;
+        -:  555:  U16 off;
+        -:  556:  char leaf[13];
+        -:  557:  U8 pattern[11],entry[32];
+        -:  558:  RwFile existing;
+        -:  559:  U32 hops;
+       10:  560:  if (f->attr&1) return fail(E_ACCESS);
+branch  0 taken 1 (fallthrough)
+branch  1 taken 9
+call    2 returned 1
+        9:  561:  if (validate_file(f) || fs_parent(destination,&parent,leaf)) return -1;
+call    0 returned 9
+branch  1 taken 9 (fallthrough)
+branch  2 taken 0
+call    3 returned 9
+branch  4 taken 1 (fallthrough)
+branch  5 taken 8
+       8*:  562:  if (!leaf[0] || !strcmp(leaf,".") || !strcmp(leaf,"..")) return fail(E_ACCESS);
+branch  0 taken 8 (fallthrough)
+branch  1 taken 0
+branch  2 taken 8 (fallthrough)
+branch  3 taken 0
+branch  4 taken 0 (fallthrough)
+branch  5 taken 8
+call    6 never executed
+       8*:  563:  if (fs_pattern(leaf,pattern,0)) return -1;
+call    0 returned 8
+branch  1 taken 0 (fallthrough)
+branch  2 taken 8
+        8:  564:  if (!rw_lookup(destination,&existing)) {
+call    0 returned 8
+branch  1 taken 2 (fallthrough)
+branch  2 taken 6
+        2:  565:    if (existing.lba==f->lba && existing.offset==f->offset) return 0;
+branch  0 taken 2 (fallthrough)
+branch  1 taken 0
+branch  2 taken 1 (fallthrough)
+branch  3 taken 1
+        1:  566:    return fail(E_EXISTS);
+call    0 returned 1
+        -:  567:  }
+       6*:  568:  if (fs_error!=E_NOTFOUND) return -1;
+branch  0 taken 0 (fallthrough)
+branch  1 taken 6
+        6:  569:  if (f->directory) {
+branch  0 taken 2 (fallthrough)
+branch  1 taken 4
+        2:  570:    c=parent;
+        4:  571:    for (hops=0;c!=volume.root && hops<volume.clusters;++hops) {
+branch  0 taken 3 (fallthrough)
+branch  1 taken 1
+branch  2 taken 3
+branch  3 taken 0 (fallthrough)
+        3:  572:      if (c==f->first) return fail(E_ACCESS);
+branch  0 taken 1 (fallthrough)
+branch  1 taken 2
+call    2 returned 1
+       2*:  573:      if (!valid(c)) return fail(E_INVALID);
+call    0 returned 2
+branch  1 taken 0 (fallthrough)
+branch  2 taken 2
+call    3 never executed
+       2*:  574:      if (read_sector(address(c),block)) return -1;
+call    0 returned 2
+call    1 returned 2
+branch  2 taken 0 (fallthrough)
+branch  3 taken 2
+        2:  575:      if (memcmp(block,".          ",11) || block[11]!=16 ||
+branch  0 taken 2 (fallthrough)
+branch  1 taken 0
+branch  2 taken 2 (fallthrough)
+branch  3 taken 0
+        2:  576:          memcmp(block+32,"..         ",11) || block[43]!=16)
+branch  0 taken 2 (fallthrough)
+branch  1 taken 0
+branch  2 taken 0 (fallthrough)
+branch  3 taken 2
+    #####:  577:        return fail(E_INVALID);
+call    0 never executed
+        2:  578:      next=fs_entry_cluster(block+32); c=next?next:volume.root;
+call    0 returned 2
+branch  1 taken 1 (fallthrough)
+branch  2 taken 1
+        -:  579:    }
+       1*:  580:    if (hops==volume.clusters || c==f->first) return fail(E_ACCESS);
+branch  0 taken 1 (fallthrough)
+branch  1 taken 0
+branch  2 taken 0 (fallthrough)
+branch  3 taken 1
+call    4 never executed
+        -:  581:  }
+        5:  582:  if (parent==f->parent) {
+branch  0 taken 2 (fallthrough)
+branch  1 taken 3
+       2*:  583:    if (rw_begin() || erase_lfn(f) || read_sector(f->lba,block)) return -1;
+call    0 returned 2
+branch  1 taken 2 (fallthrough)
+branch  2 taken 0
+call    3 returned 2
+branch  4 taken 2 (fallthrough)
+branch  5 taken 0
+call    6 returned 2
+branch  7 taken 0 (fallthrough)
+branch  8 taken 2
+        2:  584:    memcpy(block+f->offset,pattern,11);
+       2*:  585:    if (block[f->offset]==229) block[f->offset]=5;
+branch  0 taken 0 (fallthrough)
+branch  1 taken 2
+        2:  586:    return store(f->lba,block);
+call    0 returned 2
+        -:  587:  }
+       3*:  588:  if (reserve_slot(parent,pattern,&target,&off)) return -1;
+call    0 returned 3
+branch  1 taken 0 (fallthrough)
+branch  2 taken 3
+       3*:  589:  if (rw_begin() || erase_lfn(f) || read_sector(f->lba,block)) return -1;
+call    0 returned 3
+branch  1 taken 3 (fallthrough)
+branch  2 taken 0
+call    3 returned 3
+branch  4 taken 3 (fallthrough)
+branch  5 taken 0
+call    6 returned 3
+branch  7 taken 0 (fallthrough)
+branch  8 taken 3
+        3:  590:  memcpy(entry,block+f->offset,32); memcpy(entry,pattern,11);
+       3*:  591:  if (entry[0]==229) entry[0]=5;
+branch  0 taken 0 (fallthrough)
+branch  1 taken 3
+        3:  592:  if (f->directory) {
+branch  0 taken 1 (fallthrough)
+branch  1 taken 2
+       1*:  593:    if (read_sector(address(f->first),block)) return -1;
+call    0 returned 1
+call    1 returned 1
+branch  2 taken 0 (fallthrough)
+branch  3 taken 1
+       1*:  594:    if (memcmp(block+32,"..         ",11) || block[43]!=16) return fail(E_INVALID);
+branch  0 taken 1 (fallthrough)
+branch  1 taken 0
+branch  2 taken 0 (fallthrough)
+branch  3 taken 1
+call    4 never executed
+       1*:  595:    next=parent==volume.root?0:parent;
+branch  0 taken 1 (fallthrough)
+branch  1 taken 0
+        1:  596:    put16(block+52,(U16)(next>>16)); put16(block+58,(U16)next);
+call    0 returned 1
+call    1 returned 1
+       1*:  597:    if (store(address(f->first),block)) return -1;
+call    0 returned 1
+call    1 returned 1
+branch  2 taken 0 (fallthrough)
+branch  3 taken 1
+        -:  598:  }
+       3*:  599:  if (write_entry(parent,target,off,entry) || read_sector(f->lba,block)) return -1;
+call    0 returned 3
+branch  1 taken 3 (fallthrough)
+branch  2 taken 0
+call    3 returned 3
+branch  4 taken 0 (fallthrough)
+branch  5 taken 3
+        3:  600:  block[f->offset]=229;
+       3*:  601:  if (store(f->lba,block)) return -1;
+call    0 returned 3
+branch  1 taken 0 (fallthrough)
+branch  2 taken 3
+        3:  602:  f->parent=parent; f->lba=target; f->offset=off; fs_error=0; return 0;
+        -:  603:}
+function locate called 21 returned 100% blocks executed 69%
+       21:  604:static U32 locate(RwFile *f, U32 pos) {
+       21:  605:  U32 c = f->first, i, n, index = pos / ((U32)volume.spc * 512);
+      159:  606:  for (i = 0; i < index; ++i) {
+branch  0 taken 138
+branch  1 taken 21 (fallthrough)
+      138:  607:    fs_error = 0;
+      138:  608:    n = rw_fat(c);
+call    0 returned 138
+     138*:  609:    if (fs_error) return 0;
+branch  0 taken 0 (fallthrough)
+branch  1 taken 138
+      138:  610:    if (!valid(n)) {
+call    0 returned 138
+branch  1 taken 0 (fallthrough)
+branch  2 taken 138
+    #####:  611:      fail(E_INVALID);
+call    0 never executed
+    #####:  612:      return 0;
+        -:  613:    }
+      138:  614:    c = n;
+        -:  615:  }
+       21:  616:  if (!valid(c)) {
+call    0 returned 21
+branch  1 taken 0 (fallthrough)
+branch  2 taken 21
+    #####:  617:    fail(E_INVALID);
+call    0 never executed
+    #####:  618:    return 0;
+        -:  619:  }
+       21:  620:  return c;
+        -:  621:}
+function rw_overwrite called 6 returned 100% blocks executed 75%
+        6:  622:int rw_overwrite(RwFile *f, U32 pos, const U8 FAR *data, U16 count) {
+        -:  623:  U32 c, lba;
+        -:  624:  unsigned offset, n, i;
+       6*:  625:  if (f->directory || (f->attr&1)) return fail(E_ACCESS);
+branch  0 taken 6 (fallthrough)
+branch  1 taken 0
+branch  2 taken 0 (fallthrough)
+branch  3 taken 6
+call    4 never executed
+        6:  626:  if (pos > f->size || count > f->size - pos)
+branch  0 taken 6 (fallthrough)
+branch  1 taken 0
+branch  2 taken 0 (fallthrough)
+branch  3 taken 6
+    #####:  627:    return fail(E_INVALID);
+call    0 never executed
+       6*:  628:  if (!count) return 0;
+branch  0 taken 0 (fallthrough)
+branch  1 taken 6
+        6:  629:  if (validate_file(f)) return -1;
+call    0 returned 6
+branch  1 taken 3 (fallthrough)
+branch  2 taken 3
+       3*:  630:  if (rw_begin()) return -1;
+call    0 returned 3
+branch  1 taken 0 (fallthrough)
+branch  2 taken 3
+        6:  631:  while (count) {
+branch  0 taken 3
+branch  1 taken 3 (fallthrough)
+        3:  632:    c = locate(f, pos);
+call    0 returned 3
+        3:  633:    if (!c)
+branch  0 taken 0 (fallthrough)
+branch  1 taken 3
+    #####:  634:      return -1;
+        3:  635:    lba = address(c) + (pos / 512) % volume.spc;
+call    0 returned 3
+        3:  636:    offset = (unsigned)(pos % 512);
+        3:  637:    n = 512 - offset;
+        3:  638:    if (n > count)
+branch  0 taken 3 (fallthrough)
+branch  1 taken 0
+        3:  639:      n = count;
+        3:  640:    if (read_sector(lba, block))
+call    0 returned 3
+branch  1 taken 0 (fallthrough)
+branch  2 taken 3
+    #####:  641:      return -1;
+        -:  642:#ifndef HOST_TEST
+        -:  643:    data=(const U8 far *)MK_FP(FP_SEG(data)+(FP_OFF(data)>>4),FP_OFF(data)&15);
+        -:  644:#endif
+       13:  645:    for (i=0;i<n;++i) block[offset+i]=data[i];
+branch  0 taken 10
+branch  1 taken 3 (fallthrough)
+        3:  646:    if (store(lba, block))
+call    0 returned 3
+branch  1 taken 0 (fallthrough)
+branch  2 taken 3
+    #####:  647:      return -1;
+        3:  648:    pos += n;
+        3:  649:    data += n;
+        3:  650:    count -= n;
+        -:  651:  }
+        3:  652:  fs_error = 0;
+        3:  653:  return 0;
+        -:  654:}
+function rw_append called 93 returned 100% blocks executed 86%
+       93:  655:int rw_append(RwFile *f, const U8 FAR *data, U16 count) {
+        -:  656:  U32 c, lba;
+        -:  657:  unsigned offset, n, i;
+       93:  658:  U32 old_size = f->size;
+       93:  659:  if (f->directory || (f->attr&1)) return fail(E_ACCESS);
+branch  0 taken 93 (fallthrough)
+branch  1 taken 0
+branch  2 taken 1 (fallthrough)
+branch  3 taken 92
+call    4 returned 1
+       92:  660:  if (f->size > 0xffffffffUL - count)
+branch  0 taken 0 (fallthrough)
+branch  1 taken 92
+    #####:  661:    return fail(E_INVALID);
+call    0 never executed
+      92*:  662:  if (!count) return 0;
+branch  0 taken 0 (fallthrough)
+branch  1 taken 92
+      92*:  663:  if (validate_file(f)) return -1;
+call    0 returned 92
+branch  1 taken 0 (fallthrough)
+branch  2 taken 92
+      92*:  664:  if (rw_begin()) return -1;
+call    0 returned 92
+branch  1 taken 0 (fallthrough)
+branch  2 taken 92
+       92:  665:  if (f->size) {
+branch  0 taken 14 (fallthrough)
+branch  1 taken 78
+      14*:  666:    f->last=locate(f,f->size-1); if (!f->last) return -1;
+call    0 returned 14
+branch  1 taken 0 (fallthrough)
+branch  2 taken 14
+       78:  667:  } else f->last=0;
+      338:  668:  while (count) {
+branch  0 taken 253
+branch  1 taken 85 (fallthrough)
+      253:  669:    if (!(f->size % ((U32)volume.spc * 512))) {
+branch  0 taken 226 (fallthrough)
+branch  1 taken 27
+      226:  670:      c=0;
+      226:  671:      if (!f->size && f->first) c=f->first;
+branch  0 taken 78 (fallthrough)
+branch  1 taken 148
+branch  2 taken 1 (fallthrough)
+branch  3 taken 77
+      225:  672:      else if (f->last) {
+branch  0 taken 148 (fallthrough)
+branch  1 taken 77
+     148*:  673:        fs_error=0; c=rw_fat(f->last); if (fs_error) return -1;
+call    0 returned 148
+branch  1 taken 0 (fallthrough)
+branch  2 taken 148
+      148:  674:        if (c>=0x0ffffff8UL) c=0;
+branch  0 taken 148 (fallthrough)
+branch  1 taken 0
+        -:  675:      }
+      226:  676:      if (!c) {
+branch  0 taken 225 (fallthrough)
+branch  1 taken 1
+      225:  677:        c = allocate();
+call    0 returned 225
+      225:  678:        if (!c) {
+branch  0 taken 6 (fallthrough)
+branch  1 taken 219
+        6:  679:          if (fs_error==E_FULL && f->size!=old_size) {
+branch  0 taken 2 (fallthrough)
+branch  1 taken 4
+branch  2 taken 2 (fallthrough)
+branch  3 taken 0
+       2*:  680:            if (publish(f)) return -1;
+call    0 returned 2
+branch  1 taken 0 (fallthrough)
+branch  2 taken 2
+        2:  681:            return fail(E_FULL);
+call    0 returned 2
+        -:  682:          }
+        4:  683:          return -1;
+        -:  684:        }
+     219*:  685:        if (f->last && setfat(f->last, c)) return -1;
+branch  0 taken 146 (fallthrough)
+branch  1 taken 73
+call    2 returned 146
+branch  3 taken 0 (fallthrough)
+branch  4 taken 146
+        -:  686:      }
+      220:  687:      if (!f->first)
+branch  0 taken 73 (fallthrough)
+branch  1 taken 147
+       73:  688:        f->first = c;
+      220:  689:      f->last = c;
+        -:  690:    }
+      247:  691:    lba = address(f->last) + (f->size / 512) % volume.spc;
+call    0 returned 247
+      247:  692:    offset = (unsigned)(f->size % 512);
+      247:  693:    n = 512 - offset;
+      247:  694:    if (n > count)
+branch  0 taken 85 (fallthrough)
+branch  1 taken 162
+       85:  695:      n = count;
+      247:  696:    if (read_sector(lba, block))
+call    0 returned 247
+branch  1 taken 0 (fallthrough)
+branch  2 taken 247
+    #####:  697:      return -1;
+      247:  698:    if (data) {
+branch  0 taken 236 (fallthrough)
+branch  1 taken 11
+        -:  699:#ifndef HOST_TEST
+        -:  700:      data=(const U8 far *)MK_FP(FP_SEG(data)+(FP_OFF(data)>>4),FP_OFF(data)&15);
+        -:  701:#endif
+    79561:  702:      for (i=0;i<n;++i) block[offset+i]=data[i];
+branch  0 taken 79325
+branch  1 taken 236
+       11:  703:    } else memset(block+offset,0,n);
+      247:  704:    if (store(lba, block))
+call    0 returned 247
+branch  1 taken 1 (fallthrough)
+branch  2 taken 246
+        1:  705:      return -1;
+      246:  706:    f->size += n;
+      246:  707:    if (data) data += n;
+branch  0 taken 235 (fallthrough)
+branch  1 taken 11
+      246:  708:    count -= n;
+        -:  709:  }
+       85:  710:  if (f->size != old_size && publish(f))
+branch  0 taken 85 (fallthrough)
+branch  1 taken 0
+call    2 returned 85
+branch  3 taken 1 (fallthrough)
+branch  4 taken 84
+        1:  711:    return -1;
+       84:  712:  fs_error = 0;
+       84:  713:  return 0;
+        -:  714:}
+function rw_resize called 8 returned 100% blocks executed 86%
+        8:  715:int rw_resize(RwFile *f,U32 size) {
+        -:  716:  U32 remaining;
+        -:  717:  U16 count;
+        8:  718:  if (size<=f->size) return rw_truncate(f,size);
+branch  0 taken 4 (fallthrough)
+branch  1 taken 4
+call    2 returned 4
+        8:  719:  while (f->size<size) {
+branch  0 taken 4
+branch  1 taken 4 (fallthrough)
+        4:  720:    remaining=size-f->size;
+       4*:  721:    count=remaining>65535UL?65535U:(U16)remaining;
+branch  0 taken 4 (fallthrough)
+branch  1 taken 0
+       4*:  722:    if (rw_append(f,0,count)) return -1;
+call    0 returned 4
+branch  1 taken 0 (fallthrough)
+branch  2 taken 4
+        -:  723:  }
+        4:  724:  return 0;
+        -:  725:}
+function rw_write called 60 returned 100% blocks executed 85%
+       60:  726:int rw_write(RwFile *f,U32 pos,const U8 FAR *data,U16 count,U16 *done) {
+        -:  727:  /* DOS offsets are 32-bit but far pointer offsets are 16-bit. Normalize
+        -:  728:   * between overwrite and append so addition cannot wrap at 64 KiB.
+        -:  729:   * Disk-full append can publish a completed prefix, reported through done. */
+        -:  730:  U16 n;
+        -:  731:  U32 old_size;
+        -:  732:  int result;
+       60:  733:  *done=0;
+      60*:  734:  if (f->directory || (f->attr&1)) return fail(E_ACCESS);
+branch  0 taken 60 (fallthrough)
+branch  1 taken 0
+branch  2 taken 0 (fallthrough)
+branch  3 taken 60
+call    4 never executed
+       60:  735:  if (pos>0xffffffffUL-count) return fail(E_INVALID);
+branch  0 taken 1 (fallthrough)
+branch  1 taken 59
+call    2 returned 1
+       59:  736:  if (!count) return rw_resize(f,pos);
+branch  0 taken 6 (fallthrough)
+branch  1 taken 53
+call    2 returned 6
+      53*:  737:  if (pos>f->size && rw_resize(f,pos)) return -1;
+branch  0 taken 2 (fallthrough)
+branch  1 taken 51
+call    2 returned 2
+branch  3 taken 0 (fallthrough)
+branch  4 taken 2
+       53:  738:  if (pos<f->size) {
+branch  0 taken 2 (fallthrough)
+branch  1 taken 51
+        2:  739:    n=f->size-pos<count?(U16)(f->size-pos):count;
+branch  0 taken 1 (fallthrough)
+branch  1 taken 1
+       2*:  740:    if (rw_overwrite(f,pos,data,n)) return -1;
+call    0 returned 2
+branch  1 taken 0 (fallthrough)
+branch  2 taken 2
+        2:  741:    *done=n;
+        -:  742:#ifndef HOST_TEST
+        -:  743:    data=(const U8 far *)MK_FP(FP_SEG(data)+(FP_OFF(data)>>4)+(n>>4),
+        -:  744:                              (FP_OFF(data)&15)+(n&15));
+        -:  745:#else
+        2:  746:    data+=n;
+        -:  747:#endif
+        2:  748:    count-=n;
+        -:  749:  }
+       53:  750:  if (count) {
+branch  0 taken 52 (fallthrough)
+branch  1 taken 1
+       52:  751:    old_size=f->size;
+       52:  752:    result=rw_append(f,data,count);
+call    0 returned 52
+       52:  753:    *done+=(U16)(f->size-old_size);
+       52:  754:    return result;
+        -:  755:  }
+        1:  756:  return 0;
+        -:  757:}
+function rw_truncate called 8 returned 100% blocks executed 71%
+        8:  758:int rw_truncate(RwFile *f, U32 size) {
+        -:  759:  /* Publish the smaller size before reclaiming the tail. Delete likewise
+        -:  760:   * hides the directory entry before freeing its chain. Interruptions can
+        -:  761:   * leak clusters rather than leave a visible file pointing to freed data. */
+        8:  762:  U32 c, next = 0;
+       8*:  763:  if (f->directory || (f->attr&1)) return fail(E_ACCESS);
+branch  0 taken 8 (fallthrough)
+branch  1 taken 0
+branch  2 taken 0 (fallthrough)
+branch  3 taken 8
+call    4 never executed
+        8:  764:  if (size > f->size)
+branch  0 taken 0 (fallthrough)
+branch  1 taken 8
+    #####:  765:    return fail(E_INVALID);
+call    0 never executed
+        8:  766:  if (validate_file(f))
+call    0 returned 8
+branch  1 taken 0 (fallthrough)
+branch  2 taken 8
+    #####:  767:    return -1;
+        8:  768:  if (size == f->size)
+branch  0 taken 0 (fallthrough)
+branch  1 taken 8
+    #####:  769:    return 0;
+       8*:  770:  if (rw_begin()) return -1;
+call    0 returned 8
+branch  1 taken 0 (fallthrough)
+branch  2 taken 8
+        8:  771:  c = size ? locate(f, size - 1) : 0;
+branch  0 taken 4 (fallthrough)
+branch  1 taken 4
+call    2 returned 4
+        8:  772:  if (size && !c)
+branch  0 taken 4 (fallthrough)
+branch  1 taken 4
+branch  2 taken 0 (fallthrough)
+branch  3 taken 4
+    #####:  773:    return -1;
+        8:  774:  if (c) {
+branch  0 taken 4 (fallthrough)
+branch  1 taken 4
+        4:  775:    fs_error = 0;
+        4:  776:    next = rw_fat(c);
+call    0 returned 4
+        4:  777:    if (fs_error)
+branch  0 taken 0 (fallthrough)
+branch  1 taken 4
+    #####:  778:      return -1;
+        4:  779:    if (next >= 0x0ffffff8UL)
+branch  0 taken 2 (fallthrough)
+branch  1 taken 2
+        2:  780:      next = 0;
+        -:  781:  } else
+        4:  782:    next = f->first;
+        8:  783:  f->size = size;
+        8:  784:  f->last = c;
+        8:  785:  if (!size)
+branch  0 taken 4 (fallthrough)
+branch  1 taken 4
+        4:  786:    f->first = 0;
+        8:  787:  if (publish(f))
+call    0 returned 8
+branch  1 taken 0 (fallthrough)
+branch  2 taken 8
+    #####:  788:    return -1;
+        8:  789:  if (c && setfat(c, 0x0fffffffUL))
+branch  0 taken 4 (fallthrough)
+branch  1 taken 4
+call    2 returned 4
+branch  3 taken 0 (fallthrough)
+branch  4 taken 4
+    #####:  790:    return -1;
+        8:  791:  if (release_chain(next))
+call    0 returned 8
+branch  1 taken 0 (fallthrough)
+branch  2 taken 8
+    #####:  792:    return -1;
+        8:  793:  fs_error = 0;
+        8:  794:  return 0;
+        -:  795:}
+function rw_delete called 34 returned 100% blocks executed 90%
+       34:  796:int rw_delete(RwFile *f) {
+       34:  797:  if (f->directory || (f->attr&1))
+branch  0 taken 34 (fallthrough)
+branch  1 taken 0
+branch  2 taken 3 (fallthrough)
+branch  3 taken 31
+        3:  798:    return fail(E_ACCESS);
+call    0 returned 3
+       31:  799:  if (validate_file(f) || rw_begin() || erase_lfn(f) || read_sector(f->lba, block))
+call    0 returned 31
+branch  1 taken 31 (fallthrough)
+branch  2 taken 0
+call    3 returned 31
+branch  4 taken 31 (fallthrough)
+branch  5 taken 0
+call    6 returned 31
+branch  7 taken 31 (fallthrough)
+branch  8 taken 0
+call    9 returned 31
+branch 10 taken 0 (fallthrough)
+branch 11 taken 31
+    #####:  800:    return -1;
+       31:  801:  block[f->offset] = 0xe5;
+       31:  802:  if (store(f->lba, block) || release_chain(f->first))
+call    0 returned 31
+branch  1 taken 31 (fallthrough)
+branch  2 taken 0
+call    3 returned 31
+branch  4 taken 0 (fallthrough)
+branch  5 taken 31
+    #####:  803:    return -1;
+       31:  804:  memset(f, 0, sizeof(*f));
+       31:  805:  fs_error = 0;
+       31:  806:  return 0;
+        -:  807:}
+function rw_rmdir called 6 returned 100% blocks executed 85%
+        6:  808:int rw_rmdir(RwFile *f) {
+        -:  809:  DirCursor cursor;
+        -:  810:  U8 entry[32];
+        -:  811:  int result;
+        6:  812:  if (!f->directory || f->first==volume.root)
+branch  0 taken 6 (fallthrough)
+branch  1 taken 0
+branch  2 taken 0 (fallthrough)
+branch  3 taken 6
+    #####:  813:    return fail(E_INVALID);
+call    0 never executed
+       6*:  814:  if (validate_file(f)) return -1;
+call    0 returned 6
+branch  1 taken 0 (fallthrough)
+branch  2 taken 6
+        6:  815:  cursor.cluster = f->first;
+        6:  816:  cursor.slot = cursor.hops = 0;
+        6:  817:  fs_invalidate();
+call    0 returned 6
+       16:  818:  while ((result = fs_next(&cursor, entry)) == 0)
+call    0 returned 16
+branch  1 taken 13
+branch  2 taken 3 (fallthrough)
+       13:  819:    if ((memcmp(entry,".          ",11) && memcmp(entry,"..         ",11)) || entry[11]!=16)
+branch  0 taken 8 (fallthrough)
+branch  1 taken 5
+branch  2 taken 5 (fallthrough)
+branch  3 taken 3
+branch  4 taken 0 (fallthrough)
+branch  5 taken 10
+        3:  820:      return fail(E_NOTEMPTY);
+call    0 returned 3
+        3:  821:  if (result < 0)
+branch  0 taken 1 (fallthrough)
+branch  1 taken 2
+        1:  822:    return -1;
+        2:  823:  f->directory = 0;
+        -:  824:  /* The directory was validated above. Hide its entry before reclamation;
+        -:  825:   * the regular-file deletion entry point deliberately rejects directories. */
+       2*:  826:  if (rw_begin() || erase_lfn(f) || read_sector(f->lba,block)) return -1;
+call    0 returned 2
+branch  1 taken 2 (fallthrough)
+branch  2 taken 0
+call    3 returned 2
+branch  4 taken 2 (fallthrough)
+branch  5 taken 0
+call    6 returned 2
+branch  7 taken 0 (fallthrough)
+branch  8 taken 2
+        2:  827:  block[f->offset]=229;
+       2*:  828:  if (store(f->lba,block) || release_chain(f->first)) return -1;
+call    0 returned 2
+branch  1 taken 2 (fallthrough)
+branch  2 taken 0
+call    3 returned 2
+branch  4 taken 0 (fallthrough)
+branch  5 taken 2
+        2:  829:  memset(f,0,sizeof(*f)); fs_error=0; return 0;
+        -:  830:}
+        -:  831:
+        -:  832:/* File-level size clamp around the independently tested raw FAT reader. */
+function rw_read called 5 returned 100% blocks executed 64%
+        5:  833:int rw_read(const RwFile *file, U32 pos, U8 FAR *data, U16 count, U16 *done) {
+        -:  834:  FileCursor cursor;
+        5:  835:  *done = 0;
+        5:  836:  if (file->directory)
+branch  0 taken 0 (fallthrough)
+branch  1 taken 5
+    #####:  837:    return fail(E_INVALID);
+call    0 never executed
+        5:  838:  if (pos >= file->size || !count)
+branch  0 taken 5 (fallthrough)
+branch  1 taken 0
+branch  2 taken 0 (fallthrough)
+branch  3 taken 5
+    #####:  839:    return 0;
+        5:  840:  if (file->size - pos < count)
+branch  0 taken 0 (fallthrough)
+branch  1 taken 5
+    #####:  841:    count = (U16)(file->size - pos);
+        5:  842:  cursor.first = file->first;
+        5:  843:  cursor.cluster = file->first;
+        5:  844:  cursor.index = 0;
+        5:  845:  return fs_read(&cursor, pos, data, count, done);
+call    0 returned 5
+        -:  846:}

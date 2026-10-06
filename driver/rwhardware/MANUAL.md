@@ -21,9 +21,9 @@ read fixtures, a root RW.TAG identity marker, and a KIT directory.
 
 Boot the DOS PC without either resident driver installed. Use Navigator to
 copy every file from KIT to a writable local directory, for example C:\OTTERWR
-or A:\OTTERWR. Required files are OTTERWR.EXE, HWRT.EXE, RWCHILD.EXE,
-MANUAL.TXT, CONFIG.TXT, FILES.SHA and SOURCE.SHA. RWCHILD is the process-exit
-test companion. The source ZIP is retained on your development PC.
+or A:\OTTERWR. Required files are OTTERWR.EXE, HWRT.EXE,
+MANUAL.TXT, CONFIG.TXT, FILES.SHA and SOURCE.SHA. HWRT includes its own
+process-exit child tests; no companion executable is needed. The source ZIP is retained on your development PC.
 
 Exit Navigator completely before installing the driver. The driver and
 Navigator must not own the SD card at the same time. Keep the test card inserted.
@@ -56,7 +56,13 @@ HWRT /INFO /PORT:330
 Use the actual configured ISA base port instead of 330 if it differs; port
 values are hexadecimal. Installation must report verified read/write and a
 mounted card. Without /RW, OTTERWR installs read-only and write tests refuse
-to proceed. The original OTTERFS remains the smaller read-only option.
+to proceed. Use /RO to select read-only explicitly. Both modes use the same consolidated
+36,624-byte resident allocation. Use the driver and tester from the SAME kit.
+
+Keep the complete local directory for each card, and copy its logs to a
+separate labelled directory before starting the next card. /INFO prints the
+cached mounted CID, manufacturer/product/serial, capacity, driver/test versions
+and mount phase timings. Compare those records when relaying logs.
 
 Run HWRT from the local directory, never S:. It creates local logs itself;
 do not redirect them onto the SD card. /INFO validates the image marker and
@@ -93,8 +99,13 @@ files, and all-zero/all-FF payloads. It preserves the original read fixtures.
 Writes are intentionally expensive: every 512-byte sector is CRC checked,
 waited to completion, read back with CRC, and compared exactly. Mount/commit
 also check FAT metadata. Large volumes and an 8088 can take considerable time.
+PHASE and PROGRESS lines identify directory growth, child-exit cycles, cluster
+allocation and streamed-file work. TIMING lines measure phases and total time.
 Keep the last visible checkpoint if progress stops; do not reset merely because
-a directory operation takes longer than a file read.
+a directory operation takes longer than a file read. Installation reports SD
+and filesystem BIOS ticks separately. Mount timings are short-operation,
+16-bit measurements: an hour-long mount or midnight rollover can distort them.
+HWRT phase timing handles one midnight; keep individual runs below 24 hours.
 
 Keep RWTEST.LOG, INSTALL.LOG and STATUS.LOG before rerunning anything.
 
@@ -122,8 +133,11 @@ OTTERWR /UNMOUNT > UNMOUNT.LOG
 TYPE UNMOUNT.LOG
 ```
 
-Close every file/application using S: first. A successful unmount commits the
-volume and leaves it offline. Reboot without re-imaging the card. Install the
+Close every file/application using S: first. Ordinary close writes and verifies
+its data/metadata, but deliberately keeps the volume dirty. Explicit commit or
+unmount still compares full FAT mirrors before marking it clean. Do not reset
+or remove the card after /STRESS until /UNMOUNT succeeds. A successful unmount
+commits the volume and leaves it offline. Reboot without re-imaging the card. Install the
 same executable and mode as in step 2, then run:
 
 ```

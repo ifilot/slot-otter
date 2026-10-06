@@ -12,11 +12,25 @@
 #include <process.h>
 #include "RWSD.H"
 #include "KITHASH.H"
+#include "RWCHILD.C"
 
 static FILE *logfile;
 static unsigned sequence;
+static char tester_path[128];
+static unsigned long started, phase_started;
+static const char *phase_name;
 static void report(void);
 static void stop(int code);
+static unsigned long ticks(void) {
+    volatile unsigned far *clock=(volatile unsigned far *)MK_FP(0x40,0x6c);
+    unsigned hi,lo;
+    do { hi=clock[1]; lo=clock[0]; } while (hi!=clock[1]);
+    return ((unsigned long)hi<<16)|lo;
+}
+static unsigned long elapsed(unsigned long start) {
+    unsigned long now=ticks();
+    return now>=start?now-start:now+0x1800b0UL-start;
+}
 static void message(const char *format,...) {
     va_list ap;
     union REGS r;
@@ -35,6 +49,14 @@ static void message(const char *format,...) {
     }
 }
 static int line(const char *text) { message("%s\n",text); return 0; }
+static void timing(const char *name,unsigned long start) {
+    unsigned long count=elapsed(start), tenths=(count*100+91)/182;
+    message("TIMING: %s ticks=%lu seconds=%lu.%lu\n",name,count,tenths/10,tenths%10);
+}
+static void hardware_phase(const char *name) {
+    if(phase_name) timing(phase_name,phase_started);
+    phase_name=name; phase_started=ticks(); message("PHASE: %s\n",name);
+}
 static void hardware_result(int ok,const char *name) {
     int saved_errno=errno,saved_dos=_doserrno;
     struct DOSERROR ex;
@@ -93,11 +115,40 @@ static void report(void) {
 }
 static void stop(int code) {
     int bad;
+    if(phase_name) timing(phase_name,phase_started);
+    timing("total",started);
     message("HWRT RESULT: %s checks=%u ERRORLEVEL=%u\n",code?"STOP/FAIL":"PASS",sequence,code);
     if(code) message("STOP: retain this log and last checkpoint. Reboot; re-image before new writes.\n");
     bad=ferror(logfile); if(fclose(logfile)) bad=1; logfile=0;
     if(bad) { puts("STOP: local log could not be saved."); code=2; }
     exit(code);
+}
+static void card_report(void) {
+    DriverInfo info;
+    union REGS r;
+    struct SREGS s;
+    unsigned i;
+    char product[6], cid_text[33];
+    static const char digits[]="0123456789ABCDEF";
+    memset(&info,0,sizeof(info)); memset(&r,0,sizeof(r)); segread(&s); s.es=s.ds;
+    r.x.ax=0xd74f; r.x.bx=0x4f54; r.x.dx=0x524f; r.x.si=8;
+    r.x.cx=sizeof(info); r.x.di=(unsigned)&info; int86x(0x2f,&r,&r,&s);
+    if(r.x.cflag || r.x.cx!=sizeof(info) || info.abi!=1 || info.version!=OTTER_VERSION) {
+        message("STOP: driver/tester versions do not match; use the complete same kit.\n"); stop(2);
+    }
+    message("BUILD: driver=0.4 ABI=%u resident=%u flags=%u\n",info.abi,info.resident,info.flags);
+    message("MOUNT TIMING: SD_ticks=%u filesystem_ticks=%u (18.2 ticks/second)\n",info.sd_ticks,info.fs_ticks);
+    if(!(info.flags&1)) { message("STOP: mounted card identity unavailable.\n"); stop(2); }
+    for(i=0;i<5;++i) product[i]=info.cid[i+3]>=32 && info.cid[i+3]<127?info.cid[i+3]:'?';
+    product[5]=0;
+    for(i=0;i<16;++i) {
+        cid_text[i*2]=digits[info.cid[i]>>4];
+        cid_text[i*2+1]=digits[info.cid[i]&15];
+    }
+    cid_text[32]=0;
+    message("CARD: cached mounted CID=%s manufacturer=%02X product=%s serial=%02X%02X%02X%02X capacity_MiB=%lu\n",
+        cid_text,info.cid[0],product,info.cid[9],info.cid[10],info.cid[11],info.cid[12],
+        info.last_lba/2048UL+((info.last_lba%2048UL)==2047));
 }
 static int exact(const char *name,const char *expected) {
     char text[80];
@@ -204,6 +255,7 @@ static void finish_test(void) {
     unsigned long pos=0;
     char name[40];
     union REGS r;
+    hardware_phase("directory moves and sharing");
     check(mkdir("S:\\RWTEMP\\TREEA")==0,"create directory-move source parent");
     check(mkdir("S:\\RWTEMP\\TREEA\\CHILD")==0,"create directory-move child");
     check(mkdir("S:\\RWTEMP\\TREEB")==0,"create directory-move target parent");
@@ -234,18 +286,21 @@ static void finish_test(void) {
     check(request(0x3e00,h,0,0)>=0,"close deny-all handle");
     /* One beyond the sixteen lock slots exposes leaks on normal DOS exit.
      * This is not an abnormal-abort or FCB record-I/O qualification. */
+    hardware_phase("DOS process-exit cleanup");
     for(i=0;i<17;++i) {
         message("PROCESS EXIT: iteration=%u/17, six unclosed handles and one lock\n",i+1);
-        check(spawnl(P_WAIT,"RWCHILD.EXE","RWCHILD.EXE",NULL)==0,
+        check(spawnl(P_WAIT,tester_path,tester_path,"/CHILD",NULL)==0,
               "DOS child exit releases previous locks and permits another child");
         check(discovery(&r) && !r.x.si,"DOS child exit releases every resident file slot");
     }
     h=opened("S:\\RWTEMP\\DATA.BIN",0x42); check(h>=0,"open result for persistent timestamp");
     check(request(0x5701,h,0x7441,0x5821)>=0,"set final known timestamp");
     check(request(0x3e00,h,0,0)>=0,"commit final known timestamp on close");
+    hardware_phase("interleaved cluster allocation");
     h=request(0x3c00,0,0,(unsigned)"S:\\RWTEMP\\FRAG.BIN");
     check(h>=0,"create interleaved allocation file");
     for(i=0;i<16;++i) {
+        message("PROGRESS: allocation spacer %u/16\n",i+1);
         for(k=0;k<513;++k) buffer[k]=pattern(pos+k,3);
         check(request(0x4000,h,513,(unsigned)buffer)==513,"append between interleaved allocations");
         pos+=513;
@@ -260,6 +315,7 @@ static void finish_test(void) {
         check(unlink(name)==0,"delete interleaved spacer and reclaim its cluster");
     }
     stream("S:\\RWTEMP\\FRAG.BIN",8208UL,3,0);
+    hardware_phase("streamed zero, FF and large files");
     stream("S:\\RWTEMP\\ZERO.BIN",1025UL,0,1);
     stream("S:\\RWTEMP\\FF.BIN",1025UL,1,1);
     stream("S:\\RWTEMP\\LARGE.BIN",70000UL,2,1);
@@ -291,6 +347,12 @@ int main(int argc,char **argv) {
     int h;
     char drive[MAXDRIVE],dir[MAXDIR],name[MAXFILE],ext[MAXEXT];
     const char *logname="RWINFO.LOG";
+    /* Private self-exec child exits with raw DOS handles/lock. It precedes
+     * logging and the normal zero-open-handle guard deliberately. */
+    if(argc==2 && !strcmp(argv[1],"/CHILD")) return process_exit_child();
+    started=ticks();
+    if(strlen(argv[0])>=sizeof(tester_path)) return 2;
+    strcpy(tester_path,argv[0]);
     for(i=1;i<(unsigned)argc;++i) {
         option_upper(argv[i]);
         if(!strcmp(argv[i],"/ERASE")) erase=1;
@@ -313,7 +375,7 @@ int main(int argc,char **argv) {
     logfile=fopen(logname,"wt");
     if(!logfile) { puts("STOP: cannot create a local log file."); return 2; }
     harderr(critical);
-    message("HWRT v0.1 / 8086 DOS API hardware test / source=%s\n",KIT_SOURCE);
+    message("HWRT v0.2 / 8086 DOS API hardware test / source=%s\n",KIT_SOURCE);
     message("DOS=%u.%u local=%c: port=%03X mode=%u\n",_osmajor,_osminor,'A'+getdisk(),port,mode);
     message("WARNING: expendable supplied image only. /ERASE authorizes test-file creation/deletion.\n");
     if(!discovery(&r)) { message("STOP: no resident OTTER driver found.\n"); stop(2); }
@@ -326,15 +388,19 @@ int main(int argc,char **argv) {
     if(r.x.cflag || r.x.cx!=3 || ((mode==2 || mode==4) && !r.x.bx)) {
         message("STOP: enhanced driver required; writing requires installation with /RW.\n"); stop(2);
     }
+    card_report();
+    hardware_phase("image identification");
     check(exact("S:\\RW.TAG","OTTER RESIDENT WRITE KIT v1\r\n"),"supplied expendable resident-write image marker");
     if(mode==2) {
-        check(access("RWCHILD.EXE",0)==0,"local process-exit companion available");
+        check(access(tester_path,0)==0,"local self-executable for process-exit test available");
         h=opened("S:\\RWTEMP\\DONE.TAG",0);
         if(h>=0) { request(0x3e00,h,0,0); message("STOP: prior results exist; re-image before /TEST.\n"); stop(2); }
         /* mkdir in the probe also refuses any unfinished prior RWTEMP. */
-        api_probe(1,argv); finish_test(); verify();
-    } else if(mode==3) { verify(); originals(); }
+        hardware_phase("core DOS file APIs"); api_probe(1,argv); finish_test();
+        hardware_phase("final saved-data verification"); verify();
+    } else if(mode==3) { hardware_phase("saved-data verification"); verify(); originals(); }
     else if(mode==4) {
+        hardware_phase("stress allocation, write, verify and deletion");
         verify();
         for(i=0;i<20;++i) {
             message("STRESS: iteration=%u/20; allocation/write/verify/delete\n",i+1);
@@ -343,8 +409,9 @@ int main(int argc,char **argv) {
             check(unlink("S:\\RWTEMP\\LOOP.TMP")==0,"delete scratch file and reclaim clusters");
         }
         verify(); originals();
-    } else if(mode==5) swap();
+    } else if(mode==5) { hardware_phase("controlled card removal and re-insertion"); swap(); }
     else if(mode==6) {
+        hardware_phase("DOS memory pressure");
         message("WARNING: /MEMORY allocates and overwrites ALL free DOS memory. Save work first.\n");
         verify(); memory_pressure(); verify();
     }

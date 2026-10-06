@@ -10,7 +10,10 @@ U32 rw_start, rw_end, rw_fatsz, rw_allocated, rw_freed;
 /* Fixed scratch keeps the resident code heap-free and non-reentrant.
  * ENTRY's busy guard serializes dispatch. begun means mounted and armed;
  * dirty means mutations have begun, not that a sector awaits transmission. */
-static U8 block[512], other[512];
+static U8 block[512];
+/* This scratch is dead across a block[] store. An other[] store snapshots
+ * before readback and restores it on success, including reset/retry paths. */
+#define other sd_scratch
 static U32 hint, first_fat, fsinfo_lba, backup_info, backup_boot;
 static U8 fat_count, active_fat, mirrored;
 static unsigned begun, dirty;
@@ -308,7 +311,7 @@ void rw_invalidate(void) {
 static int mirrors(void) {
   U32 i;
   unsigned f;
-  if (!mirrored) return 0;
+  if (!mirrored || fat_count<2) return 0;
   for (i=0;i<rw_fatsz;++i) {
     if (read_sector(first_fat+i,block)) return -1;
     for (f=1;f<fat_count;++f) {

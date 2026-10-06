@@ -2,6 +2,7 @@
 import pathlib
 import re
 import sys
+import struct
 
 
 def verify(path):
@@ -24,12 +25,43 @@ def verify(path):
     end = int(marker[1], 16) * 16 + int(marker[2], 16)
     if end != boundaries[0]:
         raise RuntimeError("Resident marker does not coincide with _BSSEND")
+    transient=[s for s in segments if s[2] in ('INITTAIL','INITDATA')]
+    if transient:
+        if {s[2] for s in transient}!={'INITTAIL','INITDATA'}:
+            raise RuntimeError('Missing installer code/data segment')
+        if any(start<end or kind!='INSTALL' for start,size,name,kind in transient):
+            raise RuntimeError('Installer is not an explicitly discarded tail')
+        binary=pathlib.Path(path).with_suffix('.EXE').read_bytes()
+        if binary[:2]!=b'MZ': raise RuntimeError('Installer heap proof requires a DOS EXE')
+        header=struct.unpack_from('<H',binary,8)[0]*16
+        values={}
+        group_base=None
+        for symbol in ('__heaplen','__stklen'):
+            m=re.search(r'^\s*([0-9A-F]+):([0-9A-F]+)\s+'+symbol+r'\s*$',text,re.M)
+            if not m: raise RuntimeError('Missing startup reserve '+symbol)
+            addr=int(m[1],16)*16+int(m[2],16)
+            values[symbol]=struct.unpack_from('<H',binary,header+addr)[0]
+            if symbol=='__heaplen': group_base=int(m[1],16)*16
+        if values['__heaplen']==0 or values['__stklen']<2048:
+            raise RuntimeError('Unsafe temporary startup allocation')
+        if end-group_base+values['__heaplen']+values['__stklen']+32>65535:
+            raise RuntimeError('Startup reserves exceed DGROUP address space')
+        if max(start+size for start,size,name,kind in transient)>end+values['__heaplen']:
+            raise RuntimeError('Installer overlaps the startup stack or freed memory')
+        for segment,offset,symbol in re.findall(r'^\s*([0-9A-F]+):([0-9A-F]+)\s+(\S+)\s*$',text,re.M):
+            addr=int(segment,16)*16+int(offset,16)
+            if addr>end and symbol!='_installer':
+                raise RuntimeError('Unexpected public beyond resident boundary: '+symbol)
+        print('Installer tail verified inside temporary heap; startup stack retained during installation')
     for start, size, name, kind in segments:
+        if transient and name in ('INITTAIL','INITDATA'): continue
         if size and name != "_STACK" and start + size > end:
             raise RuntimeError(f"Resident boundary discards linked segment {name}")
     stack = re.search(r"^\s*([0-9A-F]+):([0-9A-F]+)\s+_resident_stack\s*$", text, re.M)
     if not stack or int(stack[1], 16) * 16 + int(stack[2], 16) + 2048 > end:
         raise RuntimeError("Resident boundary discards the private callback stack")
+    if (end+15)//16*16+256>65535:
+        raise RuntimeError('Resident allocation exceeds installer formatter')
     print(f"Linker boundary verified: {end} image bytes; {(end + 15) // 16 * 16 + 256} resident bytes including PSP")
     return end
 

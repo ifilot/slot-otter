@@ -1,3 +1,6 @@
+> Historical implementation/kit record. The current consolidated driver,
+> tester and release procedure are described in [driver README](README.md).
+
 # Writable resident driver goal
 
 The authorized objective is writable SD-card support in the resident DOS

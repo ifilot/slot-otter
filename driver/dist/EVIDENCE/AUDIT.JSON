@@ -1,0 +1,21 @@
+{
+  "all_seven_consolidation_steps_complete": true,
+  "qualified_image_sha256": "c05c306d6eb397e09fd26428cd1224a9b903f25e57edd36d2723be8bc5af4436",
+  "software_qualified": true,
+  "physical_new_release_qualified": false,
+  "host_tests": 235,
+  "behavioral_mutations": 101,
+  "resident_bytes": 36624,
+  "baseline_resident_bytes": 39888,
+  "resident_saved_bytes": 3264,
+  "startup_emulated_ticks": {
+    "baseline": 41,
+    "current": 38
+  },
+  "both_access_modes_same_allocation": true,
+  "callback_stack_capacity": 2048,
+  "max_observed_stack_use": 556,
+  "open_slots": 16,
+  "search_slots": 32,
+  "preserved_baseline_files": 30
+}

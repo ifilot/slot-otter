@@ -251,7 +251,10 @@ static int rw_commit_file(U8 FAR *sft,int closing) {
                      rw_metadata(&FILE_DISK(file),FILE_DISK(file).attr,time,date)) code=fs_error;
             else sync_files(file);
         }
-        if (!code && rw_flush()) code=fs_error;
+        /* All file bytes and pending metadata are synchronously verified.
+         * Ordinary close releases its reference without publishing clean state.
+         * Explicit commit/global flush/unmount retain the full FAT comparison. */
+        if (!code && !closing && rw_flush()) code=fs_error;
     } else if (!closing || was_online) code=E_NOTREADY;
     if (closing) {
         if (get16(sft)) put16(sft,get16(sft)-1);

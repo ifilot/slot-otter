@@ -1,3 +1,6 @@
+> Historical implementation/kit record. The current consolidated driver,
+> tester and release procedure are described in [driver README](../README.md).
+
 # Physical-hardware test kit
 
 Read [MANUAL.md](MANUAL.md) for the human workflow. `build.py` produces a

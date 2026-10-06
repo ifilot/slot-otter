@@ -1,0 +1,1687 @@
+        -:    0:Source:/mnt/d/PROGRAMMING/KiCAD/slot-otter/driver/write/WTEST.C
+        -:    0:Graph:/mnt/d/PROGRAMMING/KiCAD/slot-otter/driver/dist/coverage/write/wtest.gcno
+        -:    0:Data:/mnt/d/PROGRAMMING/KiCAD/slot-otter/driver/dist/coverage/write/wtest.gcda
+        -:    0:Runs:1
+        -:    1:/* Standalone direct-I/O write suite. No resident driver, no DOS S: writes. */
+        -:    2:#include "WRITE.H"
+        -:    3:#include <stdarg.h>
+        -:    4:#include <stdio.h>
+        -:    5:#include <string.h>
+        -:    6:#ifndef HOST_TEST
+        -:    7:#include <dir.h>
+        -:    8:#include <stdlib.h>
+        -:    9:#endif
+        -:   10:static FILE *logfile;
+        -:   11:static unsigned failures, checks;
+        -:   12:static int log_failed;
+        -:   13:static U8 chunk[512], saved[512], observed[512];
+        -:   14:static void diag_dump(const char *name, const U8 *p);
+function logline called 44065 returned 100% blocks executed 100%
+    44065:   15:static void logline(const char *format, ...) {
+        -:   16:  va_list a;
+    44065:   17:  va_start(a, format);
+    44065:   18:  vprintf(format, a);
+call    0 returned 44065
+    44065:   19:  va_end(a);
+    44065:   20:  fflush(stdout);
+call    0 returned 44065
+    44065:   21:  if (logfile) {
+branch  0 taken 33337 (fallthrough)
+branch  1 taken 10728
+    33337:   22:    va_start(a, format);
+    33337:   23:    vfprintf(logfile, format, a);
+call    0 returned 33337
+    33337:   24:    va_end(a);
+    33337:   25:    if (fflush(logfile) != 0 || ferror(logfile)) {
+call    0 returned 33337
+branch  1 taken 33328 (fallthrough)
+branch  2 taken 9
+call    3 returned 33328
+branch  4 taken 0 (fallthrough)
+branch  5 taken 33328
+        9:   26:      if (!log_failed)
+branch  0 taken 1 (fallthrough)
+branch  1 taken 8
+        1:   27:        puts("STOP: local log write failed; SD writes disarmed.");
+call    0 returned 1
+        9:   28:      log_failed = 1;
+        9:   29:      wt_disarm();
+call    0 returned 9
+        9:   30:      wt_poison = 1;
+        9:   31:      wt_error = 113;
+        -:   32:    }
+        -:   33:  }
+    44065:   34:}
+function write_trace called 1056 returned 100% blocks executed 97%
+     1056:   35:static void write_trace(void) {
+     1056:   36:  unsigned i, n = 0;
+     1056:   37:  if (!wt_trace || log_failed) return;
+branch  0 taken 1042 (fallthrough)
+branch  1 taken 14
+branch  2 taken 0 (fallthrough)
+branch  3 taken 1042
+     1042:   38:  logline("WRITE TRACE: LBA=%lu CRC_mode=%s data_CRC=%04X calculated=%04X "
+call    0 returned 1042
+        -:   39:          "CMD24_R1=%02X response=%02X CMD13_R1=%02X status=%02X\n",
+     1042:   40:          (unsigned long)wt_write_lba, wt_write_crc ? "ON" : "OFF",
+branch  0 taken 1011 (fallthrough)
+branch  1 taken 31
+        -:   41:          wt_sent_crc, wt_calculated_crc, wt_write_r1, wt_write_token,
+        -:   42:          wt_program_r1, wt_program_status);
+     1042:   43:  logline("WRITE RESPONSE: polls=%u bytes:", wt_response_count);
+call    0 returned 1042
+     3126:   44:  for (i = 0; i < wt_response_count; ++i) logline(" %02X", wt_response_bytes[i]);
+call    0 returned 2084
+branch  1 taken 2084
+branch  2 taken 1042 (fallthrough)
+     1042:   45:  logline("\n");
+call    0 returned 1042
+     1042:   46:  logline("WRITE BUSY: entered=%u nonready_polls=%lu ticks=%lu samples:",
+call    0 returned 1042
+        -:   47:          wt_busy_entered, wt_write_busy_polls, wt_write_busy_ticks);
+     3246:   48:  for (i = 0; i < wt_busy_sample_count; ++i) logline(" %02X", wt_busy_samples[i]);
+call    0 returned 2204
+branch  1 taken 2204
+branch  2 taken 1042 (fallthrough)
+     1042:   49:  logline("\nSTATUS READY: entered=%u nonready_polls=%lu ticks=%lu samples:",
+call    0 returned 1042
+        -:   50:          wt_status_entered, wt_status_busy_polls, wt_status_busy_ticks);
+     2065:   51:  for (i = 0; i < wt_status_sample_count; ++i) logline(" %02X", wt_status_samples[i]);
+call    0 returned 1023
+branch  1 taken 1023
+branch  2 taken 1042 (fallthrough)
+     1042:   52:  logline("\nCMD13 TRANSMIT RX:");
+call    0 returned 1042
+     7180:   53:  for (i = 0; i < wt_cmd13_rx_count; ++i) logline(" %02X", wt_cmd13_rx[i]);
+call    0 returned 6138
+branch  1 taken 6138
+branch  2 taken 1042 (fallthrough)
+     1042:   54:  logline("\nREADBACK POLICY: card_CRC=%s incoming_CRC16=verified\n",
+call    0 returned 1042
+     1042:   55:          wt_readback_crc == 255 ? "not reached" : wt_readback_crc ? "ON" : "OFF");
+branch  0 taken 1023 (fallthrough)
+branch  1 taken 19
+branch  2 taken 1005 (fallthrough)
+branch  3 taken 18
+     1042:   56:  if (!wt_readback_valid) {
+branch  0 taken 19 (fallthrough)
+branch  1 taken 1023
+       19:   57:    logline("READBACK: no CRC-validated payload available\n");
+call    0 returned 19
+       19:   58:    return;
+        -:   59:  }
+   524799:   60:  for (i = 0; i < 512; ++i) {
+branch  0 taken 523776
+branch  1 taken 1023 (fallthrough)
+   523776:   61:    if (wt_expected[i] != wt_readback[i]) {
+branch  0 taken 3064 (fallthrough)
+branch  1 taken 520712
+     3064:   62:      if (n < 32)
+branch  0 taken 192 (fallthrough)
+branch  1 taken 2872
+      192:   63:        logline("WRITE DIFF: offset=%u expected=%02X actual=%02X\n",
+      192:   64:                i, wt_expected[i], wt_readback[i]);
+call    0 returned 192
+     3064:   65:      ++n;
+        -:   66:    }
+        -:   67:  }
+     1023:   68:  logline("READBACK: differing_bytes=%u matches_original_scratch=%s "
+call    0 returned 1023
+        -:   69:          "repeat_valid=%u repeat_error=%u\n", n,
+     1023:   70:          wt_write_lba == wf_start + 8 && !memcmp(saved, wt_readback, 512) ?
+branch  0 taken 1023 (fallthrough)
+branch  1 taken 0
+branch  2 taken 118 (fallthrough)
+branch  3 taken 905
+        -:   71:            "YES" : "NO", wt_repeat_valid, wt_repeat_error);
+     1023:   72:  if (wt_repeat_valid)
+branch  0 taken 6 (fallthrough)
+branch  1 taken 1017
+      18*:   73:    logline("REPEAT: matches_expected=%s matches_first=%s "
+call    0 returned 6
+        -:   74:            "matches_original_scratch=%s\n",
+        6:   75:            !memcmp(wt_expected, wt_repeat, 512) ? "YES" : "NO",
+branch  0 taken 0 (fallthrough)
+branch  1 taken 6
+        6:   76:            !memcmp(wt_readback, wt_repeat, 512) ? "YES" : "NO",
+branch  0 taken 6 (fallthrough)
+branch  1 taken 0
+        6:   77:            wt_write_lba == wf_start + 8 && !memcmp(saved, wt_repeat, 512) ? "YES" : "NO");
+branch  0 taken 6 (fallthrough)
+branch  1 taken 0
+branch  2 taken 4 (fallthrough)
+branch  3 taken 2
+     1023:   78:  if (n) {
+branch  0 taken 6 (fallthrough)
+branch  1 taken 1017
+        6:   79:    diag_dump("expected", wt_expected);
+call    0 returned 6
+        6:   80:    diag_dump("readback", wt_readback);
+call    0 returned 6
+        6:   81:    if (wt_repeat_valid) diag_dump("repeat", wt_repeat);
+branch  0 taken 6 (fallthrough)
+branch  1 taken 0
+call    2 returned 6
+        -:   82:  }
+        -:   83:}
+function check called 2924 returned 100% blocks executed 91%
+     2924:   84:static int check(int ok, const char *label) {
+        -:   85:  unsigned i;
+     2924:   86:  logline("%03u %s: %s\n", ++checks, ok ? "PASS" : "FAIL", label);
+branch  0 taken 2904 (fallthrough)
+branch  1 taken 20
+call    2 returned 2924
+     2924:   87:  if (log_failed)
+branch  0 taken 1 (fallthrough)
+branch  1 taken 2923
+        1:   88:    ok = 0;
+     2924:   89:  if (ok && !log_failed) wt_error = 0;
+branch  0 taken 2903 (fallthrough)
+branch  1 taken 21
+branch  2 taken 2903 (fallthrough)
+branch  3 taken 0
+     2924:   90:  if (!ok) {
+branch  0 taken 21 (fallthrough)
+branch  1 taken 2903
+      21*:   91:    if (!wt_error) wt_error = WT_VERIFY;
+branch  0 taken 0 (fallthrough)
+branch  1 taken 21
+       21:   92:    ++failures;
+       21:   93:    logline("PREFLIGHT: %s\n", wf_preflight);
+call    0 returned 21
+       21:   94:    logline("TRANSPORT: phase=%s CMD0_packets=%u initial_MISO=%02X\n",
+call    0 returned 21
+        -:   95:            wt_phase, wt_cmd0_sent, wt_startup_miso);
+       21:   96:    logline("DETAIL: error=%u stage=%u LBA=%lu R1=%02X token=%02X status=%02X "
+call    0 returned 21
+        -:   97:            "poison=%u\n",
+        -:   98:            wt_error, wt_stage, (unsigned long)wt_lba, wt_r1, wt_token,
+        -:   99:            wt_status, wt_poison);
+       21:  100:    write_trace();
+call    0 returned 21
+       21:  101:    if (wt_packet_polls) {
+branch  0 taken 19 (fallthrough)
+branch  1 taken 2
+       19:  102:      logline("READ TOKEN TRACE: polls=%lu ticks=%lu samples:",
+call    0 returned 19
+        -:  103:              (unsigned long)wt_packet_polls, (unsigned long)wt_packet_ticks);
+      117:  104:      for (i = 0; i < wt_packet_sample_count; ++i) logline(" %02X", wt_packet_tokens[i]);
+call    0 returned 98
+branch  1 taken 98
+branch  2 taken 19 (fallthrough)
+       19:  105:      logline("\n");
+call    0 returned 19
+        -:  106:    }
+       21:  107:    if (wt_packet_complete && wt_packet_crc != wt_packet_calculated) {
+branch  0 taken 17 (fallthrough)
+branch  1 taken 4
+branch  2 taken 4 (fallthrough)
+branch  3 taken 13
+       4*:  108:      logline("READ CRC: clocked_bytes=%u received=%04X calculated=%04X "
+call    0 returned 4
+        -:  109:              "payload=UNTRUSTED source=%s (not used for verification)\n",
+        -:  110:              wt_packet_count, wt_packet_crc, wt_packet_calculated,
+       4*:  111:              wt_trace && wt_repeat_error ? "repeat" : "primary");
+branch  0 taken 0 (fallthrough)
+branch  1 taken 4
+branch  2 never executed (fallthrough)
+branch  3 never executed
+        4:  112:      if (wt_packet_count == 512) diag_dump("untrusted", wt_packet_data);
+branch  0 taken 4 (fallthrough)
+branch  1 taken 0
+call    2 returned 4
+        -:  113:    }
+        -:  114:  }
+     2924:  115:  return ok;
+        -:  116:}
+        -:  117:#define REQUIRE(e, label)                                                      \
+        -:  118:  do {                                                                         \
+        -:  119:    if (!check((e), (label)))                                                  \
+        -:  120:      goto out;                                                                \
+        -:  121:  } while (0)
+        -:  122:/* Include the sector number: adjacent sectors must not have identical data. */
+function pattern called 4479756 returned 100% blocks executed 100%
+  4479756:  123:static U8 pattern(U32 position, unsigned seed) {
+  8959512:  124:  return (U8)(position * 7 + seed + (position >> 9) * 13 +
+  4479756:  125:              (position >> 17) * 19);
+        -:  126:}
+function fill called 3048 returned 100% blocks executed 100%
+     3048:  127:static void fill(U32 pos, unsigned n, unsigned seed) {
+        -:  128:  unsigned i;
+  1517976:  129:  for (i = 0; i < n; ++i)
+branch  0 taken 1514928
+branch  1 taken 3048 (fallthrough)
+  1514928:  130:    chunk[i] = pattern(pos + i, seed);
+call    0 returned 1514928
+     3048:  131:}
+function append_pattern called 352 returned 100% blocks executed 86%
+      352:  132:static int append_pattern(WFile *f, U32 size, unsigned seed) {
+      352:  133:  U32 pos = f->size;
+        -:  134:  unsigned n;
+     3400:  135:  while (pos < size) {
+branch  0 taken 3048
+branch  1 taken 352 (fallthrough)
+     3048:  136:    n = (unsigned)(size - pos > 512 ? 512 : size - pos);
+     3048:  137:    fill(pos, n, seed);
+call    0 returned 3048
+     3048:  138:    if (wf_append(f, chunk, n))
+call    0 returned 3048
+branch  1 taken 0 (fallthrough)
+branch  2 taken 3048
+    #####:  139:      return -1;
+     3048:  140:    pos += n;
+     3048:  141:    if (!(pos % 4096UL) || pos == size) {
+branch  0 taken 2736 (fallthrough)
+branch  1 taken 312
+branch  2 taken 312 (fallthrough)
+branch  3 taken 2424
+      624:  142:      logline("PROGRESS: append bytes=%lu/%lu accepted_writes=%lu\n",
+call    0 returned 624
+        -:  143:              (unsigned long)pos, (unsigned long)size, (unsigned long)wt_writes);
+     624*:  144:      if (log_failed) return -1;
+branch  0 taken 0 (fallthrough)
+branch  1 taken 624
+        -:  145:    }
+        -:  146:  }
+      352:  147:  return 0;
+        -:  148:}
+function verify_file called 437 returned 100% blocks executed 73%
+      437:  149:static int verify_file(const char *path, U32 size, unsigned seed, int patched) {
+        -:  150:  U8 entry[32];
+        -:  151:  WFile file;
+      437:  152:  U32 pos = 0;
+        -:  153:  U16 done;
+        -:  154:  unsigned i, n;
+      437:  155:  fs_invalidate();
+call    0 returned 437
+      437:  156:  wt_error = 0;
+      437:  157:  if (fs_lookup(path, entry)) {
+call    0 returned 437
+branch  1 taken 0 (fallthrough)
+branch  2 taken 437
+    #####:  158:    if (!wt_error) wt_error = WT_VERIFY;
+branch  0 never executed (fallthrough)
+branch  1 never executed
+    #####:  159:    return -1;
+        -:  160:  }
+      437:  161:  if (get32(entry + 28) != size) {
+call    0 returned 437
+branch  1 taken 0 (fallthrough)
+branch  2 taken 437
+    #####:  162:    wt_error = WT_VERIFY;
+    #####:  163:    return -1;
+        -:  164:  }
+      437:  165:  memset(&file, 0, sizeof(file));
+      437:  166:  file.first = fs_entry_cluster(entry);
+call    0 returned 437
+      437:  167:  file.size = size;
+      437:  168:  if (!size && file.first) { wt_error = WT_VERIFY; return -1; }
+branch  0 taken 57 (fallthrough)
+branch  1 taken 380
+branch  2 taken 1 (fallthrough)
+branch  3 taken 56
+     6400:  169:  while (pos < size) {
+branch  0 taken 5964
+branch  1 taken 436 (fallthrough)
+     5964:  170:    n = (unsigned)(size - pos > 512 ? 512 : size - pos);
+     5964:  171:    if (wf_read(&file, pos, observed, n, &done) || done != n) {
+call    0 returned 5964
+branch  1 taken 5964 (fallthrough)
+branch  2 taken 0
+branch  3 taken 0 (fallthrough)
+branch  4 taken 5964
+    #####:  172:      if (!wt_error) wt_error = WT_VERIFY;
+branch  0 never executed (fallthrough)
+branch  1 never executed
+    #####:  173:      return -1;
+        -:  174:    }
+  2970792:  175:    for (i = 0; i < n; ++i) {
+branch  0 taken 2964828
+branch  1 taken 5964 (fallthrough)
+  2964828:  176:      U8 want = pattern(pos + i, seed);
+call    0 returned 2964828
+  2964828:  177:      if (patched && pos + i >= 510 && pos + i < 514)
+branch  0 taken 55260 (fallthrough)
+branch  1 taken 2909568
+branch  2 taken 36900 (fallthrough)
+branch  3 taken 18360
+branch  4 taken 144 (fallthrough)
+branch  5 taken 36756
+      144:  178:        want = 0xe7;
+  2964828:  179:      if (observed[i] != want) {
+branch  0 taken 0 (fallthrough)
+branch  1 taken 2964828
+    #####:  180:        logline("DATA: %s offset=%lu expected=%02X actual=%02X\n", path,
+    #####:  181:                (unsigned long)(pos + i), want, observed[i]);
+call    0 never executed
+    #####:  182:        wt_error = WT_VERIFY;
+    #####:  183:        return -1;
+        -:  184:      }
+        -:  185:    }
+     5964:  186:    pos += n;
+     5964:  187:    if (size >= 4096 && (!(pos % 8192UL) || pos == size)) {
+branch  0 taken 5284 (fallthrough)
+branch  1 taken 680
+branch  2 taken 4992 (fallthrough)
+branch  3 taken 292
+branch  4 taken 72 (fallthrough)
+branch  5 taken 4920
+      364:  188:      logline("PROGRESS: verify %s bytes=%lu/%lu\n", path,
+call    0 returned 364
+        -:  189:              (unsigned long)pos, (unsigned long)size);
+     364*:  190:      if (log_failed) return -1;
+branch  0 taken 0 (fallthrough)
+branch  1 taken 364
+        -:  191:    }
+        -:  192:  }
+      436:  193:  if (wf_read(&file, size, observed, 1, &done) || done) {
+call    0 returned 436
+branch  1 taken 436 (fallthrough)
+branch  2 taken 0
+branch  3 taken 0 (fallthrough)
+branch  4 taken 436
+    #####:  194:    if (!wt_error) wt_error = WT_VERIFY;
+branch  0 never executed (fallthrough)
+branch  1 never executed
+    #####:  195:    return -1;
+        -:  196:  }
+      436:  197:  return 0;
+        -:  198:}
+function verify_suite called 20 returned 100% blocks executed 78%
+       20:  199:static int verify_suite(void) {
+        -:  200:  static const char *names[] = {"Z0.BIN",   "B1.BIN",    "B511.BIN", "B512.BIN",
+        -:  201:                                "B513.BIN", "B4096.BIN", "BIG.BIN"};
+        -:  202:  static const U32 sizes[] = {0, 1, 511, 512, 513, 4096, 70000};
+        -:  203:  char path[80];
+        -:  204:  unsigned i;
+        -:  205:  U8 e[32];
+      160:  206:  for (i = 0; i < 7; ++i) {
+branch  0 taken 140
+branch  1 taken 20 (fallthrough)
+      140:  207:    sprintf(path, "WTEST\\%s", names[i]);
+      140:  208:    if (!check(!verify_file(path, sizes[i], 3 + i, 0), path))
+call    0 returned 140
+call    1 returned 140
+branch  2 taken 0 (fallthrough)
+branch  3 taken 140
+    #####:  209:      return -1;
+        -:  210:  }
+       20:  211:  if (!check(!verify_file("WTEST\\SUB\\NOTE.BIN", 1025, 19, 0),
+call    0 returned 20
+call    1 returned 20
+branch  2 taken 0 (fallthrough)
+branch  3 taken 20
+        -:  212:             "nested file content and EOF"))
+    #####:  213:    return -1;
+       20:  214:  if (!check(!verify_file("WTEST\\APPEND.BIN", 1535, 29, 1),
+call    0 returned 20
+call    1 returned 20
+branch  2 taken 0 (fallthrough)
+branch  3 taken 20
+        -:  215:             "append and cross-sector overwrite persisted"))
+    #####:  216:    return -1;
+       20:  217:  if (!check(!verify_file("WTEST\\SHORT.BIN", 17, 39, 0),
+call    0 returned 20
+call    1 returned 20
+branch  2 taken 0 (fallthrough)
+branch  3 taken 20
+        -:  218:             "truncate-to-zero and reallocation persisted"))
+    #####:  219:    return -1;
+      20*:  220:  if (!check(fs_lookup("WTEST\\DELETE.BIN", e) < 0 && fs_error == E_NOTFOUND,
+call    0 returned 20
+branch  1 taken 20 (fallthrough)
+branch  2 taken 0
+branch  3 taken 20 (fallthrough)
+branch  4 taken 0
+call    5 returned 20
+branch  6 taken 0 (fallthrough)
+branch  7 taken 20
+        -:  221:             "deleted file absent"))
+    #####:  222:    return -1;
+      20*:  223:  if (!check(fs_lookup("WTEST\\EMPTY", e) < 0 && fs_error == E_NOTFOUND,
+call    0 returned 20
+branch  1 taken 20 (fallthrough)
+branch  2 taken 0
+branch  3 taken 20 (fallthrough)
+branch  4 taken 0
+call    5 returned 20
+branch  6 taken 0 (fallthrough)
+branch  7 taken 20
+        -:  224:             "removed empty directory absent"))
+    #####:  225:    return -1;
+       20:  226:  if (!check(!verify_file("WTEST\\HIGHNEW.BIN", 1537, 79, 0),
+call    0 returned 20
+call    1 returned 20
+branch  2 taken 0 (fallthrough)
+branch  3 taken 20
+        -:  227:             "new high-cluster file persists"))
+    #####:  228:    return -1;
+       20:  229:  if (!check(
+call    0 returned 20
+branch  1 taken 0 (fallthrough)
+branch  2 taken 20
+       20:  230:          !verify_file("WTEST\\FRAGNEW.BIN", (U32)volume.spc * 512 * 4, 59, 0),
+call    0 returned 20
+        -:  231:          "fragmented new file persists"))
+    #####:  232:    return -1;
+      20*:  233:  if (!check(fs_lookup("WTEST\\GAPS.BIN", e) < 0 && fs_error == E_NOTFOUND,
+call    0 returned 20
+branch  1 taken 20 (fallthrough)
+branch  2 taken 0
+branch  3 taken 20 (fallthrough)
+branch  4 taken 0
+call    5 returned 20
+branch  6 taken 0 (fallthrough)
+branch  7 taken 20
+        -:  234:             "deleted interleaved gap file absent"))
+    #####:  235:    return -1;
+       20:  236:  sprintf(path, "WTEST\\E%03u.TXT", (16U * volume.spc + 2U) % 1000U);
+       20:  237:  if (!check(!verify_file(path, 0, 0, 0),
+call    0 returned 20
+call    1 returned 20
+branch  2 taken 0 (fallthrough)
+branch  3 taken 20
+        -:  238:             "last grown-directory entry persists"))
+    #####:  239:    return -1;
+       20:  240:  return 0;
+        -:  241:}
+        -:  242:/* Old read fixtures are protected and checked before/after the write suite. */
+function protected_text called 49 returned 100% blocks executed 80%
+       49:  243:static int protected_text(void) {
+        -:  244:  U8 e[32];
+        -:  245:  FileCursor c;
+        -:  246:  U16 n;
+       49:  247:  fs_invalidate();
+call    0 returned 49
+       49:  248:  wt_error = 0;
+       49:  249:  if (fs_lookup("README.TXT", e)) {
+call    0 returned 49
+branch  1 taken 0 (fallthrough)
+branch  2 taken 49
+    #####:  250:    if (!wt_error) wt_error = WT_VERIFY;
+branch  0 never executed (fallthrough)
+branch  1 never executed
+    #####:  251:    return -1;
+        -:  252:  }
+      49*:  253:  if (get32(e + 28) != 24) { wt_error = WT_VERIFY; return -1; }
+call    0 returned 49
+branch  1 taken 0 (fallthrough)
+branch  2 taken 49
+       49:  254:  c.first = fs_entry_cluster(e);
+call    0 returned 49
+       49:  255:  c.cluster = c.first;
+       49:  256:  c.index = 0;
+       49:  257:  if (fs_read(&c, 0, observed, 24, &n) || n != 24 ||
+call    0 returned 49
+branch  1 taken 49 (fallthrough)
+branch  2 taken 0
+branch  3 taken 49 (fallthrough)
+branch  4 taken 0
+       49:  258:      memcmp(observed, "Hello from Slot-otter!\r\n", 24)) {
+branch  0 taken 1 (fallthrough)
+branch  1 taken 48
+        1:  259:    if (!wt_error) wt_error = WT_VERIFY;
+branch  0 taken 1 (fallthrough)
+branch  1 taken 0
+        1:  260:    return -1;
+        -:  261:  }
+       48:  262:  return 0;
+        -:  263:}
+function raw_patterns called 58 returned 100% blocks executed 98%
+       58:  264:static int raw_patterns(const char *phase) {
+        -:  265:  unsigned i, j;
+      956:  266:  for (j = 0; j < 16; ++j) {
+branch  0 taken 900
+branch  1 taken 56 (fallthrough)
+   461700:  267:    for (i = 0; i < 512; ++i)
+branch  0 taken 460800
+branch  1 taken 900 (fallthrough)
+   804864:  268:      chunk[i] = j == 0 ? 0 : j == 1 ? 255 : j == 2 ? 0x55 :
+branch  0 taken 431104 (fallthrough)
+branch  1 taken 29696
+branch  2 taken 401408 (fallthrough)
+branch  3 taken 29696
+branch  4 taken 372736 (fallthrough)
+branch  5 taken 28672
+branch  6 taken 344064 (fallthrough)
+branch  7 taken 28672
+   344064:  269:                 j == 3 ? 0xaa : (U8)(i * 37 + j * 13);
+      900:  270:    logline("PATTERN: phase=%s index=%u kind=%s LBA=%lu CRC=%04X\n",
+call    0 returned 900
+     1626:  271:            phase, j, j == 0 ? "ZERO" : j == 1 ? "FF" :
+branch  0 taken 784 (fallthrough)
+branch  1 taken 58
+      784:  272:            j == 2 ? "55" : j == 3 ? "AA" : "MIXED",
+branch  0 taken 728 (fallthrough)
+branch  1 taken 56
+branch  2 taken 56 (fallthrough)
+branch  3 taken 672
+      900:  273:            (unsigned long)(wf_start + 8), wt_crc16(chunk, 512));
+call    0 returned 900
+branch  1 taken 842 (fallthrough)
+branch  2 taken 58
+      900:  274:    if (!check(!wt_write(wf_start + 8, chunk, 0),
+call    0 returned 900
+call    1 returned 900
+branch  2 taken 2 (fallthrough)
+branch  3 taken 898
+        -:  275:               "raw CMD24 pattern, busy completion, CMD13 status, CRC and readback"))
+        2:  276:      return -1;
+      898:  277:    write_trace();
+call    0 returned 898
+     898*:  278:    if (log_failed) return -1;
+branch  0 taken 0 (fallthrough)
+branch  1 taken 898
+        -:  279:  }
+       56:  280:  return 0;
+        -:  281:}
+function recover_probe called 37 returned 100% blocks executed 100%
+       37:  282:static int recover_probe(const char *name) {
+       37:  283:  int result = wt_recover();
+call    0 returned 37
+        -:  284:  unsigned i;
+       37:  285:  logline("RECOVERY: after=%s status_reads=%u\n", name, wt_recovery_count);
+call    0 returned 37
+      110:  286:  for (i = 0; i < wt_recovery_count; ++i)
+branch  0 taken 73
+branch  1 taken 37 (fallthrough)
+       73:  287:    logline("RECOVERY STATUS: read=%u R1=%02X R2=%02X%s\n", i,
+call    0 returned 73
+        -:  288:            wt_recovery_r1[i], wt_recovery_status[i],
+       73:  289:            wt_recovery_r1[i] & 12 ? " (no R2 for command error)" : "");
+branch  0 taken 2 (fallthrough)
+branch  1 taken 71
+       37:  290:  return check(!result, "post-probe status consumed, clean status and matching CID");
+call    0 returned 37
+        -:  291:}
+function command_probe called 15 returned 100% blocks executed 100%
+       15:  292:static int command_probe(void) {
+       15:  293:  int result = wt_bad_command();
+call    0 returned 15
+        -:  294:  unsigned i;
+       15:  295:  logline("PROBE COMMAND: CMD=13 sent_CRC7=%02X correct_CRC7=%02X R1=%02X error=%u TX_RX:",
+call    0 returned 15
+        -:  296:          wt_bad_cmd_crc, wt_bad_cmd_calculated, wt_bad_cmd_r1, wt_bad_cmd_error);
+      105:  297:  for (i = 0; i < 6; ++i) logline(" %02X", wt_bad_cmd_rx[i]);
+call    0 returned 90
+branch  1 taken 90
+branch  2 taken 15 (fallthrough)
+       15:  298:  logline("\nPROBE COMMAND RESPONSE: polls=%u bytes:", wt_bad_cmd_count);
+call    0 returned 15
+       45:  299:  for (i = 0; i < wt_bad_cmd_count; ++i) logline(" %02X", wt_bad_cmd_response[i]);
+call    0 returned 30
+branch  1 taken 30
+branch  2 taken 15 (fallthrough)
+       15:  300:  logline("\n");
+call    0 returned 15
+       15:  301:  return check(!result, "CRC-enabled card rejects a bad command CRC");
+call    0 returned 15
+        -:  302:}
+function qualify_after_probe called 31 returned 100% blocks executed 89%
+       31:  303:static int qualify_after_probe(const char *name, const char *phase) {
+        -:  304:  unsigned i;
+        -:  305:  int result;
+       31:  306:  if (!recover_probe(name)) return 0;
+call    0 returned 31
+branch  1 taken 1 (fallthrough)
+branch  2 taken 30
+       30:  307:  logline("ACCESS CHECK: after=%s operation=read-original LBA=%lu\n",
+       30:  308:          name, (unsigned long)(wf_start + 8));
+call    0 returned 30
+       30:  309:  result = sd_read(wf_start + 8, observed);
+call    0 returned 30
+       30:  310:  if (!result && memcmp(saved, observed, 512)) wt_error = WT_VERIFY;
+branch  0 taken 28 (fallthrough)
+branch  1 taken 2
+branch  2 taken 1 (fallthrough)
+branch  3 taken 27
+        -:  311:  /* On failure preserve the first read and do not issue another SD write. */
+       30:  312:  if (result || wt_error) {
+branch  0 taken 28 (fallthrough)
+branch  1 taken 2
+branch  2 taken 1 (fallthrough)
+branch  3 taken 27
+        3:  313:    wt_poison = 1;
+        3:  314:    if (!result) { diag_dump("saved-original", saved); diag_dump("post-probe", observed); }
+branch  0 taken 1 (fallthrough)
+branch  1 taken 2
+call    2 returned 1
+call    3 returned 1
+        3:  315:    check(0, "post-probe scratch read and original payload unchanged");
+call    0 returned 3
+        3:  316:    return 0;
+        -:  317:  }
+      27*:  318:  if (!check(1, "post-probe scratch read and original payload unchanged")) return 0;
+call    0 returned 27
+branch  1 taken 0 (fallthrough)
+branch  2 taken 27
+       27:  319:  logline("PHASE: %s normal patterns after %s\n", phase, name);
+call    0 returned 27
+        -:  320:  /* Change EVERY byte, even if the saved reserved sector was not all zero. */
+    13851:  321:  for (i = 0; i < 512; ++i) chunk[i] = saved[i] ^ 0x96;
+branch  0 taken 13824
+branch  1 taken 27 (fallthrough)
+       27:  322:  if (!check(!wt_write(wf_start + 8, chunk, 0),
+call    0 returned 27
+call    1 returned 27
+branch  2 taken 2 (fallthrough)
+branch  3 taken 25
+        2:  323:             "post-probe changing write with exact readback")) return 0;
+       25:  324:  write_trace();
+call    0 returned 25
+      25*:  325:  if (log_failed) return 0;
+branch  0 taken 0 (fallthrough)
+branch  1 taken 25
+       25:  326:  memset(observed, 0x96, 512);
+       25:  327:  if (memcmp(chunk, observed, 512)) {
+branch  0 taken 1 (fallthrough)
+branch  1 taken 24
+        1:  328:    if (!check(!wt_write(wf_start + 8, observed, 0),
+call    0 returned 1
+call    1 returned 1
+branch  2 taken 0 (fallthrough)
+branch  3 taken 1
+    #####:  329:               "seed 96 before post-probe raw patterns")) return 0;
+        1:  330:    write_trace();
+call    0 returned 1
+       1*:  331:    if (log_failed) return 0;
+branch  0 taken 0 (fallthrough)
+branch  1 taken 1
+        -:  332:  }
+       25:  333:  if (raw_patterns(phase)) return 0;
+call    0 returned 25
+branch  1 taken 1 (fallthrough)
+branch  2 taken 24
+       24:  334:  if (!check(!wt_write(wf_start + 8, saved, 0),
+call    0 returned 24
+call    1 returned 24
+branch  2 taken 0 (fallthrough)
+branch  3 taken 24
+    #####:  335:             "scratch restored after isolated probe qualification")) return 0;
+       24:  336:  write_trace();
+call    0 returned 24
+       24:  337:  return !log_failed;
+        -:  338:}
+function wt_suite called 34 returned 100% blocks executed 82%
+       34:  339:int wt_suite(int write_mode) {
+        -:  340:  WFile dir, sub, file, temp;
+        -:  341:  U8 entry[32];
+        -:  342:  unsigned i, j, n;
+        -:  343:  U32 pos, old_first;
+        -:  344:  static const char *names[] = {"Z0.BIN",   "B1.BIN",    "B511.BIN", "B512.BIN",
+        -:  345:                                "B513.BIN", "B4096.BIN", "BIG.BIN"};
+        -:  346:  static const U32 sizes[] = {0, 1, 511, 512, 513, 4096, 70000};
+        -:  347:  char name[13], path[80];
+        -:  348:  int result;
+       34:  349:  failures = checks = 0;
+       34:  350:  REQUIRE(!wf_prepare(), "marked FAT32 volume, geometry, clean flags, backups "
+call    0 returned 34
+call    1 returned 34
+branch  2 taken 1 (fallthrough)
+branch  3 taken 33
+        -:  351:                         "and FAT mirrors valid");
+       33:  352:  if (wf_hint_mismatch)
+branch  0 taken 1 (fallthrough)
+branch  1 taken 32
+        1:  353:    logline("WARNING: /ALLOWHINTS accepted only differing FSInfo allocation "
+call    0 returned 1
+        -:  354:            "hints; FAT is scanned and both hints become UNKNOWN before allocation.\n");
+       33:  355:  REQUIRE(!protected_text(), "original read fixture intact before tests");
+call    0 returned 33
+call    1 returned 33
+branch  2 taken 1 (fallthrough)
+branch  3 taken 32
+       32:  356:  if (!write_mode) {
+branch  0 taken 4 (fallthrough)
+branch  1 taken 28
+        4:  357:    verify_suite();
+call    0 returned 4
+        4:  358:    goto out;
+        -:  359:  }
+       28:  360:  result = fs_lookup("WTEST", entry);
+call    0 returned 28
+       28:  361:  if (result >= 0)
+branch  0 taken 1 (fallthrough)
+branch  1 taken 27
+        1:  362:    wt_error = WT_EXISTS;
+      27*:  363:  else if (fs_error != E_NOTFOUND && !wt_error)
+branch  0 taken 0 (fallthrough)
+branch  1 taken 27
+branch  2 never executed (fallthrough)
+branch  3 never executed
+    #####:  364:    wt_error = WT_GUARD;
+       28:  365:  REQUIRE(result < 0 && fs_error == E_NOTFOUND,
+branch  0 taken 27 (fallthrough)
+branch  1 taken 1
+branch  2 taken 27 (fallthrough)
+branch  3 taken 0
+call    4 returned 28
+branch  5 taken 1 (fallthrough)
+branch  6 taken 27
+        -:  366:          "fresh test image (WTEST must not exist)");
+      27*:  367:  REQUIRE(!wt_arm(wf_start + 8, wf_start + 9),
+call    0 returned 27
+call    1 returned 27
+branch  2 taken 0 (fallthrough)
+branch  3 taken 27
+        -:  368:          "arm only one reserved scratch sector");
+      27*:  369:  REQUIRE(!sd_read(wf_start + 8, saved),
+call    0 returned 27
+call    1 returned 27
+branch  2 taken 0 (fallthrough)
+branch  3 taken 27
+        -:  370:          "save scratch sector before destructive CRC tests");
+        -:  371:  /* Qualify ordinary writes before deliberate bad-CRC characterization. */
+       27:  372:  memset(chunk, 0x96, 512);
+      27*:  373:  REQUIRE(!wt_write(wf_start + 8, chunk, 0),
+call    0 returned 27
+call    1 returned 27
+branch  2 taken 0 (fallthrough)
+branch  3 taken 27
+        -:  374:          "baseline normal write, busy/status and exact readback");
+       27:  375:  write_trace();
+call    0 returned 27
+       27:  376:  logline("PHASE: PRE-FAULT normal patterns before any deliberate CRC errors\n");
+call    0 returned 27
+        -:  377:  /* Baseline 96, then ZERO/FF/55/AA/mixed: every pattern changes the last
+        -:  378:   * verified payload, including ZERO on an initially zero scratch sector. */
+       27:  379:  if (raw_patterns("PRE-FAULT")) goto out;
+call    0 returned 27
+branch  1 taken 1 (fallthrough)
+branch  2 taken 26
+      26*:  380:  REQUIRE(!wt_write(wf_start + 8, saved, 0),
+call    0 returned 26
+call    1 returned 26
+branch  2 taken 0 (fallthrough)
+branch  3 taken 26
+        -:  381:          "baseline scratch restoration with exact readback");
+       26:  382:  write_trace();
+call    0 returned 26
+       26:  383:  memset(chunk, 0x96, 512);
+       26:  384:  if (!wt_no_crc && !wt_normal_only) {
+branch  0 taken 25 (fallthrough)
+branch  1 taken 1
+branch  2 taken 23 (fallthrough)
+branch  3 taken 2
+       23:  385:    logline("PHASE: FAULT-PROBES deliberate CRC errors on scratch only\n");
+call    0 returned 23
+       23:  386:    if (wt_probe_only != 2) {
+branch  0 taken 15 (fallthrough)
+branch  1 taken 8
+       15:  387:      logline("PROBE BEGIN: bad-command-CRC (no data-CRC error yet)\n");
+call    0 returned 15
+      15*:  388:      if (!command_probe()) goto out;
+call    0 returned 15
+branch  1 taken 0 (fallthrough)
+branch  2 taken 15
+       15:  389:      if (!qualify_after_probe("bad-command-CRC", "AFTER-COMMAND-CRC")) goto out;
+call    0 returned 15
+branch  1 taken 4 (fallthrough)
+branch  2 taken 11
+        8:  390:    } else logline("SKIP: /DATACRC omits the bad-command probe\n");
+call    0 returned 8
+       19:  391:    if (wt_probe_only != 1) {
+branch  0 taken 17 (fallthrough)
+branch  1 taken 2
+       17:  392:      memset(chunk, 0x96, 512);
+       17:  393:      logline("PROBE BEGIN: bad-data-CRC (correct data CRC xor 0001)\n");
+call    0 returned 17
+       17:  394:      result = wt_write(wf_start + 8, chunk, 1);
+call    0 returned 17
+       17:  395:      logline("PROBE DATA RESULT: return=%d error=%u stage=%u poison=%u\n",
+call    0 returned 17
+        -:  396:              result, wt_error, wt_stage, wt_poison);
+       17:  397:      write_trace(); /* Preserve rejection and completion BEFORE recovery. */
+call    0 returned 17
+       17:  398:      REQUIRE(result < 0 && wt_error == WT_CRC && !wt_poison,
+branch  0 taken 17 (fallthrough)
+branch  1 taken 0
+branch  2 taken 16 (fallthrough)
+branch  3 taken 1
+branch  4 taken 16 (fallthrough)
+branch  5 taken 0
+call    6 returned 17
+branch  7 taken 1 (fallthrough)
+branch  8 taken 16
+        -:  399:              "CRC-enabled card reports a completed data-CRC rejection");
+       16:  400:      if (!qualify_after_probe("bad-data-CRC", "AFTER-DATA-CRC")) goto out;
+call    0 returned 16
+branch  1 taken 3 (fallthrough)
+branch  2 taken 13
+        2:  401:    } else logline("SKIP: /CMDCRC omits the bad-data probe\n");
+call    0 returned 2
+       15:  402:    memset(chunk, 0x96, 512);
+       15:  403:    if (!wt_crc_only && !wt_probe_only) {
+branch  0 taken 14 (fallthrough)
+branch  1 taken 1
+branch  2 taken 8 (fallthrough)
+branch  3 taken 6
+        8:  404:      result = wt_crc_mode(0);
+call    0 returned 8
+        8:  405:      if (result < 0 && wt_r1 == 4) {
+branch  0 taken 1 (fallthrough)
+branch  1 taken 7
+branch  2 taken 1 (fallthrough)
+branch  3 taken 0
+        1:  406:        logline("WARNING/SKIP: card refuses disabling CRC; continuing with CRC enabled\n");
+call    0 returned 1
+        7:  407:      } else if (result < 0) {
+branch  0 taken 0 (fallthrough)
+branch  1 taken 7
+    #####:  408:        check(0, "disable CRC for card-policy characterization");
+call    0 never executed
+    #####:  409:        goto out;
+        -:  410:      } else {
+       7*:  411:        REQUIRE(1, "disable CRC for card-policy characterization");
+call    0 returned 7
+branch  1 taken 0 (fallthrough)
+branch  2 taken 7
+        7:  412:        logline("PROBE: CRC-OFF with VALID data CRC; identity/readback switch "
+call    0 returned 7
+        -:  413:                "CRC ON, matching the invalid-CRC probe sequence\n");
+        7:  414:        REQUIRE(!wt_write(wf_start + 8, chunk, 0),
+call    0 returned 7
+call    1 returned 7
+branch  2 taken 1 (fallthrough)
+branch  3 taken 6
+        -:  415:                "CRC-OFF valid-data-CRC control: exact write and readback");
+        6:  416:        write_trace();
+call    0 returned 6
+       6*:  417:        REQUIRE(!wt_write(wf_start + 8, saved, 0),
+call    0 returned 6
+call    1 returned 6
+branch  2 taken 0 (fallthrough)
+branch  3 taken 6
+        -:  418:                "restore scratch before CRC-OFF invalid-data-CRC probe");
+        6:  419:        write_trace();
+call    0 returned 6
+       6*:  420:        REQUIRE(!wt_crc_mode(0), "disable CRC again for invalid-data-CRC probe");
+call    0 returned 6
+call    1 returned 6
+branch  2 taken 0 (fallthrough)
+branch  3 taken 6
+        6:  421:        logline("PROBE: CRC-OFF with INVALID data CRC; correct CRC xor 0001\n");
+call    0 returned 6
+        6:  422:        result = wt_write(wf_start + 8, chunk, 1);
+call    0 returned 6
+        6:  423:        if (!result || (wt_error == WT_CRC && !wt_poison)) write_trace();
+branch  0 taken 2 (fallthrough)
+branch  1 taken 4
+branch  2 taken 1 (fallthrough)
+branch  3 taken 1
+branch  4 taken 1 (fallthrough)
+branch  5 taken 0
+call    6 returned 5
+        6:  424:        if (!result)
+branch  0 taken 4 (fallthrough)
+branch  1 taken 2
+        4:  425:          logline("CARD POLICY: accepts unchecked data when CRC is disabled\n");
+call    0 returned 4
+        2:  426:        else if (wt_error == WT_CRC && !wt_poison)
+branch  0 taken 1 (fallthrough)
+branch  1 taken 1
+branch  2 taken 1 (fallthrough)
+branch  3 taken 0
+        1:  427:          logline("CARD POLICY: still checks data CRC while CRC is disabled\n");
+call    0 returned 1
+        -:  428:        else {
+        1:  429:          check(0, "CRC-disabled diagnostic produced an unexpected failure");
+call    0 returned 1
+        1:  430:          goto out;
+        -:  431:        }
+        -:  432:      }
+       6*:  433:      REQUIRE(!wt_crc_mode(1), "re-enable CRC before all normal writes");
+call    0 returned 6
+call    1 returned 6
+branch  2 taken 0 (fallthrough)
+branch  3 taken 6
+       6*:  434:      if (!recover_probe("CRC-policy-probes")) goto out;
+call    0 returned 6
+branch  1 taken 0 (fallthrough)
+branch  2 taken 6
+        6:  435:      logline("PHASE: AFTER-OFF-PROBES normal patterns after CRC-OFF characterization\n");
+call    0 returned 6
+        6:  436:      memset(chunk, 0x96, 512);
+       6*:  437:      REQUIRE(!wt_write(wf_start + 8, chunk, 0),
+call    0 returned 6
+call    1 returned 6
+branch  2 taken 0 (fallthrough)
+branch  3 taken 6
+        -:  438:              "post-fault changing-pattern seed with exact readback");
+       6*:  439:      if (raw_patterns("AFTER-OFF-PROBES")) goto out;
+call    0 returned 6
+branch  1 taken 0 (fallthrough)
+branch  2 taken 6
+       6*:  440:      REQUIRE(!wt_write(wf_start + 8, saved, 0),
+call    0 returned 6
+call    1 returned 6
+branch  2 taken 0 (fallthrough)
+branch  3 taken 6
+        -:  441:              "scratch restored after post-fault raw pattern tests");
+        7:  442:    } else logline("SKIP: selected CRC-enabled probes omit CRC-OFF characterization\n");
+call    0 returned 7
+        3:  443:  } else logline("SKIP: normal-only policy omits intentional CRC errors and CMD59 switching\n");
+call    0 returned 3
+       16:  444:  logline("PHASE: FILESYSTEM allocation, directories, files and persistence\n");
+call    0 returned 16
+      16*:  445:  REQUIRE(wt_write(0, chunk, 0) < 0 && wt_error == WT_GUARD,
+call    0 returned 16
+branch  1 taken 16 (fallthrough)
+branch  2 taken 0
+branch  3 taken 16 (fallthrough)
+branch  4 taken 0
+call    5 returned 16
+branch  6 taken 0 (fallthrough)
+branch  7 taken 16
+        -:  446:          "write fence refuses MBR sector zero");
+      16*:  447:  REQUIRE(wt_write(wf_start + 9, chunk, 0) < 0 && wt_error == WT_GUARD,
+call    0 returned 16
+branch  1 taken 16 (fallthrough)
+branch  2 taken 0
+branch  3 taken 16 (fallthrough)
+branch  4 taken 0
+call    5 returned 16
+branch  6 taken 0 (fallthrough)
+branch  7 taken 16
+        -:  448:          "write fence refuses adjacent sector");
+      16*:  449:  REQUIRE(!wf_begin(),
+call    0 returned 16
+call    1 returned 16
+branch  2 taken 0 (fallthrough)
+branch  3 taken 16
+        -:  450:          "invalidate FSInfo hints and arm bounded test partition");
+      16*:  451:  REQUIRE(wf_create(volume.root, "ILLEGAL.BIN", &file) < 0 &&
+call    0 returned 16
+branch  1 taken 16 (fallthrough)
+branch  2 taken 0
+branch  3 taken 16 (fallthrough)
+branch  4 taken 0
+call    5 returned 16
+branch  6 taken 0 (fallthrough)
+branch  7 taken 16
+        -:  452:              wt_error == WT_GUARD,
+        -:  453:          "writer refuses files outside its owned test tree");
+      16*:  454:  REQUIRE(!wf_mkdir(volume.root, "WTEST", &dir),
+call    0 returned 16
+call    1 returned 16
+branch  2 taken 0 (fallthrough)
+branch  3 taken 16
+        -:  455:          "create new root test directory with dot entries");
+      16*:  456:  REQUIRE(!wf_mkdir(dir.first, "SUB", &sub),
+call    0 returned 16
+call    1 returned 16
+branch  2 taken 0 (fallthrough)
+branch  3 taken 16
+        -:  457:          "create nested directory with parent entry");
+      16*:  458:  REQUIRE(!wf_create(sub.first, "NOTE.BIN", &file) &&
+call    0 returned 16
+branch  1 taken 16 (fallthrough)
+branch  2 taken 0
+call    3 returned 16
+branch  4 taken 16 (fallthrough)
+branch  5 taken 0
+call    6 returned 16
+branch  7 taken 0 (fallthrough)
+branch  8 taken 16
+        -:  459:              !append_pattern(&file, 1025, 19),
+        -:  460:          "allocate and write nested file");
+      16*:  461:  REQUIRE(wf_rmdir(&sub) < 0 && wt_error == WT_NOTEMPTY,
+call    0 returned 16
+branch  1 taken 16 (fallthrough)
+branch  2 taken 0
+branch  3 taken 16 (fallthrough)
+branch  4 taken 0
+call    5 returned 16
+branch  6 taken 0 (fallthrough)
+branch  7 taken 16
+        -:  462:          "refuse removal of nonempty directory");
+      128:  463:  for (i = 0; i < 7; ++i) {
+branch  0 taken 112
+branch  1 taken 16 (fallthrough)
+     112*:  464:    REQUIRE(!wf_create(dir.first, names[i], &file) &&
+call    0 returned 112
+branch  1 taken 112 (fallthrough)
+branch  2 taken 0
+call    3 returned 112
+branch  4 taken 112 (fallthrough)
+branch  5 taken 0
+call    6 returned 112
+branch  7 taken 0 (fallthrough)
+branch  8 taken 112
+        -:  465:                !append_pattern(&file, sizes[i], 3 + i),
+        -:  466:            "create boundary-sized file and allocate its chain");
+      112:  467:    sprintf(path, "WTEST\\%s", names[i]);
+     112*:  468:    REQUIRE(!verify_file(path, sizes[i], 3 + i, 0), path);
+call    0 returned 112
+call    1 returned 112
+branch  2 taken 0 (fallthrough)
+branch  3 taken 112
+        -:  469:  }
+      16*:  470:  REQUIRE(wf_create(dir.first, "BIG.BIN", &file) < 0 && wt_error == WT_EXISTS,
+call    0 returned 16
+branch  1 taken 16 (fallthrough)
+branch  2 taken 0
+branch  3 taken 16 (fallthrough)
+branch  4 taken 0
+call    5 returned 16
+branch  6 taken 0 (fallthrough)
+branch  7 taken 16
+        -:  471:          "duplicate filename refused without truncation");
+        -:  472:  /* Fill a whole directory cluster, then extend its FAT chain. */
+      432:  473:  for (i = 0; i < 16U * volume.spc + 3U; ++i) {
+branch  0 taken 416
+branch  1 taken 16 (fallthrough)
+      416:  474:    sprintf(name, "E%03u.TXT", i % 1000);
+     416*:  475:    REQUIRE(!wf_create(dir.first, name, &file),
+call    0 returned 416
+call    1 returned 416
+branch  2 taken 0 (fallthrough)
+branch  3 taken 416
+        -:  476:            "grow directory past first cluster");
+        -:  477:  }
+      16*:  478:  REQUIRE(wf_fat(dir.first) < 0x0ffffff8UL,
+call    0 returned 16
+call    1 returned 16
+branch  2 taken 0 (fallthrough)
+branch  3 taken 16
+        -:  479:          "directory has automatically allocated another cluster");
+      16*:  480:  REQUIRE(!wf_create(dir.first, "APPEND.BIN", &file) &&
+call    0 returned 16
+branch  1 taken 16 (fallthrough)
+branch  2 taken 0
+call    3 returned 16
+branch  4 taken 16 (fallthrough)
+branch  5 taken 0
+call    6 returned 16
+branch  7 taken 0 (fallthrough)
+branch  8 taken 16
+        -:  481:              !append_pattern(&file, 511, 29),
+        -:  482:          "initial partial-sector file");
+      16*:  483:  REQUIRE(!append_pattern(&file, 1535, 29),
+call    0 returned 16
+call    1 returned 16
+branch  2 taken 0 (fallthrough)
+branch  3 taken 16
+        -:  484:          "append through sector and cluster boundaries");
+       16:  485:  memset(chunk, 0xe7, 4);
+      16*:  486:  REQUIRE(!wf_overwrite(&file, 510, chunk, 4),
+call    0 returned 16
+call    1 returned 16
+branch  2 taken 0 (fallthrough)
+branch  3 taken 16
+        -:  487:          "overwrite four bytes across sector boundary");
+      16*:  488:  REQUIRE(!verify_file("WTEST\\APPEND.BIN", 1535, 29, 1),
+call    0 returned 16
+call    1 returned 16
+branch  2 taken 0 (fallthrough)
+branch  3 taken 16
+        -:  489:          "overwrite preserves adjacent bytes");
+      16*:  490:  REQUIRE(wf_overwrite(&file, 1534, chunk, 4) < 0 && wt_error == WT_RANGE,
+call    0 returned 16
+branch  1 taken 16 (fallthrough)
+branch  2 taken 0
+branch  3 taken 16 (fallthrough)
+branch  4 taken 0
+call    5 returned 16
+branch  6 taken 0 (fallthrough)
+branch  7 taken 16
+        -:  491:          "overwrite cannot silently extend a file");
+      16*:  492:  REQUIRE(!wf_create(dir.first, "SHORT.BIN", &file) &&
+call    0 returned 16
+branch  1 taken 16 (fallthrough)
+branch  2 taken 0
+call    3 returned 16
+branch  4 taken 16 (fallthrough)
+branch  5 taken 0
+call    6 returned 16
+branch  7 taken 0 (fallthrough)
+branch  8 taken 16
+        -:  493:              !append_pattern(&file, 7000, 39),
+        -:  494:          "allocate file for truncate tests");
+       16:  495:  old_first = file.first;
+      16*:  496:  REQUIRE(!wf_truncate(&file, 513) &&
+call    0 returned 16
+branch  1 taken 16 (fallthrough)
+branch  2 taken 0
+call    3 returned 16
+branch  4 taken 16 (fallthrough)
+branch  5 taken 0
+call    6 returned 16
+branch  7 taken 0 (fallthrough)
+branch  8 taken 16
+        -:  497:              !verify_file("WTEST\\SHORT.BIN", 513, 39, 0),
+        -:  498:          "truncate publishes shorter size and frees tail clusters");
+      16*:  499:  REQUIRE(!wf_truncate(&file, 0) && !wf_fat(old_first),
+call    0 returned 16
+branch  1 taken 16 (fallthrough)
+branch  2 taken 0
+call    3 returned 16
+branch  4 taken 16 (fallthrough)
+branch  5 taken 0
+call    6 returned 16
+branch  7 taken 0 (fallthrough)
+branch  8 taken 16
+        -:  500:          "truncate to zero releases first cluster");
+      16*:  501:  REQUIRE(!append_pattern(&file, 17, 39) && file.first == old_first,
+call    0 returned 16
+branch  1 taken 16 (fallthrough)
+branch  2 taken 0
+branch  3 taken 16 (fallthrough)
+branch  4 taken 0
+call    5 returned 16
+branch  6 taken 0 (fallthrough)
+branch  7 taken 16
+        -:  502:          "freed cluster reused for new data");
+      16*:  503:  REQUIRE(!wf_create(dir.first, "DELETE.BIN", &temp) &&
+call    0 returned 16
+branch  1 taken 16 (fallthrough)
+branch  2 taken 0
+call    3 returned 16
+branch  4 taken 16 (fallthrough)
+branch  5 taken 0
+call    6 returned 16
+branch  7 taken 0 (fallthrough)
+branch  8 taken 16
+        -:  504:              !append_pattern(&temp, 2048, 49),
+        -:  505:          "create file for delete and free-space tests");
+       16:  506:  old_first = temp.first;
+      16*:  507:  REQUIRE(!wf_delete(&temp) && !wf_fat(old_first),
+call    0 returned 16
+branch  1 taken 16 (fallthrough)
+branch  2 taken 0
+call    3 returned 16
+branch  4 taken 16 (fallthrough)
+branch  5 taken 0
+call    6 returned 16
+branch  7 taken 0 (fallthrough)
+branch  8 taken 16
+        -:  508:          "delete removes directory entry and releases chain");
+      16*:  509:  REQUIRE(!wf_mkdir(dir.first, "EMPTY", &temp), "create empty directory");
+call    0 returned 16
+call    1 returned 16
+branch  2 taken 0 (fallthrough)
+branch  3 taken 16
+      16*:  510:  REQUIRE(!wf_rmdir(&temp), "remove empty directory and release cluster");
+call    0 returned 16
+call    1 returned 16
+branch  2 taken 0 (fallthrough)
+branch  3 taken 16
+        -:  511:  /* Force noncontiguous allocation by interleaving two growing files. */
+      16*:  512:  REQUIRE(!wf_create(dir.first, "FRAGNEW.BIN", &file) &&
+call    0 returned 16
+branch  1 taken 16 (fallthrough)
+branch  2 taken 0
+call    3 returned 16
+branch  4 taken 16 (fallthrough)
+branch  5 taken 0
+call    6 returned 16
+branch  7 taken 0 (fallthrough)
+branch  8 taken 16
+        -:  513:              !wf_create(dir.first, "GAPS.BIN", &temp),
+        -:  514:          "create interleaved allocation files");
+       16:  515:  n = (unsigned)volume.spc * 512;
+       80:  516:  for (j = 0; j < 4; ++j) {
+branch  0 taken 64
+branch  1 taken 16 (fallthrough)
+       64:  517:    pos = (U32)(j + 1) * n;
+      64*:  518:    REQUIRE(!append_pattern(&file, pos, 59) && !append_pattern(&temp, pos, 69),
+call    0 returned 64
+branch  1 taken 64 (fallthrough)
+branch  2 taken 0
+call    3 returned 64
+branch  4 taken 64 (fallthrough)
+branch  5 taken 0
+call    6 returned 64
+branch  7 taken 0 (fallthrough)
+branch  8 taken 64
+        -:  519:            "interleaved cluster allocation");
+        -:  520:  }
+      16*:  521:  REQUIRE(wf_fat(file.first) != file.first + 1,
+call    0 returned 16
+call    1 returned 16
+branch  2 taken 0 (fallthrough)
+branch  3 taken 16
+        -:  522:          "new file is deliberately fragmented");
+      16*:  523:  REQUIRE(!verify_file("WTEST\\FRAGNEW.BIN", (U32)n * 4, 59, 0),
+call    0 returned 16
+call    1 returned 16
+branch  2 taken 0 (fallthrough)
+branch  3 taken 16
+        -:  524:          "read back new fragmented chain");
+      16*:  525:  REQUIRE(!wf_delete(&temp), "delete interleaved gap file");
+call    0 returned 16
+call    1 returned 16
+branch  2 taken 0 (fallthrough)
+branch  3 taken 16
+      16*:  526:  REQUIRE(!wf_hint(66000), "start allocation search at protected high cluster");
+call    0 returned 16
+call    1 returned 16
+branch  2 taken 0 (fallthrough)
+branch  3 taken 16
+      16*:  527:  REQUIRE(!wf_create(dir.first, "HIGHNEW.BIN", &file) &&
+call    0 returned 16
+branch  1 taken 16 (fallthrough)
+branch  2 taken 0
+call    3 returned 16
+branch  4 taken 16 (fallthrough)
+branch  5 taken 0
+call    6 returned 16
+branch  7 taken 0 (fallthrough)
+branch  8 taken 16
+        -:  528:              !append_pattern(&file, 1537, 79),
+        -:  529:          "allocate and write beyond cluster/sector 65535");
+      16*:  530:  REQUIRE(file.first == 66001UL,
+call    0 returned 16
+branch  1 taken 0 (fallthrough)
+branch  2 taken 16
+        -:  531:          "allocator skips occupied high cluster without modifying it");
+      16*:  532:  REQUIRE(!verify_file("WTEST\\HIGHNEW.BIN", 1537, 79, 0),
+call    0 returned 16
+call    1 returned 16
+branch  2 taken 0 (fallthrough)
+branch  3 taken 16
+        -:  533:          "new high-cluster data and FAT links verified");
+      16*:  534:  REQUIRE(!verify_suite(),
+call    0 returned 16
+call    1 returned 16
+branch  2 taken 0 (fallthrough)
+branch  3 taken 16
+        -:  535:          "read all created results through independent streaming reader");
+      16*:  536:  REQUIRE(!protected_text(), "original read fixture preserved after writes");
+call    0 returned 16
+call    1 returned 16
+branch  2 taken 0 (fallthrough)
+branch  3 taken 16
+      16*:  537:  REQUIRE(!sd_check_media(), "card identity unchanged at completion");
+call    0 returned 16
+call    1 returned 16
+branch  2 taken 0 (fallthrough)
+branch  3 taken 16
+      16*:  538:  REQUIRE(!wf_finish(),
+call    0 returned 16
+call    1 returned 16
+branch  2 taken 16 (fallthrough)
+branch  3 taken 0
+        -:  539:          "FAT mirrors rechecked and clean flag set only after verification");
+       16:  540:out:
+       34:  541:  wt_disarm();
+call    0 returned 34
+       34:  542:  logline("STATS: accepted_writes=%lu reads=%lu allocated=%lu freed=%lu "
+call    0 returned 34
+        -:  543:          "max_busy_clocks=%lu max_busy_ticks=%lu\n",
+        -:  544:          wt_writes, wt_reads, wf_allocated, wf_freed, wt_busy_max,
+        -:  545:          wt_busy_ticks);
+       34:  546:  if (log_failed)
+branch  0 taken 1 (fallthrough)
+branch  1 taken 33
+        1:  547:    return 2;
+       33:  548:  logline("%s RESULT: %u failures, %u checks. ERRORLEVEL=%u\n", write_mode ? "WRITE" : "VERIFY", failures,
+branch  0 taken 28 (fallthrough)
+branch  1 taken 5
+call    2 returned 33
+        -:  549:          checks, failures ? 1 : 0);
+       33:  550:  if (failures && !write_mode) logline("STOP: preserve WVERIFY.LOG for diagnosis.\n");
+branch  0 taken 13 (fallthrough)
+branch  1 taken 20
+branch  2 taken 1 (fallthrough)
+branch  3 taken 12
+call    4 returned 1
+       33:  551:  if (failures && write_mode)
+branch  0 taken 13 (fallthrough)
+branch  1 taken 20
+branch  2 taken 12 (fallthrough)
+branch  3 taken 1
+       12:  552:    logline("STOP: preserve WRITE.LOG; re-image the expendable card before "
+call    0 returned 12
+        -:  553:            "another write run. No retry or repair.\n");
+      33*:  554:  return log_failed ? 2 : failures ? 1 : 0;
+branch  0 taken 33 (fallthrough)
+branch  1 taken 0
+        -:  555:}
+        -:  556:/* Diagnostic reads only: retain strict write guards, never repair metadata. */
+function diag_fsinfo called 8 returned 100% blocks executed 100%
+        8:  557:static void diag_fsinfo(const char *name, const U8 *p) {
+       22:  558:  logline("FSINFO %s: lead=%08lX struct=%08lX trail=%08lX "
+branch  0 taken 6 (fallthrough)
+branch  1 taken 2
+call    2 returned 8
+        -:  559:          "free=%lu next=%lu signatures=%s\n", name,
+        8:  560:          (unsigned long)get32(p), (unsigned long)get32(p + 484),
+call    0 returned 8
+call    1 returned 8
+        8:  561:          (unsigned long)get32(p + 508), (unsigned long)get32(p + 488),
+call    0 returned 8
+call    1 returned 8
+        8:  562:          (unsigned long)get32(p + 492),
+call    0 returned 8
+       20:  563:          get32(p) == 0x41615252UL && get32(p + 484) == 0x61417272UL &&
+call    0 returned 8
+call    1 returned 6
+branch  2 taken 6 (fallthrough)
+branch  3 taken 0
+branch  4 taken 6 (fallthrough)
+branch  5 taken 0
+        6:  564:          get32(p + 508) == 0xaa550000UL ? "valid" : "INVALID");
+call    0 returned 6
+        8:  565:}
+function diag_dump called 32 returned 100% blocks executed 100%
+       32:  566:static void diag_dump(const char *name, const U8 *p) {
+        -:  567:  unsigned i, j;
+     1056:  568:  for (i = 0; i < 512 && !log_failed; i += 16) {
+branch  0 taken 1024 (fallthrough)
+branch  1 taken 32
+branch  2 taken 1024
+branch  3 taken 0 (fallthrough)
+     1024:  569:    logline("HEX %s %03u:", name, i);
+call    0 returned 1024
+    17408:  570:    for (j = 0; j < 16; ++j)
+branch  0 taken 16384
+branch  1 taken 1024 (fallthrough)
+    16384:  571:      logline(" %02X", p[i + j]);
+call    0 returned 16384
+     1024:  572:    logline("\n");
+call    0 returned 1024
+        -:  573:  }
+       32:  574:}
+function diag_pair called 12 returned 100% blocks executed 92%
+       12:  575:static void diag_pair(U32 primary, U32 backup, int fsinfo) {
+        -:  576:  int a, b;
+       12:  577:  unsigned i, differences = 0, hints = 0;
+       12:  578:  logline("PAIR: %s primary_LBA=%lu backup_LBA=%lu\n",
+branch  0 taken 6 (fallthrough)
+branch  1 taken 6
+call    2 returned 12
+        -:  579:          fsinfo ? "FSInfo" : "boot", (unsigned long)primary,
+        -:  580:          (unsigned long)backup);
+       12:  581:  a = sd_read(primary, saved);
+call    0 returned 12
+       12:  582:  check(!a, "diagnostic primary sector read and CRC");
+call    0 returned 12
+      12*:  583:  if (log_failed) return;
+branch  0 taken 0 (fallthrough)
+branch  1 taken 12
+       12:  584:  b = sd_read(backup, observed);
+call    0 returned 12
+       12:  585:  check(!b, "diagnostic backup sector read and CRC");
+call    0 returned 12
+      12*:  586:  if (log_failed) return;
+branch  0 taken 0 (fallthrough)
+branch  1 taken 12
+       12:  587:  if (a || b) {
+branch  0 taken 12 (fallthrough)
+branch  1 taken 0
+branch  2 taken 2 (fallthrough)
+branch  3 taken 10
+        2:  588:    logline("PAIR: unavailable; failed reads are not compared\n");
+call    0 returned 2
+        2:  589:    return;
+        -:  590:  }
+       10:  591:  if (fsinfo) {
+branch  0 taken 4 (fallthrough)
+branch  1 taken 6
+        4:  592:    diag_fsinfo("primary", saved);
+call    0 returned 4
+        4:  593:    diag_fsinfo("backup", observed);
+call    0 returned 4
+        -:  594:  }
+     5130:  595:  for (i = 0; i < 512; ++i) {
+branch  0 taken 5120
+branch  1 taken 10 (fallthrough)
+     5120:  596:    if (saved[i] != observed[i]) {
+branch  0 taken 12 (fallthrough)
+branch  1 taken 5108
+       12:  597:      if (differences < 32)
+branch  0 taken 12 (fallthrough)
+branch  1 taken 0
+       12:  598:        logline("DIFF: offset=%u primary=%02X backup=%02X\n",
+       12:  599:                i, saved[i], observed[i]);
+call    0 returned 12
+       12:  600:      ++differences;
+       12:  601:      if (fsinfo && i >= 488 && i < 496) ++hints;
+branch  0 taken 4 (fallthrough)
+branch  1 taken 8
+branch  2 taken 4 (fallthrough)
+branch  3 taken 0
+branch  4 taken 4 (fallthrough)
+branch  5 taken 0
+        -:  602:    }
+        -:  603:  }
+       10:  604:  logline("COMPARE: differing_bytes=%u hint_bytes=%u other_bytes=%u\n",
+call    0 returned 10
+        -:  605:          differences, hints, differences - hints);
+      10*:  606:  if (differences > 32) logline("DIFF: remaining differences omitted; see HEX\n");
+branch  0 taken 0 (fallthrough)
+branch  1 taken 10
+call    2 never executed
+       10:  607:  if (fsinfo) {
+branch  0 taken 4 (fallthrough)
+branch  1 taken 6
+        4:  608:    diag_dump("primary", saved);
+call    0 returned 4
+        4:  609:    diag_dump("backup", observed);
+call    0 returned 4
+        -:  610:  }
+        -:  611:}
+function wt_diagnose called 6 returned 100% blocks executed 83%
+        6:  612:int wt_diagnose(void) {
+        -:  613:  int result;
+        6:  614:  failures = checks = 0;
+        6:  615:  wt_disarm();
+call    0 returned 6
+        6:  616:  wf_allow_hints = 0;
+        6:  617:  logline("DIAGNOSTIC ONLY: sector reads, no writes or repairs.\n");
+call    0 returned 6
+        6:  618:  result = wf_prepare();
+call    0 returned 6
+        6:  619:  check(!result, "read-only marked-image preflight");
+call    0 returned 6
+       6*:  620:  if (log_failed) return 2;
+branch  0 taken 0 (fallthrough)
+branch  1 taken 6
+        6:  621:  logline("ALLOWHINTS ELIGIBLE: %s\n",
+call    0 returned 6
+        6:  622:          wf_hint_mismatch ? "YES (valid sectors differ only at offsets 488..495)" :
+branch  0 taken 1 (fallthrough)
+branch  1 taken 5
+        -:  623:                             "NO (no hint-only preflight exception identified)");
+        -:  624:  /* Read the known image locations only after checking the actual MBR. */
+       6*:  625:  if (!check(!sd_read(0, chunk), "diagnostic MBR read and CRC")) goto out;
+call    0 returned 6
+call    1 returned 6
+branch  2 taken 0 (fallthrough)
+branch  3 taken 6
+      18*:  626:  if (!check(chunk[450] == 0x0c && get32(chunk + 454) == 2048UL &&
+branch  0 taken 6 (fallthrough)
+branch  1 taken 0
+call    2 returned 6
+branch  3 taken 6 (fallthrough)
+branch  4 taken 0
+branch  5 taken 6 (fallthrough)
+branch  6 taken 0
+call    7 returned 6
+branch  8 taken 0 (fallthrough)
+branch  9 taken 6
+       12:  627:             get32(chunk + 458) >= 8 && wt_last_lba >= 2055UL,
+call    0 returned 6
+branch  1 taken 6 (fallthrough)
+branch  2 taken 0
+    #####:  628:             "diagnostic locations inside marked primary partition")) goto out;
+        6:  629:  diag_pair(2048UL, 2054UL, 0);
+call    0 returned 6
+        6:  630:  if (!log_failed) diag_pair(2049UL, 2055UL, 1);
+branch  0 taken 0 (fallthrough)
+branch  1 taken 6
+call    2 returned 6
+    #####:  631:out:
+        6:  632:  wt_disarm();
+call    0 returned 6
+        6:  633:  logline("DIAG RESULT: failures=%u accepted_writes=%lu ERRORLEVEL=%u\n",
+call    0 returned 6
+        -:  634:          failures, (unsigned long)wt_writes, failures ? 1 : 0);
+       6*:  635:  return log_failed ? 2 : failures ? 1 : 0;
+branch  0 taken 6 (fallthrough)
+branch  1 taken 0
+        -:  636:}
+        -:  637:#ifdef HOST_TEST
+function wt_test_verify_file called 1 returned 100% blocks executed 100%
+        1:  638:int wt_test_verify_file(const char *path, U32 size, unsigned seed) {
+        1:  639:  return verify_file(path, size, seed, 0);
+call    0 returned 1
+        -:  640:}
+function wt_test_log called 54 returned 100% blocks executed 100%
+       54:  641:void wt_test_log(const char *path) {
+       54:  642:  if (logfile)
+branch  0 taken 27 (fallthrough)
+branch  1 taken 27
+       27:  643:    fclose(logfile);
+call    0 returned 27
+       54:  644:  logfile = path ? fopen(path, "wt") : 0;
+branch  0 taken 27 (fallthrough)
+branch  1 taken 27
+call    2 returned 27
+       54:  645:  log_failed = 0;
+       54:  646:}
+        -:  647:#endif
+        -:  648:#ifndef HOST_TEST
+        -:  649:int main(int argc, char **argv) {
+        -:  650:  int i, writing = 0, verify = 0, batch = 0, diagnostic = 0, info = 0, answer, retval;
+        -:  651:  union REGS r;
+        -:  652:  char cwd[80];
+        -:  653:  for (i = 1; i < argc; ++i) {
+        -:  654:    option_upper(argv[i]);
+        -:  655:    if (!strcmp(argv[i], "/WRITE"))
+        -:  656:      writing = 1;
+        -:  657:    else if (!strcmp(argv[i], "/NOCRC"))
+        -:  658:      wt_no_crc = 1;
+        -:  659:    else if (!strcmp(argv[i], "/CRCONLY"))
+        -:  660:      wt_crc_only = 1;
+        -:  661:    else if (!strcmp(argv[i], "/NORMAL"))
+        -:  662:      wt_normal_only = 1;
+        -:  663:    else if (!strcmp(argv[i], "/CMDCRC")) {
+        -:  664:      if (wt_probe_only == 2) { puts("STOP: select one CRC probe."); return 2; }
+        -:  665:      wt_probe_only = 1;
+        -:  666:    } else if (!strcmp(argv[i], "/DATACRC")) {
+        -:  667:      if (wt_probe_only == 1) { puts("STOP: select one CRC probe."); return 2; }
+        -:  668:      wt_probe_only = 2;
+        -:  669:    }
+        -:  670:    else if (!strcmp(argv[i], "/ALLOWHINTS"))
+        -:  671:      wf_allow_hints = 1;
+        -:  672:    else if (!strcmp(argv[i], "/DIAG"))
+        -:  673:      diagnostic = 1;
+        -:  674:    else if (!strcmp(argv[i], "/VERIFY"))
+        -:  675:      verify = 1;
+        -:  676:    else if (!strcmp(argv[i], "/BATCH"))
+        -:  677:      batch = 1;
+        -:  678:    else if (!strcmp(argv[i], "/INFO")) {
+        -:  679:      info = 1;
+        -:  680:    } else if (!strncmp(argv[i], "/PORT:", 6) &&
+        -:  681:               parse_port(argv[i] + 6, &sd_port)) {
+        -:  682:    } else {
+        -:  683:      puts("WTTEST [/INFO | /DIAG | /WRITE [/BATCH] [/ALLOWHINTS] [/CRCONLY | /NORMAL | /CMDCRC | /DATACRC] | /VERIFY] [/NOCRC] [/PORT:330]");
+        -:  684:      return 2;
+        -:  685:    }
+        -:  686:  }
+        -:  687:  if ((info && (writing || verify || diagnostic)) || (writing && verify) || (batch && !writing) ||
+        -:  688:      (diagnostic && (writing || verify || batch)) ||
+        -:  689:      (wf_allow_hints && !writing) || (wt_no_crc && wt_crc_only) ||
+        -:  690:      (wt_crc_only && !writing) || (wt_normal_only && !writing) ||
+        -:  691:      (wt_normal_only && (wt_no_crc || wt_crc_only)) ||
+        -:  692:      (wt_probe_only && (!writing || wt_normal_only || wt_no_crc || wt_crc_only))) {
+        -:  693:    puts("STOP: conflicting or inapplicable options; use one operation mode.");
+        -:  694:    return 2;
+        -:  695:  }
+        -:  696:  memset(&r, 0, sizeof(r));
+        -:  697:  r.x.ax = 0xd74f;
+        -:  698:  int86(0x2f, &r, &r);
+        -:  699:  if (r.x.ax == 0x4f54 && r.x.bx == 0x524f) {
+        -:  700:    puts("STOP: reboot without OTTERFS; raw testing requires NO resident "
+        -:  701:         "driver.");
+        -:  702:    return 2;
+        -:  703:  }
+        -:  704:  if (getdisk() == 18 || !getcwd(cwd, sizeof(cwd))) {
+        -:  705:    puts("STOP: run from local DOS storage.");
+        -:  706:    return 2;
+        -:  707:  }
+        -:  708:  logfile = fopen(diagnostic ? "WDIAG.LOG"
+        -:  709:                  : verify    ? "WVERIFY.LOG"
+        -:  710:                  : writing ? "WRITE.LOG"
+        -:  711:                            : "WINFO.LOG",
+        -:  712:                  "wt");
+        -:  713:  if (!logfile) {
+        -:  714:    puts("STOP: cannot create local log.");
+        -:  715:    return 2;
+        -:  716:  }
+        -:  717:  logline("OTTER WRITE KIT v1.7 EXPERIMENTAL, DOS=%u.%u port=%X local=%s\n",
+        -:  718:          _osmajor, _osminor, sd_port, cwd);
+        -:  719:  logline("OPTIONS: mode=%s CRC_policy=%s ALLOWHINTS=%u BATCH=%u\n",
+        -:  720:          writing ? "WRITE" : verify ? "VERIFY" : diagnostic ? "DIAG" : "INFO",
+        -:  721:          wt_no_crc ? "NOCRC" : wt_normal_only ? "NORMAL" : wt_probe_only == 1 ? "CMDCRC" : wt_probe_only == 2 ? "DATACRC" : wt_crc_only ? "CRCONLY" : "DEFAULT",
+        -:  722:          (unsigned)wf_allow_hints, (unsigned)batch);
+        -:  723:  retval = sd_init();
+        -:  724:  logline("STARTUP: CMD0 attempts=%u packets=%u initial_MISO=%02X "
+        -:  725:          "(MISO pull high; load FF + 12 clock-only pulses)\n",
+        -:  726:          wt_reset_attempts, wt_cmd0_sent, wt_startup_miso);
+        -:  727:  logline("INIT TRACE: commands=%lu retained=%u (R1 and transport error)\n",
+        -:  728:          wt_init_total, wt_init_count);
+        -:  729:  for (i = 0; i < wt_init_count; ++i) {
+        -:  730:    if (i == 63 && wt_init_total > 64)
+        -:  731:      logline("INIT TRACE: omitted_middle=%lu; final record follows\n", wt_init_total - 64);
+        -:  732:    logline("INIT CMD: sequence=%lu CMD=%u arg=%08lX R1=%02X error=%u\n",
+        -:  733:            i == 63 ? wt_init_total : (U32)i + 1, wt_init_command[i],
+        -:  734:            wt_init_argument[i], wt_init_r1[i], wt_init_error[i]);
+        -:  735:  }
+        -:  736:  logline("OCR: %02X %02X %02X %02X (partial if initialization failed)\n",
+        -:  737:          wt_ocr[0], wt_ocr[1], wt_ocr[2], wt_ocr[3]);
+        -:  738:  logline("CID:");
+        -:  739:  for (i = 0; i < 16; ++i)
+        -:  740:    logline(" %02X", wt_cid[i]);
+        -:  741:  logline("\nCSD:");
+        -:  742:  for (i = 0; i < 16; ++i)
+        -:  743:    logline(" %02X", wt_csd[i]);
+        -:  744:  logline("\n");
+        -:  745:  if (retval) {
+        -:  746:    check(0, "initialize SDHC/SDXC with requested CRC policy and valid CSD/CID");
+        -:  747:    retval = 1;
+        -:  748:    goto done;
+        -:  749:  }
+        -:  750:  logline("\nCARD: last_LBA=%lu CRC=%s command_CRC=valid read_CRC=verified\n",
+        -:  751:          wt_last_lba, wt_no_crc ? "reset-default-OFF data_CRC=dummy-FFFF" : "enabled");
+        -:  752:  if (log_failed) {
+        -:  753:    retval = 2;
+        -:  754:    goto done;
+        -:  755:  }
+        -:  756:  if (diagnostic) {
+        -:  757:    retval = wt_diagnose();
+        -:  758:    goto done;
+        -:  759:  }
+        -:  760:  if (!writing && !verify) {
+        -:  761:    logline("INFO ONLY: no block writes issued.\n");
+        -:  762:    retval = 0;
+        -:  763:    goto done;
+        -:  764:  }
+        -:  765:  logline("WARNING: expendable marked WRITE image only. Power loss/failure can "
+        -:  766:          "leave FAT mirrors inconsistent or clusters leaked.\n");
+        -:  767:  if (writing && !batch) {
+        -:  768:    logline("Confirm destructive test by typing WRITE and ENTER: ");
+        -:  769:    {
+        -:  770:      char confirmation[16];
+        -:  771:      if (!fgets(confirmation, sizeof(confirmation), stdin) ||
+        -:  772:          strcmp(confirmation, "WRITE\n")) {
+        -:  773:        logline("Cancelled: no block writes issued.\n");
+        -:  774:        retval = 2;
+        -:  775:        goto done;
+        -:  776:      }
+        -:  777:    }
+        -:  778:  }
+        -:  779:  retval = wt_suite(writing);
+        -:  780:done:
+        -:  781:  sd_release();
+        -:  782:  i = ferror(logfile);
+        -:  783:  answer = fclose(logfile);
+        -:  784:  if (i || answer) {
+        -:  785:    puts("STOP: local log write failure; no result can be trusted.");
+        -:  786:    return 2;
+        -:  787:  }
+        -:  788:  return retval;
+        -:  789:}
+        -:  790:#endif

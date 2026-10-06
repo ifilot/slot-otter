@@ -89,6 +89,33 @@ class ResidentFilesystemTests(unittest.TestCase):
         self.assertEqual(self.lib.rw_flush(),0)
         self.assertEqual(C.c_uint.in_dll(self.lib,'rw_host_writes').value,0)
 
+    def test_single_fat_mount_skips_empty_comparison_and_preserves_writes(self):
+        self.lib.rw_host_close()
+        raw=bytearray(self.image.read_bytes())
+        size=(self.layout['data']-2048-32)//2
+        old=self.layout['data']*512
+        new=old-size*512
+        raw[new:new+len(raw)-old]=raw[old:]
+        total=self.layout['total']-size
+        struct.pack_into('<I',raw,458,total)
+        for lba in (2048,2054):
+            raw[lba*512+16]=1
+            struct.pack_into('<I',raw,lba*512+32,total)
+        self.image.write_bytes(raw)
+        self.assertEqual(self.lib.rw_host_open(str(self.image).encode(),3),0)
+        self.assertEqual(self.lib.sd_init(),0)
+        reads=C.c_uint.in_dll(self.lib,'rw_host_reads')
+        reads.value=0
+        self.assertEqual(self.lib.rw_mount(),0)
+        self.assertLess(reads.value,20,'single FAT has no mirror to scan')
+        self.assertEqual(self.lookup('README.TXT').size,len(TEXT))
+        f=self.create_file('SINGLE.BIN')
+        payload=C.create_string_buffer(b'one FAT')
+        self.assertEqual(self.lib.rw_append(C.byref(f),payload,7),0)
+        self.assertEqual(self.lib.rw_flush(),0)
+        self.assertEqual(self.content('SINGLE.BIN'),b'one FAT')
+        self.finish()
+
     def test_clean_preflight_read_errors_remain_transport_errors(self):
         before=self.image.read_bytes()
         f=File()

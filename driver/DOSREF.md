@@ -75,3 +75,16 @@ remain unqualified; do not infer them from the normal-exit result.
 See the specific [write callback](https://fd.lod.bz/rbil/interrup/network/2f1109.html),
 [rename callback](https://fd.lod.bz/rbil/interrup/network/2f1111.html), and
 [extended open callback](https://fd.lod.bz/rbil/interrup/network/2f112e.html).
+
+## Consolidated identity query (action 8)
+
+The private D74Fh/OT/RO multiplex control uses SI=8, CX >=32 and ES:DI pointing
+to a 32-byte DriverInfo. Far offsets beyond FFE0h are rejected. CF clear returns
+CX=32. Fields are last LBA (U32), CID (16 bytes), version (U16,0004h), resident
+bytes, SD ticks, filesystem ticks, flags and ABI (U16,1). Flags: bit0 cached
+identity valid, bit1 installed writable mode, bit2 online. CID is zero when
+invalid; capacity is meaningful only with valid identity. This cached query
+performs no SD I/O and does not freshly authenticate a removed card.
+Mount tick fields are U16 BIOS low-word deltas for short operations; midnight
+reset or unusually long mounts can distort them. The older 40-byte action4
+diagnostic layout is unchanged.

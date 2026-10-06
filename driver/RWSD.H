@@ -26,6 +26,20 @@ typedef struct {
 extern SdDiagnostic sd_diag;
 extern U32 sd_last_lba;
 extern int sd_write_enabled;
+/* Volatile filesystem/readback scratch; independent frozen retry data is
+ * private to SDRW. Successful writes restore an aliased input exactly. */
+extern U8 sd_scratch[512];
+#define OTTER_VERSION 0x0004
+/* Private query 8, ABI 1: mounted identity is cached, not a fresh CID check.
+ * Flags: bit 0 cached identity valid, bit 1 writable, bit 2 online. */
+typedef struct {
+    U32 last_lba;
+    U8 cid[16];
+    U16 version, resident, sd_ticks, fs_ticks, flags, abi;
+} DriverInfo;
+extern U16 resident_bytes, mount_sd_ticks, mount_fs_ticks;
+U16 sd_ticks(void);
+int sd_card_info(U8 *cid,U32 *last_lba);
 U16 sd_crc16(const U8 *p, U16 count);
 /* Public SD calls return zero or a positive DOS error. SD_* values are the
  * finer diagnostic reason in sd_diag, not an INT 21h application error.

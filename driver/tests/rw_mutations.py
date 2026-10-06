@@ -9,6 +9,8 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 CASES = [
+    ('wrong byte CRC polynomial', [('^(x<<5)^x', '^x')],
+     'test_crc_all_single_bytes_and_variable_packet_lengths'),
     ('report stale read LBA', [('sd_diag.error=0; sd_diag.lba=lba;', 'sd_diag.error=0;')],
      'test_readonly_initialization_and_crc_checked_read'),
     ('release rejected CRC before busy completion', [
@@ -26,6 +28,9 @@ CASES = [
     ('refresh snapshot on retry', [('sd_diag.error=0;\n        if (!write_once(lba))',
                                    'sd_diag.error=0; memcpy(expected,buffer,512);\n        if (!write_once(lba))')],
      'test_retry_snapshot_survives_callers_buffer_change'),
+    ('refresh aliased snapshot on retry', [('sd_diag.error=0;\n        if (!write_once(lba))',
+                                   'sd_diag.error=0; memcpy(expected,buffer,512);\n        if (!write_once(lba))')],
+     'test_shared_scratch_input_restored_after_recovery'),
     ('skip recovery identity comparison', [('memcmp(cid,identity,16) || sd_last_lba!=capacity',
                                           'memcmp(cid,identity,0) || sd_last_lba!=capacity')],
      'test_changed_identity_on_recovery_never_writes_replacement'),

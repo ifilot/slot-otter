@@ -88,7 +88,7 @@ def main():
     toolchain = Path(os.environ.get('TOOLCHAIN_DIR', ROOT.parent/'buildenv')).resolve()
     subprocess.run(['bash',str(ROOT/'build.sh')],check=True)
     for source in [hardware/'HWTEST.C', ROOT/'tests/PROBE.C',
-                   *[ROOT/name for name in ('OTTER.H','SD.C','FAT32.C','PORT.C','SDCMDS.ASM')]]:
+                   *[ROOT/name for name in ('OTTER.H','SD.C','FAT32.C','PORT.C','PORTBODY.H','SDCMDS.ASM')]]:
         work.joinpath(source.name).write_bytes(source.read_bytes().replace(b'\r\n',b'\n').replace(b'\n',b'\r\n'))
     env=dict(os.environ,SDL_VIDEODRIVER='dummy',SDL_AUDIODRIVER='dummy')
     commands = [f'mount c "{toolchain}"',f'mount d "{work}"',r'set PATH=C:\TC;C:\TASM','d:',

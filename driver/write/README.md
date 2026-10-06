@@ -1,3 +1,6 @@
+> Historical implementation/kit record. The current consolidated driver,
+> tester and release procedure are described in [driver README](../README.md).
+
 # Standalone SD write investigation
 
 `WTTEST.EXE` runs directly against Slot-otter, independently of DOS drive I/O

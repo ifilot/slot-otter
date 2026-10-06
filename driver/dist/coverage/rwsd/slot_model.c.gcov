@@ -1,0 +1,761 @@
+        -:    0:Source:/mnt/d/PROGRAMMING/KiCAD/slot-otter/driver/emulation/slot_model.c
+        -:    0:Graph:/mnt/d/PROGRAMMING/KiCAD/slot-otter/driver/dist/coverage/rwsd/slot_model.gcno
+        -:    0:Data:/mnt/d/PROGRAMMING/KiCAD/slot-otter/driver/dist/coverage/rwsd/slot_model.gcda
+        -:    0:Runs:1
+        -:    1:/* SPDX-License-Identifier: GPL-3.0-or-later
+        -:    2: * SDHC model (read-only unless explicitly enabled) and Slot-otter's four schematic-defined ISA registers.
+        -:    3: * Each byte exchange completes synchronously; electrical timing is not modeled.
+        -:    4: */
+        -:    5:#define _FILE_OFFSET_BITS 64
+        -:    6:#define _POSIX_C_SOURCE 200809L
+        -:    7:#include "slot_model.h"
+        -:    8:#include <stdio.h>
+        -:    9:#include <stdlib.h>
+        -:   10:#include <string.h>
+        -:   11:#ifdef _WIN32
+        -:   12:#define seek_file _fseeki64
+        -:   13:#define tell_file _ftelli64
+        -:   14:#else
+        -:   15:#define seek_file fseeko
+        -:   16:#define tell_file ftello
+        -:   17:#endif
+        -:   18:
+        -:   19:struct slot_model {
+        -:   20:    FILE *image;
+        -:   21:    uint64_t sectors;
+        -:   22:    uint8_t cid[16];
+        -:   23:    uint8_t command[6], queue[520], tx, rx;
+        -:   24:    unsigned command_length, head, tail;
+        -:   25:    int selected, idle, application, pull_high;
+        -:   26:    unsigned flags, crc_enabled, write_phase, write_count, busy, busy_count;
+        -:   27:    unsigned reject_at, timeout_at, bad_read_crc, status_at, no_cmd59, drop_at, corrupt_at;
+        -:   28:    uint32_t pending_lba, bad_read_lba;
+        -:   29:    unsigned ignore_off_write, glitch_read;
+        -:   30:    unsigned read_delay, read_token, write_response, response_delay, status_r1;
+        -:   31:    unsigned reject_command, missing_command, late_busy, late_pending, repeat_crc;
+        -:   32:    unsigned token_wait, token_head, response_high;
+        -:   33:    unsigned cmd55_ready, acmd41_idle, ff_corrupt, negative_seen, recovery_status, negative_r1;
+        -:   34:    unsigned probe_fault, probe_seen, reject_busy, rejection_aborted;
+        -:   35:    uint8_t write_data[514];
+        -:   36:    unsigned status_pending, ignore_cmd0, spi_mode, idle_clocks;
+        -:   37:};
+function enqueue called 23495 returned 100% blocks executed 100%
+    23495:   38:static void enqueue(slot_model *c, uint8_t b) {
+    23495:   39:    if (c->tail<sizeof(c->queue)) c->queue[c->tail++]=b;
+branch  0 taken 23495 (fallthrough)
+branch  1 taken 0
+    23495:   40:}
+function crc16 called 213 returned 100% blocks executed 100%
+      213:   41:static uint16_t crc16(const uint8_t *p, unsigned n) {
+      213:   42:    uint16_t crc=0;
+        -:   43:    unsigned i;
+    37349:   44:    while(n--) {
+branch  0 taken 37136
+branch  1 taken 213 (fallthrough)
+    37136:   45:        crc^=(uint16_t)*p++<<8;
+   334224:   46:        for(i=0;i<8;++i) crc=(uint16_t)((crc<<1)^((crc&0x8000)?0x1021:0));
+branch  0 taken 140083 (fallthrough)
+branch  1 taken 157005
+branch  2 taken 297088
+branch  3 taken 37136 (fallthrough)
+        -:   47:    }
+      213:   48:    return crc;
+        -:   49:}
+function crc7 called 540 returned 100% blocks executed 100%
+      540:   50:static uint8_t crc7(const uint8_t *p,unsigned n) {
+      540:   51:    uint8_t crc=0,b; unsigned i;
+    24840:   52:    while(n--) { b=*p++; for(i=0;i<8;++i) { crc<<=1; if((b^crc)&128) crc^=9; b<<=1; } }
+branch  0 taken 10815 (fallthrough)
+branch  1 taken 10785
+branch  2 taken 21600
+branch  3 taken 2700 (fallthrough)
+branch  4 taken 2700
+branch  5 taken 540 (fallthrough)
+      540:   53:    return (uint8_t)((crc<<1)|1);
+        -:   54:}
+function execute called 540 returned 100% blocks executed 70%
+      540:   55:static void execute(slot_model *c) {
+      540:   56:    unsigned command=c->command[0]&63, i;
+      540:   57:    uint32_t arg=((uint32_t)c->command[1]<<24)|((uint32_t)c->command[2]<<16)|
+      540:   58:                 ((uint32_t)c->command[3]<<8)|c->command[4];
+        -:   59:    uint8_t block[512];
+        -:   60:    uint16_t crc;
+      540:   61:    int app=c->application;
+      540:   62:    c->application=0; c->head=c->tail=0;
+      540:   63:    enqueue(c,0xff); /* one response-latency byte */
+call    0 returned 540
+    1080*:   64:    if ((c->crc_enabled || (c->flags&SLOT_STRICT_CRC) || command==0 || command==8) &&
+branch  0 taken 113 (fallthrough)
+branch  1 taken 427
+branch  2 taken 0 (fallthrough)
+branch  3 taken 113
+branch  4 never executed (fallthrough)
+branch  5 never executed
+branch  6 never executed (fallthrough)
+branch  7 never executed
+branch  8 taken 0 (fallthrough)
+branch  9 taken 540
+      540:   65:        c->command[5]!=crc7(c->command,5)) {
+call    0 returned 540
+    #####:   66:        c->negative_seen=1; c->probe_seen|=1;
+    #####:   67:        if(c->recovery_status==128) c->negative_r1=8;
+branch  0 never executed (fallthrough)
+branch  1 never executed
+    #####:   68:        else if(c->recovery_status) c->status_pending=c->recovery_status;
+branch  0 never executed (fallthrough)
+branch  1 never executed
+    #####:   69:        enqueue(c,(uint8_t)(c->idle|8)); return;
+call    0 never executed
+        -:   70:    }
+     540*:   71:    if ((c->flags&SLOT_COLD_START) && !c->spi_mode && command!=0) return;
+branch  0 taken 20 (fallthrough)
+branch  1 taken 520
+branch  2 taken 1 (fallthrough)
+branch  3 taken 19
+branch  4 taken 0 (fallthrough)
+branch  5 taken 1
+     540*:   72:    if(c->missing_command==command+1) return;
+branch  0 taken 0 (fallthrough)
+branch  1 taken 540
+     540*:   73:    if(c->reject_command==command+1) { enqueue(c,4); return; }
+branch  0 taken 0 (fallthrough)
+branch  1 taken 540
+call    2 never executed
+      540:   74:    switch(command) {
+branch  0 taken 43
+branch  1 taken 43
+branch  2 taken 45
+branch  3 taken 45
+branch  4 taken 42
+branch  5 taken 85
+branch  6 taken 23
+branch  7 taken 42
+branch  8 taken 31
+branch  9 taken 103
+branch 10 taken 38
+branch 11 taken 0
+       43:   75:    case 0:
+      43*:   76:        if((c->flags&SLOT_COLD_START) && c->idle_clocks<10) break;
+branch  0 taken 1 (fallthrough)
+branch  1 taken 42
+branch  2 taken 0 (fallthrough)
+branch  3 taken 1
+      43*:   77:        if(c->ignore_cmd0) { --c->ignore_cmd0; break; }
+branch  0 taken 0 (fallthrough)
+branch  1 taken 43
+       43:   78:        c->spi_mode=1; c->idle=1; c->crc_enabled=0; enqueue(c,1); break;
+call    0 returned 43
+       43:   79:    case 8:
+       43:   80:        enqueue(c,(uint8_t)c->idle); enqueue(c,0); enqueue(c,0);
+call    0 returned 43
+call    1 returned 43
+call    2 returned 43
+       43:   81:        enqueue(c,1); enqueue(c,0xaa); break;
+call    0 returned 43
+call    1 returned 43
+       45:   82:    case 55: c->application=1; enqueue(c,c->cmd55_ready ? 0 : (uint8_t)c->idle); break;
+branch  0 taken 41 (fallthrough)
+branch  1 taken 4
+call    2 returned 45
+       45:   83:    case 41:
+      45*:   84:        if((c->flags&SLOT_INIT_CRC) && !c->crc_enabled) { enqueue(c,(uint8_t)(c->idle|8)); break; }
+branch  0 taken 4 (fallthrough)
+branch  1 taken 41
+branch  2 taken 0 (fallthrough)
+branch  3 taken 4
+call    4 never executed
+      45*:   85:        if (!app) { enqueue(c,(uint8_t)(c->idle|4)); break; }
+branch  0 taken 0 (fallthrough)
+branch  1 taken 45
+call    2 never executed
+       45:   86:        if(c->acmd41_idle) { --c->acmd41_idle; enqueue(c,1); break; }
+branch  0 taken 3 (fallthrough)
+branch  1 taken 42
+call    2 returned 3
+       42:   87:        c->idle=0; enqueue(c,0); break;
+call    0 returned 42
+       42:   88:    case 58:
+      42*:   89:        enqueue(c,(uint8_t)c->idle); enqueue(c,c->idle?0x40:0xc0);
+call    0 returned 42
+branch  1 taken 0 (fallthrough)
+branch  2 taken 42
+call    3 returned 42
+       42:   90:        enqueue(c,0xff); enqueue(c,0x80); enqueue(c,0); break;
+call    0 returned 42
+call    1 returned 42
+call    2 returned 42
+       85:   91:    case 59:
+      85*:   92:        if(c->no_cmd59==1 || (c->no_cmd59==2 && !arg)) { enqueue(c,4); break; }
+branch  0 taken 84 (fallthrough)
+branch  1 taken 1
+branch  2 taken 0 (fallthrough)
+branch  3 taken 84
+branch  4 never executed (fallthrough)
+branch  5 never executed
+call    6 returned 1
+       84:   93:        c->crc_enabled=arg&1; enqueue(c,(uint8_t)c->idle); break;
+call    0 returned 84
+       23:   94:    case 13:
+      23*:   95:        if(c->negative_r1) { enqueue(c,(uint8_t)c->negative_r1); c->negative_r1=0; break; }
+branch  0 taken 0 (fallthrough)
+branch  1 taken 23
+call    2 never executed
+      23*:   96:        enqueue(c,(uint8_t)(c->status_r1?c->status_r1:(unsigned)c->idle));
+branch  0 taken 0 (fallthrough)
+branch  1 taken 23
+call    2 returned 23
+       23:   97:        enqueue(c,(uint8_t)c->status_pending); c->status_pending=0; break;
+call    0 returned 23
+       42:   98:    case 9:
+      42*:   99:        if(c->idle) { enqueue(c,1); break; }
+branch  0 taken 0 (fallthrough)
+branch  1 taken 42
+call    2 never executed
+       42:  100:        memset(block,0,16); block[0]=0x40; block[5]=9;
+       42:  101:        { uint32_t size=(uint32_t)((c->sectors+1023)/1024-1);
+       42:  102:          block[7]=(uint8_t)((size>>16)&63); block[8]=(uint8_t)(size>>8); block[9]=(uint8_t)size; }
+       42:  103:        block[12]=2; block[13]=0x40;
+       42:  104:        enqueue(c,0); enqueue(c,255); enqueue(c,254);
+call    0 returned 42
+call    1 returned 42
+call    2 returned 42
+      714:  105:        for(i=0;i<16;++i) enqueue(c,block[i]);
+call    0 returned 672
+branch  1 taken 672
+branch  2 taken 42 (fallthrough)
+       42:  106:        crc=crc16(block,16); enqueue(c,(uint8_t)(crc>>8)); enqueue(c,(uint8_t)crc); break;
+call    0 returned 42
+call    1 returned 42
+call    2 returned 42
+       31:  107:    case 24:
+      31*:  108:        if(!(c->flags&SLOT_WRITABLE)) { enqueue(c,(uint8_t)(c->idle|4)); break; }
+branch  0 taken 0 (fallthrough)
+branch  1 taken 31
+call    2 never executed
+      31*:  109:        if(c->idle || arg>=c->sectors) { enqueue(c,c->idle?1:0x20); break; }
+branch  0 taken 31 (fallthrough)
+branch  1 taken 0
+branch  2 taken 0 (fallthrough)
+branch  3 taken 31
+branch  4 never executed (fallthrough)
+branch  5 never executed
+call    6 never executed
+       31:  110:        c->pending_lba=arg; c->write_phase=1; c->write_count=0; enqueue(c,0); break;
+call    0 returned 31
+      103:  111:    case 10:
+     103*:  112:        if (c->idle) { enqueue(c,1); break; }
+branch  0 taken 0 (fallthrough)
+branch  1 taken 103
+call    2 never executed
+      103:  113:        enqueue(c,0); enqueue(c,0xff); enqueue(c,0xfe);
+call    0 returned 103
+call    1 returned 103
+call    2 returned 103
+     1751:  114:        for(i=0;i<16;++i) enqueue(c,c->cid[i]);
+call    0 returned 1648
+branch  1 taken 1648
+branch  2 taken 103 (fallthrough)
+      103:  115:        crc=crc16(c->cid,16); enqueue(c,(uint8_t)(crc>>8)); enqueue(c,(uint8_t)crc);
+call    0 returned 103
+call    1 returned 103
+call    2 returned 103
+      103:  116:        break;
+       38:  117:    case 17:
+       38:  118:        if(c->rejection_aborted || (c->probe_fault<=2 && c->probe_fault &&
+branch  0 taken 38 (fallthrough)
+branch  1 taken 0
+branch  2 taken 36 (fallthrough)
+branch  3 taken 2
+branch  4 taken 1 (fallthrough)
+branch  5 taken 35
+       1*:  119:           (c->probe_seen & (c->probe_fault==1 ? 1 : 2)))) { enqueue(c,0); break; }
+branch  0 taken 0 (fallthrough)
+branch  1 taken 1
+branch  2 taken 1 (fallthrough)
+branch  3 taken 0
+call    4 returned 1
+      37*:  120:        if (c->idle) { enqueue(c,1); break; }
+branch  0 taken 0 (fallthrough)
+branch  1 taken 37
+call    2 never executed
+       74:  121:        if (arg>=c->sectors || seek_file(c->image,(int64_t)arg*512,SEEK_SET) ||
+branch  0 taken 37 (fallthrough)
+branch  1 taken 0
+call    2 returned 37
+branch  3 taken 37 (fallthrough)
+branch  4 taken 0
+branch  5 taken 0 (fallthrough)
+branch  6 taken 37
+      37*:  122:            fread(block,1,512,c->image)!=512) { enqueue(c,0x20); break; }
+call    0 returned 37
+call    1 never executed
+       37:  123:        if(c->read_token) {
+branch  0 taken 0 (fallthrough)
+branch  1 taken 37
+    #####:  124:            enqueue(c,0);
+call    0 never executed
+    #####:  125:            if(c->read_token==2) enqueue(c,0x0d);
+branch  0 never executed (fallthrough)
+branch  1 never executed
+call    2 never executed
+    #####:  126:            break;
+        -:  127:        }
+      37*:  128:        if(c->read_delay) { c->token_wait=c->read_delay; c->token_head=2; }
+branch  0 taken 0 (fallthrough)
+branch  1 taken 37
+      37*:  129:        if((c->probe_fault==5 || c->probe_fault==6) &&
+branch  0 taken 37 (fallthrough)
+branch  1 taken 0
+branch  2 taken 0 (fallthrough)
+branch  3 taken 37
+    #####:  130:           (c->probe_seen & (c->probe_fault==5 ? 1 : 2))) block[0]^=1;
+branch  0 never executed (fallthrough)
+branch  1 never executed
+branch  2 never executed (fallthrough)
+branch  3 never executed
+      37*:  131:        if(c->glitch_read) { --c->glitch_read; block[0]^=1; if(c->repeat_crc) c->repeat_crc=2; }
+branch  0 taken 0 (fallthrough)
+branch  1 taken 37
+branch  2 never executed (fallthrough)
+branch  3 never executed
+       37:  132:        enqueue(c,0); enqueue(c,0xff); enqueue(c,0xfe);
+call    0 returned 37
+call    1 returned 37
+call    2 returned 37
+    18981:  133:        for(i=0;i<512;++i) enqueue(c,block[i]);
+call    0 returned 18944
+branch  1 taken 18944
+branch  2 taken 37 (fallthrough)
+       37:  134:        crc=crc16(block,512); if(c->bad_read_lba && arg==c->bad_read_lba) crc^=1;
+call    0 returned 37
+branch  1 taken 3 (fallthrough)
+branch  2 taken 34
+branch  3 taken 3 (fallthrough)
+branch  4 taken 0
+      37*:  135:        if(c->bad_read_crc) { --c->bad_read_crc; crc^=1; }
+branch  0 taken 0 (fallthrough)
+branch  1 taken 37
+       37:  136:        enqueue(c,(uint8_t)(crc>>8)); enqueue(c,(uint8_t)crc);
+call    0 returned 37
+call    1 returned 37
+      37*:  137:        if(c->repeat_crc==2) { c->repeat_crc=0; c->bad_read_crc=1; }
+branch  0 taken 0 (fallthrough)
+branch  1 taken 37
+       37:  138:        break;
+    #####:  139:    default: enqueue(c,(uint8_t)(c->idle|4)); break;
+call    0 never executed
+        -:  140:    }
+        -:  141:}
+function commit called 31 returned 100% blocks executed 62%
+       31:  142:static void commit(slot_model *c) {
+       31:  143:    uint16_t supplied=((uint16_t)c->write_data[512]<<8)|c->write_data[513];
+       31:  144:    uint8_t token=5;
+       31:  145:    c->write_phase=0; c->head=c->tail=0;
+      31*:  146:    if((c->crc_enabled || (c->flags&SLOT_STRICT_CRC)) && supplied!=crc16(c->write_data,512)) {
+branch  0 taken 0 (fallthrough)
+branch  1 taken 31
+branch  2 never executed (fallthrough)
+branch  3 never executed
+call    4 returned 31
+branch  5 taken 2 (fallthrough)
+branch  6 taken 29
+        2:  147:        token=11; c->negative_seen=1; c->probe_seen|=2;
+       2*:  148:        if(c->recovery_status==128) c->negative_r1=8;
+branch  0 taken 0 (fallthrough)
+branch  1 taken 2
+       2*:  149:        else if(c->recovery_status) c->status_pending=c->recovery_status;
+branch  0 taken 0 (fallthrough)
+branch  1 taken 2
+        -:  150:    }
+       29:  151:    else if(c->reject_at==1) token=13;
+branch  0 taken 4 (fallthrough)
+branch  1 taken 25
+      25*:  152:    else if((c->probe_fault==3 || c->probe_fault==4) &&
+branch  0 taken 25 (fallthrough)
+branch  1 taken 0
+branch  2 taken 0 (fallthrough)
+branch  3 taken 25
+    #####:  153:            (c->probe_seen & (c->probe_fault==3 ? 1 : 2))) { /* accepted, not programmed */ }
+branch  0 never executed (fallthrough)
+branch  1 never executed
+branch  2 never executed (fallthrough)
+branch  3 never executed
+      25*:  154:    else if(c->ignore_off_write && !c->crc_enabled &&
+branch  0 taken 0 (fallthrough)
+branch  1 taken 25
+branch  2 never executed (fallthrough)
+branch  3 never executed
+    #####:  155:            (c->ignore_off_write==1 || supplied!=crc16(c->write_data,512))) { /* accepted, not programmed */ }
+branch  0 never executed (fallthrough)
+branch  1 never executed
+call    2 never executed
+branch  3 never executed (fallthrough)
+branch  4 never executed
+       50:  156:    else if(seek_file(c->image,(int64_t)c->pending_lba*512,SEEK_SET) ||
+call    0 returned 25
+branch  1 taken 25 (fallthrough)
+branch  2 taken 0
+branch  3 taken 25 (fallthrough)
+branch  4 taken 0
+      50*:  157:            fwrite(c->write_data,1,512,c->image)!=512 || fflush(c->image)) token=13;
+call    0 returned 25
+call    1 returned 25
+branch  2 taken 0 (fallthrough)
+branch  3 taken 25
+       31:  158:    if(c->reject_at) --c->reject_at;
+branch  0 taken 4 (fallthrough)
+branch  1 taken 27
+        -:  159:    /* Removal occurs after programming, before completion can be verified.
+        -:  160:     * The first target may change; subsequent writes must stop. */
+       31:  161:    if(c->drop_at && --c->drop_at==0) { fclose(c->image); c->image=NULL; return; }
+branch  0 taken 1 (fallthrough)
+branch  1 taken 30
+branch  2 taken 1 (fallthrough)
+branch  3 taken 0
+call    4 returned 1
+       30:  162:    if(token==5) {
+branch  0 taken 24 (fallthrough)
+branch  1 taken 6
+      24*:  163:        if(c->ff_corrupt && (c->ff_corrupt==1 || c->negative_seen)) {
+branch  0 taken 0 (fallthrough)
+branch  1 taken 24
+branch  2 never executed (fallthrough)
+branch  3 never executed
+branch  4 never executed (fallthrough)
+branch  5 never executed
+        -:  164:            unsigned i;
+    #####:  165:            for(i=0;i<512 && c->write_data[i]==255;++i) {}
+branch  0 never executed (fallthrough)
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed (fallthrough)
+    #####:  166:            if(i==512) {
+branch  0 never executed (fallthrough)
+branch  1 never executed
+        -:  167:                /* Recorded SanDisk signature: accepted, clean status, stable
+        -:  168:                 * CRC-valid readback of 508 zero bytes and four FF bytes. */
+    #####:  169:                memset(c->write_data,0,508);
+    #####:  170:                seek_file(c->image,(int64_t)c->pending_lba*512,SEEK_SET);
+call    0 never executed
+    #####:  171:                fwrite(c->write_data,1,512,c->image); fflush(c->image);
+call    0 never executed
+call    1 never executed
+        -:  172:            }
+        -:  173:        }
+       24:  174:        if(c->corrupt_at && --c->corrupt_at==0) {
+branch  0 taken 12 (fallthrough)
+branch  1 taken 12
+branch  2 taken 12 (fallthrough)
+branch  3 taken 0
+       12:  175:            c->write_data[0]^=1; seek_file(c->image,(int64_t)c->pending_lba*512,SEEK_SET);
+call    0 returned 12
+       12:  176:            fwrite(c->write_data,1,512,c->image); fflush(c->image);
+call    0 returned 12
+call    1 returned 12
+        -:  177:        }
+       24:  178:        c->busy_count=c->busy;
+       24:  179:        if(c->timeout_at && --c->timeout_at==0) c->busy_count=0xffffffffU;
+branch  0 taken 1 (fallthrough)
+branch  1 taken 23
+branch  2 taken 1 (fallthrough)
+branch  3 taken 0
+       24:  180:        if(c->status_at && --c->status_at==0) c->status_pending=0x20;
+branch  0 taken 1 (fallthrough)
+branch  1 taken 23
+branch  2 taken 1 (fallthrough)
+branch  3 taken 0
+        -:  181:    }
+       30:  182:    if(token==11 && c->reject_busy) c->busy_count=c->reject_busy;
+branch  0 taken 2 (fallthrough)
+branch  1 taken 28
+branch  2 taken 1 (fallthrough)
+branch  3 taken 1
+       30:  183:    c->late_pending=c->late_busy;
+      30*:  184:    if(c->write_response==1) { c->busy_count=0; return; }
+branch  0 taken 0 (fallthrough)
+branch  1 taken 30
+      30*:  185:    if(c->write_response==2) token=0;
+branch  0 taken 0 (fallthrough)
+branch  1 taken 30
+      30*:  186:    if(c->response_delay) { c->token_wait=c->response_delay; c->token_head=1; }
+branch  0 taken 0 (fallthrough)
+branch  1 taken 30
+       30:  187:    enqueue(c,255); enqueue(c,(uint8_t)(token | (c->response_high & 0xe0)));
+call    0 returned 30
+call    1 returned 30
+        -:  188:}
+function pulse called 330054 returned 100% blocks executed 91%
+   330054:  189:static void pulse(slot_model *c) {
+   330054:  190:    uint8_t tx=c->tx;
+   330054:  191:    c->tx=0xff;
+  330054*:  192:    if (!c->image) { c->rx=c->pull_high?0xff:0; return; }
+branch  0 taken 25082 (fallthrough)
+branch  1 taken 304972
+branch  2 taken 25082 (fallthrough)
+branch  3 taken 0
+   304972:  193:    if (!c->selected) {
+branch  0 taken 3913 (fallthrough)
+branch  1 taken 301059
+     3913:  194:        if(tx==255 && c->idle_clocks<1000) ++c->idle_clocks;
+branch  0 taken 3912 (fallthrough)
+branch  1 taken 1
+branch  2 taken 3266 (fallthrough)
+branch  3 taken 646
+     3913:  195:        c->rx=0xff; return;
+        -:  196:    }
+  301059*:  197:    if(c->token_wait && c->head==c->token_head) {
+branch  0 taken 0 (fallthrough)
+branch  1 taken 301059
+branch  2 never executed (fallthrough)
+branch  3 never executed
+    #####:  198:        --c->token_wait; c->rx=255; return;
+        -:  199:    }
+   301059:  200:    if(c->head>=c->tail && c->busy_count && c->late_pending) {
+branch  0 taken 277564 (fallthrough)
+branch  1 taken 23495
+branch  2 taken 184446 (fallthrough)
+branch  3 taken 93118
+branch  4 taken 0 (fallthrough)
+branch  5 taken 184446
+    #####:  201:        --c->late_pending; c->rx=255; return;
+        -:  202:    }
+   301059:  203:    if(c->head>=c->tail && c->busy_count) {
+branch  0 taken 277564 (fallthrough)
+branch  1 taken 23495
+branch  2 taken 184446 (fallthrough)
+branch  3 taken 93118
+   184446:  204:        c->rx=0; if(c->busy_count!=0xffffffffU) --c->busy_count; return;
+branch  0 taken 64 (fallthrough)
+branch  1 taken 184382
+        -:  205:    }
+   116613:  206:    c->rx=c->head<c->tail?c->queue[c->head++]:((c->flags&SLOT_COLD_START) && !c->spi_mode?0:0xff);
+branch  0 taken 23495 (fallthrough)
+branch  1 taken 93118
+branch  2 taken 678 (fallthrough)
+branch  3 taken 92440
+branch  4 taken 6 (fallthrough)
+branch  5 taken 672
+        -:  207:    /* MOSI is ignored while clocking a queued response/data block. */
+   116613:  208:    if (c->head<c->tail) return;
+branch  0 taken 22925 (fallthrough)
+branch  1 taken 93688
+    93688:  209:    if(c->write_phase) {
+branch  0 taken 16027 (fallthrough)
+branch  1 taken 77661
+    16027:  210:        if(c->write_phase==1) { if(tx==0xfe) { c->write_phase=2; c->write_count=0; } return; }
+branch  0 taken 93 (fallthrough)
+branch  1 taken 15934
+branch  2 taken 31 (fallthrough)
+branch  3 taken 62
+    15934:  211:        c->write_data[c->write_count++]=tx;
+    15934:  212:        if(c->write_count==514) commit(c);
+branch  0 taken 31 (fallthrough)
+branch  1 taken 15903
+call    2 returned 31
+    15934:  213:        return;
+        -:  214:    }
+    77661:  215:    if (!c->command_length && (tx&0xc0)!=0x40) return;
+branch  0 taken 74953 (fallthrough)
+branch  1 taken 2708
+branch  2 taken 74411 (fallthrough)
+branch  3 taken 542
+     3250:  216:    c->command[c->command_length++]=tx;
+     3250:  217:    if (c->command_length==6) { c->command_length=0; execute(c); }
+branch  0 taken 540 (fallthrough)
+branch  1 taken 2710
+call    2 returned 540
+        -:  218:}
+function slot_model_reset called 28 returned 100% blocks executed 100%
+       28:  219:void slot_model_reset(slot_model *c) {
+       28:  220:    c->selected=0; c->idle=1; c->application=0; c->pull_high=1;
+       28:  221:    c->spi_mode=c->idle_clocks=c->negative_seen=c->negative_r1=c->probe_seen=c->rejection_aborted=0;
+       28:  222:    c->command_length=c->head=c->tail=0; c->tx=c->rx=0xff;
+       28:  223:    c->crc_enabled=c->write_phase=c->write_count=c->busy_count=c->status_pending=0;
+       28:  224:}
+function slot_model_open_ex called 28 returned 100% blocks executed 81%
+       28:  225:slot_model *slot_model_open_ex(const char *path,unsigned flags) {
+       28:  226:    slot_model *c=calloc(1,sizeof(*c));
+        -:  227:    int64_t size;
+       28:  228:    uint32_t identity=2166136261U;
+        -:  229:    const unsigned char *p;
+      28*:  230:    if (!c) return NULL;
+branch  0 taken 0 (fallthrough)
+branch  1 taken 28
+       28:  231:    slot_model_reset(c); c->flags=flags;
+call    0 returned 28
+        -:  232:    /* Cold fixture also starts with board CS/pull/RX not prepared by a utility. */
+       28:  233:    if(flags&SLOT_COLD_START) { c->selected=1; c->pull_high=0; c->rx=0; }
+branch  0 taken 1 (fallthrough)
+branch  1 taken 27
+       28:  234:    if (!path || !*path) return c; /* absent-card testing */
+branch  0 taken 28 (fallthrough)
+branch  1 taken 0
+branch  2 taken 1 (fallthrough)
+branch  3 taken 27
+      27*:  235:    c->image=fopen(path,(flags&SLOT_WRITABLE)?"r+b":"rb");
+branch  0 taken 27 (fallthrough)
+branch  1 taken 0
+call    2 returned 27
+      27*:  236:    if (!c->image) { free(c); return NULL; }
+branch  0 taken 0 (fallthrough)
+branch  1 taken 27
+        -:  237:    /* Host fault fixtures may alter sectors between commands. Never let a
+        -:  238:     * stdio read buffer substitute stale bytes for the image's current data. */
+       27:  239:    (void)setvbuf(c->image,NULL,_IONBF,0);
+call    0 returned 27
+       27:  240:    if (seek_file(c->image,0,SEEK_END) || (size=tell_file(c->image))<512 || size%512) {
+call    0 returned 27
+branch  1 taken 27 (fallthrough)
+branch  2 taken 0
+call    3 returned 27
+branch  4 taken 27 (fallthrough)
+branch  5 taken 0
+branch  6 taken 0 (fallthrough)
+branch  7 taken 27
+    #####:  241:        slot_model_close(c); return NULL;
+call    0 never executed
+        -:  242:    }
+       27:  243:    c->sectors=(uint64_t)size/512;
+        -:  244:    /* Stable synthetic serial per image path, independent of FAT geometry. */
+      925:  245:    for(p=(const unsigned char *)path;*p;++p) identity=(identity^*p)*16777619U;
+branch  0 taken 898
+branch  1 taken 27 (fallthrough)
+       27:  246:    memcpy(c->cid,"OTTERSD MODEL",13);
+       27:  247:    c->cid[9]=(uint8_t)(identity>>24); c->cid[10]=(uint8_t)(identity>>16);
+       27:  248:    c->cid[11]=(uint8_t)(identity>>8); c->cid[12]=(uint8_t)identity;
+       27:  249:    return c;
+        -:  250:}
+function slot_model_open called 0 returned 0% blocks executed 0%
+    #####:  251:slot_model *slot_model_open(const char *path) { return slot_model_open_ex(path,0); }
+call    0 never executed
+function slot_model_config called 27 returned 100% blocks executed 43%
+       27:  252:void slot_model_config(slot_model *c,unsigned option,unsigned value) {
+        -:  253:    /* *_WRITE, BUSY_FOREVER and STATUS_ERROR select an occurrence countdown;
+        -:  254:     * BAD_READ_CRC/GLITCH_READ count affected reads. Token/response/command
+        -:  255:     * modes persist until changed. These are digital protocol faults only. */
+       27:  256:    switch(option) {
+branch  0 taken 0
+branch  1 taken 4
+branch  2 taken 1
+branch  3 taken 0
+branch  4 taken 1
+branch  5 taken 1
+branch  6 taken 1
+branch  7 taken 12
+branch  8 taken 0
+branch  9 taken 2
+branch 10 taken 0
+branch 11 taken 0
+branch 12 taken 0
+branch 13 taken 0
+branch 14 taken 0
+branch 15 taken 0
+branch 16 taken 0
+branch 17 taken 0
+branch 18 taken 0
+branch 19 taken 0
+branch 20 taken 0
+branch 21 taken 0
+branch 22 taken 1
+branch 23 taken 1
+branch 24 taken 0
+branch 25 taken 0
+branch 26 taken 2
+branch 27 taken 1
+branch 28 taken 0
+    #####:  257:    case SLOT_BUSY: c->busy=value; break;
+        4:  258:    case SLOT_REJECT_WRITE: c->reject_at=value; break;
+        1:  259:    case SLOT_BUSY_FOREVER: c->timeout_at=value; break;
+    #####:  260:    case SLOT_BAD_READ_CRC: c->bad_read_crc=value; break;
+        1:  261:    case SLOT_STATUS_ERROR: c->status_at=value; break;
+        1:  262:    case SLOT_NO_CMD59: c->no_cmd59=value; break;
+        1:  263:    case SLOT_DROP_WRITE: c->drop_at=value; break;
+       12:  264:    case SLOT_CORRUPT_WRITE: c->corrupt_at=value; break;
+    #####:  265:    case SLOT_IGNORE_CMD0: c->ignore_cmd0=value; break;
+        2:  266:    case SLOT_BAD_READ_LBA: c->bad_read_lba=value; break;
+    #####:  267:    case SLOT_IGNORE_OFF_WRITE: c->ignore_off_write=value; break;
+    #####:  268:    case SLOT_GLITCH_READ: c->glitch_read=value; break;
+    #####:  269:    case SLOT_READ_DELAY: c->read_delay=value; break;
+    #####:  270:    case SLOT_READ_TOKEN: c->read_token=value; break;
+    #####:  271:    case SLOT_WRITE_RESPONSE: c->write_response=value; break;
+    #####:  272:    case SLOT_RESPONSE_DELAY: c->response_delay=value; break;
+    #####:  273:    case SLOT_STATUS_R1: c->status_r1=value; break;
+    #####:  274:    case SLOT_REJECT_COMMAND: c->reject_command=value; break;
+    #####:  275:    case SLOT_MISSING_COMMAND: c->missing_command=value; break;
+    #####:  276:    case SLOT_LATE_BUSY: c->late_busy=value; break;
+    #####:  277:    case SLOT_REPEAT_CRC: c->repeat_crc=value; break;
+    #####:  278:    case SLOT_RESPONSE_HIGH: c->response_high=value; break;
+        1:  279:    case SLOT_CMD55_READY: c->cmd55_ready=value; break;
+        1:  280:    case SLOT_ACMD41_IDLE: c->acmd41_idle=value; break;
+    #####:  281:    case SLOT_FF_CORRUPT: c->ff_corrupt=value; break;
+    #####:  282:    case SLOT_RECOVERY_STATUS: c->recovery_status=value; break;
+        2:  283:    case SLOT_PROBE_FAULT: c->probe_fault=value; break;
+        1:  284:    case SLOT_REJECT_BUSY: c->reject_busy=value; break;
+        -:  285:    }
+       27:  286:}
+function slot_model_replace called 2 returned 100% blocks executed 86%
+        2:  287:int slot_model_replace(slot_model *c, const char *path) {
+        2:  288:    slot_model *replacement=slot_model_open_ex(path,c->flags);
+call    0 returned 2
+       2*:  289:    if (!replacement) return -1;
+branch  0 taken 0 (fallthrough)
+branch  1 taken 2
+        2:  290:    if (c->image) fclose(c->image);
+branch  0 taken 2 (fallthrough)
+branch  1 taken 0
+call    2 returned 2
+        2:  291:    *c=*replacement; free(replacement); return 0;
+        -:  292:}
+function slot_model_close called 26 returned 100% blocks executed 83%
+       26:  293:void slot_model_close(slot_model *c) {
+      26*:  294:    if (!c) return;
+branch  0 taken 0 (fallthrough)
+branch  1 taken 26
+       26:  295:    if (c->image) fclose(c->image);
+branch  0 taken 24 (fallthrough)
+branch  1 taken 2
+call    2 returned 24
+       26:  296:    free(c);
+        -:  297:}
+function slot_model_read called 992216 returned 100% blocks executed 50%
+   992216:  298:uint8_t slot_model_read(slot_model *c, unsigned offset) {
+   992216:  299:    uint8_t value=c->rx;
+   992216:  300:    switch(offset&3) {
+branch  0 taken 992170
+branch  1 taken 0
+branch  2 taken 0
+branch  3 taken 46
+branch  4 taken 0
+   992170:  301:    case 0: return value;
+    #####:  302:    case 1: pulse(c); return value;
+call    0 never executed
+    #####:  303:    case 2: c->pull_high=0; return 0xff;
+       46:  304:    case 3: c->pull_high=1; return 0xff;
+        -:  305:    }
+    #####:  306:    return 0xff;
+        -:  307:}
+function slot_model_write called 333122 returned 100% blocks executed 90%
+   333122:  308:void slot_model_write(slot_model *c, unsigned offset, uint8_t value) {
+   333122:  309:    switch(offset&3) {
+branch  0 taken 325926
+branch  1 taken 4128
+branch  2 taken 2227
+branch  3 taken 841
+branch  4 taken 0
+   325926:  310:    case 0: c->tx=value; pulse(c); break;
+call    0 returned 325926
+     4128:  311:    case 1: pulse(c); break;
+call    0 returned 4128
+     2227:  312:    case 2:
+     2227:  313:        if(c->probe_fault==7 && (c->probe_seen&2) && c->busy_count)
+branch  0 taken 35 (fallthrough)
+branch  1 taken 2192
+branch  2 taken 32 (fallthrough)
+branch  3 taken 3
+branch  4 taken 0 (fallthrough)
+branch  5 taken 32
+    #####:  314:            c->rejection_aborted=1;
+     2227:  315:        c->selected=0; c->write_phase=0; c->command_length=c->head=c->tail=0; break;
+      841:  316:    case 3: c->selected=1; break;
+        -:  317:    }
+   333122:  318:}

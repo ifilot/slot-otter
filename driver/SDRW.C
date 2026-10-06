@@ -9,7 +9,12 @@ U16 sd_port=0x330;
 SdDiagnostic sd_diag;
 U32 sd_last_lba;
 int sd_write_enabled;
-static U8 identity[16], expected[512], actual[512];
+static U8 identity[16], expected[512];
+/* Filesystem scratch may supply a write's input. expected freezes it before
+ * reception; successful verification restores these same bytes. Failure
+ * aborts the caller, which must not reuse the overwritten scratch. */
+U8 sd_scratch[512];
+#define actual sd_scratch
 static U32 allowed_first, allowed_end;
 static U8 identified, protected_card, armed;
 #ifndef HOST_TEST
@@ -17,6 +22,13 @@ static U8 identified, protected_card, armed;
 #define rw_reg_read(o) inportb(sd_port+(o))
 static U16 rw_ticks(void) { return *(volatile U16 far *)MK_FP(0x40,0x6c); }
 #endif
+U16 sd_ticks(void) { return rw_ticks(); }
+int sd_card_info(U8 *cid,U32 *last_lba) {
+    *last_lba=sd_last_lba;
+    memset(cid,0,16);
+    if (!identified) return 0;
+    memcpy(cid,identity,16); return 1;
+}
 /* OUT base+0 starts a byte burst; two RX reads allow it to settle.
  * IN base+0 does not clock the card. OUT base+2/3 releases/asserts CS;
  * IN base+3 instead raises the board's MISO pull latch. */
@@ -32,11 +44,12 @@ static void finish(void) {
 }
 static int fail(U16 code) { sd_diag.error=code; return -1; }
 U16 sd_crc16(const U8 *p, U16 count) {
-    U16 crc=0, i;
+    U16 crc=0, x;
     while (count--) {
-        crc^=(U16)*p++<<8;
-        for (i=0;i<8;++i)
-            crc=(U16)((crc<<1)^((crc&0x8000)?0x1021:0));
+        /* Table-free CCITT byte update, equivalent to eight polynomial steps.
+         * Unsigned truncation to 16 bits is part of the recurrence. */
+        x=(U16)((crc>>8)^*p++); x^=x>>4;
+        crc=(U16)((crc<<8)^(x<<12)^(x<<5)^x);
     }
     return crc;
 }
