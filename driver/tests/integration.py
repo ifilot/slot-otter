@@ -23,6 +23,8 @@ def main():
     parser.add_argument("--dosbox", required=True, help="DOSBox-VirtIsa executable")
     parser.add_argument("--toolchain", type=pathlib.Path, default=ROOT.parent / "buildenv")
     parser.add_argument("--compiler-dosbox", default="dosbox")
+    parser.add_argument("--driver",type=pathlib.Path,default=ROOT/'OTTERFS.EXE',
+                        help="Executable to install in read-only mode as OTTERFS.EXE")
     parser.add_argument("--timeout", type=float, default=45)
     parser.add_argument("--swap", action="store_true", help="Exercise empty slot and swapping; requires OTTER_MODEL_TEST adapter")
     parser.add_argument("--max-resident", type=int, default=17632, help="Resident DOS allocation ceiling in bytes")
@@ -89,7 +91,8 @@ def main():
         + (b"otterfs /unmount > sdprep.txt\r\nsdprobe > sdresult.txt\r\notterfs /mount > sdrestore.txt\r\n" if args.swap else b"") +
         b"echo OTTER-DONE > done.txt\r\n"
         b"dir a:\\ > flush.txt\r\n")
-    for source in (ROOT / "OTTERFS.EXE", work / "PROBE.EXE", work / "CLIPROBE.EXE", work / "CONFIG.SYS", work / "AUTOEXEC.BAT"):
+    subprocess.run(["mcopy","-o","-i",str(boot),str(args.driver),"::OTTERFS.EXE"],check=True)
+    for source in (work / "PROBE.EXE", work / "CLIPROBE.EXE", work / "CONFIG.SYS", work / "AUTOEXEC.BAT"):
         subprocess.run(["mcopy", "-o", "-i", str(boot), str(source), "::" + source.name], check=True)
     if args.swap:
         for name in ("SWAP", "SDPROBE"):

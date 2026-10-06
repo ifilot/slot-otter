@@ -1,0 +1,134 @@
+{
+  "combined-model/slot_model.c": {
+    "lines": 98.31,
+    "branch_outcomes": 89.02
+  },
+  "combined-rwfs/RWFS.C": {
+    "lines": 92.76,
+    "branch_outcomes": 68.87
+  },
+  "combined-rwsd/SDRW.C": {
+    "lines": 100.0,
+    "branch_outcomes": 75.68
+  },
+  "fat32/FAT32.C": {
+    "lines": 96.99,
+    "branch_outcomes": 82.03
+  },
+  "fat32/HOSTSD.C": {
+    "lines": 78.57,
+    "branch_outcomes": 44.44
+  },
+  "model/slot_model.c": {
+    "lines": 98.31,
+    "branch_outcomes": 89.02
+  },
+  "port/PORT.C": {
+    "lines": 100.0,
+    "branch_outcomes": 100.0
+  },
+  "redirector/FAT32.C": {
+    "lines": 92.77,
+    "branch_outcomes": 60.55
+  },
+  "redirector/HOSTRD.C": {
+    "lines": 100.0,
+    "branch_outcomes": 50.0
+  },
+  "redirector/REDIR.C": {
+    "lines": 100.0,
+    "branch_outcomes": 95.09
+  },
+  "redirector/HOSTSD.C": {
+    "lines": 100.0,
+    "branch_outcomes": 77.78
+  },
+  "rwfs/FAT32.C": {
+    "lines": 76.51,
+    "branch_outcomes": 49.61
+  },
+  "rwfs/HOSTRW.C": {
+    "lines": 83.05,
+    "branch_outcomes": 81.82
+  },
+  "rwfs/RWFS.C": {
+    "lines": 92.76,
+    "branch_outcomes": 68.87
+  },
+  "rwfs/SDRW.C": {
+    "lines": 93.55,
+    "branch_outcomes": 63.96
+  },
+  "rwfs/slot_model.c": {
+    "lines": 75.0,
+    "branch_outcomes": 45.99
+  },
+  "rwredir/FAT32.C": {
+    "lines": 89.16,
+    "branch_outcomes": 55.47
+  },
+  "rwredir/HOSTRW.C": {
+    "lines": 84.75,
+    "branch_outcomes": 81.82
+  },
+  "rwredir/HOSTRD.C": {
+    "lines": 100.0,
+    "branch_outcomes": 50.0
+  },
+  "rwredir/REDIR.C": {
+    "lines": 89.23,
+    "branch_outcomes": 65.54
+  },
+  "rwredir/RWOPS.C": {
+    "lines": 97.31,
+    "branch_outcomes": 74.44
+  },
+  "rwredir/RWFS.C": {
+    "lines": 85.04,
+    "branch_outcomes": 55.02
+  },
+  "rwredir/SDRW.C": {
+    "lines": 93.01,
+    "branch_outcomes": 59.91
+  },
+  "rwredir/slot_model.c": {
+    "lines": 76.69,
+    "branch_outcomes": 45.4
+  },
+  "rwsd/HOSTRW.C": {
+    "lines": 98.31,
+    "branch_outcomes": 90.91
+  },
+  "rwsd/SDRW.C": {
+    "lines": 100.0,
+    "branch_outcomes": 75.68
+  },
+  "rwsd/slot_model.c": {
+    "lines": 82.63,
+    "branch_outcomes": 60.83
+  },
+  "write/FAT32.C": {
+    "lines": 88.55,
+    "branch_outcomes": 51.95
+  },
+  "write/HOSTIO.C": {
+    "lines": 97.87,
+    "branch_outcomes": 83.33
+  },
+  "write/slot_model.c": {
+    "lines": 94.92,
+    "branch_outcomes": 85.16
+  },
+  "write/WFS.C": {
+    "lines": 84.22,
+    "branch_outcomes": 70.59
+  },
+  "write/WSD.C": {
+    "lines": 91.11,
+    "branch_outcomes": 85.58
+  },
+  "write/WTEST.C": {
+    "lines": 92.59,
+    "branch_outcomes": 69.01
+  }
+}

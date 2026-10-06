@@ -1,5 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 #include "OTTER.H"
+#ifdef RW_DRIVER
+#include "RWSD.H"
+#endif
 #include <string.h>
 
 extern unsigned _psp;
@@ -33,8 +36,14 @@ static void mount_error(U16 code) {
     line("); drive is offline.");
 }
 static int usage(void) {
+#ifdef RW_DRIVER
+    line("OTTERWR 0.3 - Slot-otter verified FAT32 drive");
+    line("Usage: OTTERWR /DRIVE:S [/PORT:330] [/RW]");
+    line("Writing is disabled unless /RW is supplied at installation.");
+#else
     line("OTTERFS 0.2 - read-only Slot-otter FAT32 drive");
     line("Usage: OTTERFS /DRIVE:S [/PORT:330]");
+#endif
     line("       OTTERFS /MOUNT | /UNMOUNT | /STATUS");
     line("Requires DOS 3.1-6.x, 8088+, SDHC/SDXC, and LASTDRIVE >= letter.");
     return 1;
@@ -57,6 +66,10 @@ int main(int argc, char **argv) {
             if (!parse_port(argv[i]+6,&port))
                 return usage();
             sd_port=(U16)port; have_port=1;
+#ifdef RW_DRIVER
+        } else if (!strcmp(argv[i],"/RW") && !sd_write_enabled) {
+            sd_write_enabled=1;
+#endif
         } else if (!strcmp(argv[i],"/MOUNT") && !command) command=2;
         else if (!strcmp(argv[i],"/UNMOUNT") && !command) command=1;
         else if (!strcmp(argv[i],"/STATUS") && !command) command=3;
@@ -64,6 +77,9 @@ int main(int argc, char **argv) {
     }
     if ((!command && !have_drive) || (command && (have_drive || have_port)))
         return usage();
+#ifdef RW_DRIVER
+    if (command && sd_write_enabled) return usage();
+#endif
     memset(&r,0,sizeof(r)); r.x.ax=0xd74f; int86(0x2f,&r,&r);
     if (command) {
         if (r.x.ax!=0x4f54 || r.x.bx!=0x524f) {
@@ -82,7 +98,11 @@ int main(int argc, char **argv) {
             return 1;
         }
         line(command==1?"OTTERFS drive is offline; card may be removed.":
+#ifdef RW_DRIVER
+                           "OTTERFS card mounted in its installed access mode.");
+#else
                            "OTTERFS card mounted read-only.");
+#endif
         return 0;
     }
     if (r.x.ax==0x4f54 && r.x.bx==0x524f) {
@@ -117,7 +137,12 @@ int main(int argc, char **argv) {
      * startup stack/heap beyond the linker-checked _BSSEND marker. keep()
      * restores CRT interrupt vectors before DOS terminates this process. */
     paragraphs=(U16)(s.ds-_psp+(((U16)&resident_end+15U)>>4));
-    text("OTTERFS: "); letter(drive_number); text(": read-only, port ");
+    text("OTTERFS: "); letter(drive_number);
+#ifdef RW_DRIVER
+    text(sd_write_enabled?": verified read/write, port ":": read-only, port ");
+#else
+    text(": read-only, port ");
+#endif
     number(sd_port,16,3); text(", resident "); number((U32)paragraphs*16,10,0); line(" bytes.");
     if (mounted) {
         text("Drive offline (DOS error "); number(mounted,10,0);
@@ -129,6 +154,11 @@ int main(int argc, char **argv) {
     for (i=0;i<5;++i) { r.x.ax=0x3e00; r.x.bx=i; int86(0x21,&r,&r); }
     env=get16((U8 far *)MK_FP(_psp,0x2c));
     if (env) { r.h.ah=0x49; s.es=env; int86x(0x21,&r,&r,&s); }
+#ifdef RW_DRIVER
+    /* Fill before installing the bridge. The private query scans untouched
+     * A5 bytes for observed stack use; IRQ use is included, not predicted. */
+    memset(resident_stack,0xa5,sizeof(resident_stack));
+#endif
     previous=getvect(0x2f); bridge_init(previous);
     /* DOS updates the CDS path after our change-directory validation. */
     cds[0]='A'+drive_number; cds[1]=':'; cds[2]='\\'; cds[3]=0;

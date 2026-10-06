@@ -127,3 +127,33 @@ Cache or handle/search capacity reductions would trade performance or functional
 for RAM. Both sector caches, 16 file slots, 32 search slots and the private stack
 remain intact. Actually running Dune II on physical hardware is not part of the
 validation performed so far.
+
+## Writable executable measurement
+
+The writable goal keeps OTTERFS unchanged and builds OTTERWR separately. CRC
+snapshot/readback, FAT mutation state, sharing/locks and diagnostics add resident
+code/data. Strong transport/filesystem/callback and mutation gates preceded the
+new memory reduction.
+
+| Build | Resident bytes including PSP | Evidence |
+|---|---:|---|
+| Original OTTERFS | 17,632 | rebuilt EXE identical to published executable |
+| OTTERWR before mode-exclusive handle union | 40,080 | linker and genuine DOS MCB |
+| OTTERWR with handle union | 39,888 | 192-byte saving; host/native regression |
+
+RO file cursors and RW directory metadata share storage in each open-file slot.
+The installed access mode cannot change on remount, so those states never need
+to coexist. Search state, sixteen file/lock slots, CRC snapshot/readback buffers
+and the 2 KiB private stack retain their capacities.
+
+Native DOS 5/6.22 memory pressure, segmented writes, directory operations,
+process-exit cleanup and fresh-boot verification pass. The highest observed
+callback stack use is 524 bytes in the tested runs. IRQ handlers also consume
+that stack; keep 2 KiB until physical 8088/deeper IRQ scenarios justify a smaller
+reserve. The host adapter does not run C on the real callback stack.
+
+Further candidates include streaming verification to avoid a second sector
+buffer or relocating installation-only code beyond the resident boundary. Those
+require separate correctness/layout evidence and are not part of this release.
+Use the smaller read-only executable when conventional memory matters more than
+writing support. Dune II and physical 5150 execution remain unqualified.

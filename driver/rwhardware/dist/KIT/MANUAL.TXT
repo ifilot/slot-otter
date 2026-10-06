@@ -1,0 +1,212 @@
+# Resident SD writer: real hardware test
+
+Use a spare SDHC/SDXC card. Writing the supplied image replaces its existing
+partition and files. Keep a bootable recovery floppy and back up the PC's
+CONFIG.SYS/AUTOEXEC.BAT. Run this procedure separately on SanDisk and Intenso,
+starting with a newly imaged card each time. Physical 8088 testing remains
+deferred; an 80286 with 1 MiB is the immediate hardware target.
+
+This kit tests OTTERWR through DOS file APIs. It does not talk directly to the
+ISA card and does not deliberately send invalid CRCs. Keep the earlier WTTEST
+kit and logs separately; never run a raw card utility while this driver is
+mounted. Compilation uses Turbo C/TASM; emulation testing boots genuine DOS.
+Passing emulation does not qualify physical hardware.
+
+## 1. Image and copy the kit using Navigator
+
+Write RESWRITE.IMG as a whole-disk image to the spare card using your usual PC
+image-writing tool. Select the correct removable device. Do not copy the IMG
+file into an existing filesystem. The image contains a small FAT32 partition,
+read fixtures, a root RW.TAG identity marker, and a KIT directory.
+
+Boot the DOS PC without either resident driver installed. Use Navigator to
+copy every file from KIT to a writable local directory, for example C:\OTTERWR
+or A:\OTTERWR. Required files are OTTERWR.EXE, HWRT.EXE, RWCHILD.EXE,
+MANUAL.TXT, CONFIG.TXT, FILES.SHA and SOURCE.SHA. RWCHILD is the process-exit
+test companion. The source ZIP is retained on your development PC.
+
+Exit Navigator completely before installing the driver. The driver and
+Navigator must not own the SD card at the same time. Keep the test card inserted.
+
+## 2. Configure DOS, reboot, and install
+
+Merge these settings into the local boot disk's existing CONFIG.SYS:
+
+```
+LASTDRIVE=S
+FILES=40
+BUFFERS=10
+```
+
+Preserve the other boot-disk settings. Do not use DEVICE=OTTERWR.EXE: this is a
+TSR redirector executable. For this qualification run, install it manually
+after each reboot. Remove any existing automatic OTTERFS/OTTERWR installation
+from AUTOEXEC.BAT for the duration of testing. S: must be unused.
+
+Reboot. Change to the local kit directory and run:
+
+```
+OTTERWR /DRIVE:S /PORT:330 /RW > INSTALL.LOG
+TYPE INSTALL.LOG
+OTTERWR /STATUS > STATUS.LOG
+TYPE STATUS.LOG
+HWRT /INFO /PORT:330
+```
+
+Use the actual configured ISA base port instead of 330 if it differs; port
+values are hexadecimal. Installation must report verified read/write and a
+mounted card. Without /RW, OTTERWR installs read-only and write tests refuse
+to proceed. The original OTTERFS remains the smaller read-only option.
+
+Run HWRT from the local directory, never S:. It creates local logs itself;
+do not redirect them onto the SD card. /INFO validates the image marker and
+original read fixtures without writing the card. A local log failure stops
+the test. DOS critical errors return FAIL instead of waiting at a prompt.
+
+## 3. First write test
+
+```
+HWRT /TEST /ERASE /PORT:330
+```
+
+/ERASE is the explicit authorization to create/delete test files. It does not
+format the disk. /TEST requires the supplied image marker and a writable,
+mounted enhanced driver with no open resident files. An existing RWTEMP
+directory stops the initial test: do not delete it and retry after a failure;
+preserve the log, reboot and re-image the card.
+
+Every checkpoint prints PASS or FAIL. Expected access/lock rejections can print
+DOS ERROR lines followed by PASS; those lines are intentional negative tests.
+Their function/AX records are the direct INT 21h results. C errno/DOS errno and
+extended errors can be stale after direct interrupt calls or local logging.
+The final HWRT RESULT must say PASS with ERRORLEVEL=0. The program stops at the
+first unexpected failure, reports driver/transport details, and returns 1.
+Setup/usage/local-log problems return 2.
+
+The suite exercises file creation, boundary overwrite, append, zero gaps,
+zero-length truncate/extension, duplicates and shared handles, region locks,
+attributes/timestamps, directory creation/removal, cross-directory moves,
+grown-directory wildcard deletion, 64 KiB-crossing buffers, process exit with
+unclosed handles/locks, interleaved allocation/reclamation, 70,000-byte new
+files, and all-zero/all-FF payloads. It preserves the original read fixtures.
+
+Writes are intentionally expensive: every 512-byte sector is CRC checked,
+waited to completion, read back with CRC, and compared exactly. Mount/commit
+also check FAT metadata. Large volumes and an 8088 can take considerable time.
+Keep the last visible checkpoint if progress stops; do not reset merely because
+a directory operation takes longer than a file read.
+
+Keep RWTEST.LOG, INSTALL.LOG and STATUS.LOG before rerunning anything.
+
+## 4. Stress and memory checks
+
+```
+HWRT /STRESS /ERASE /PORT:330
+HWRT /MEMORY /PORT:330
+```
+
+/STRESS first verifies existing results, then performs twenty cycles of
+allocation, writing, exact readback, deletion and cluster reuse. It verifies
+the permanent results and original fixtures again. Preserve RWSTRESS.LOG.
+
+/MEMORY allocates and overwrites all free DOS memory, exercises the resident
+driver while that memory is occupied, releases it, and verifies the files
+again. Save work before this command. RWMEM.LOG reports the DOS resident MCB
+and the observed private-stack use. Pattern scanning measures this run; it
+does not prove a worst-case IRQ/stack bound on all machines.
+
+## 5. Flush, reboot, and verify persistence
+
+```
+OTTERWR /UNMOUNT > UNMOUNT.LOG
+TYPE UNMOUNT.LOG
+```
+
+Close every file/application using S: first. A successful unmount commits the
+volume and leaves it offline. Reboot without re-imaging the card. Install the
+same executable and mode as in step 2, then run:
+
+```
+HWRT /VERIFY /PORT:330
+```
+
+/VERIFY checks the completion marker, exact saved data, exact EOFs and final
+timestamp. It writes no SD data. Preserve RWVERIFY.LOG as the reboot result;
+copy it to a separately named local file before later /VERIFY runs overwrite it.
+On the modern PC, also inspect the created files and use a read-only filesystem
+check before making repairs. A successful immediate readback is insufficient
+evidence of persistence after reboot.
+
+## 6. Empty slot and re-insertion
+
+Only after a successful test and reboot verification:
+
+```
+HWRT /SWAP /PORT:330
+```
+
+Follow the displayed prompts. It unmounts first, asks you to remove the card,
+checks that an empty-slot mount returns a bounded error, then asks you to
+reinsert the SAME card. It explicitly remounts and verifies saved results.
+RW.TAG is shared by kit images; it is not a unique physical-card identity.
+Reinserting the same card is your responsibility during this step.
+Preserve RWSWAP.LOG. Do not remove a mounted card during an ordinary write test.
+Test the second brand separately with a fresh image and new local log copies.
+
+## 7. Report results and failures
+
+Return all logs, the card brand/model/capacity, DOS version, CPU/RAM, ISA port,
+driver executable hash from FILES.SHA, CONFIG.SYS/AUTOEXEC.BAT, and the last
+visible checkpoint. Label SanDisk and Intenso logs separately. HWRT includes
+its source identifier and driver mode in each log.
+
+The SD line reports diagnostic error, stage, absolute LBA, R1, response token,
+status, poison and attempts. FIRST preserves the first failure of the latest
+sector write, even if its retry succeeded; later writes replace that snapshot.
+Counters are cumulative since the last mount. /MEMORY and /SWAP remount, so
+their final counters can reset. LAST CALLBACK is sticky and may describe an
+earlier expected rejection rather than the operation immediately before it.
+verified counts verified 512-byte sector writes, including FAT and directory
+metadata. transmissions counts payload transmissions; retries counts additional
+attempts after successful recovery. These are not file-operation counts.
+LBA/stage/R1 can reflect a later read while FIRST/attempts still belong to the
+latest write. The fields are not necessarily one operation's atomic snapshot.
+Fields from a diagnostic query with CF=1 are unavailable, not evidence of health.
+
+| SD diagnostic | Meaning |
+|---|---|
+| 101 | timeout waiting for command/token/busy completion |
+| 102 | received CRC mismatch or card rejected data CRC |
+| 103 | command/data response rejected |
+| 104 | nonzero card status after write |
+| 105 | CRC-valid readback differs from intended sector |
+| 106 | identity/initialization/recovery could not be established |
+| 107 | unsupported capacity/address range |
+
+Normal stages are SD command numbers. Stage 124 waits for the CMD24 data
+response, 224 for accepted-write busy completion, 324 for CRC-rejection busy
+completion. A readback mismatch usually has stage 17. Token FE means a data
+packet arrived; CRC or exact-content validation can still fail. FF commonly
+means no response/token. Clean R1/status alone does not prove write success.
+Poison=1 blocks further sector reads and writes and takes the volume offline.
+Three attempts means the initial attempt plus at most two
+retries of the same frozen sector/LBA, only after identity and usable reads
+have been reestablished. Failed verification can occur after a sector changed.
+
+Do not repeatedly run write commands after a failure. Keep the log and card
+contents for analysis. Verified sector writes are not a transaction: power
+loss/removal can leave leaked clusters, duplicate rename entries or mismatched
+FAT copies. The driver does not automatically repair such a volume and refuses
+writable mounting of unclean volumes and inconsistencies detected by mount
+preflight; it does not perform a global allocation/crosslink scan. Use a fresh expendable
+image for the next write qualification run.
+
+## Supported scope
+
+DOS handle-based file operations and short aliases are the qualification target.
+LFN creation, FAT12/16 SD volumes, SDSC cards, booting DOS from the SD card,
+and general DOS server/network functions are outside this kit. Standard FCB
+wildcard deletion is covered; FCB record-I/O/process-abort lifecycle is not
+qualified. DOS 5 and 6.22 are the actual-kernel test targets. The resident source
+retains older DOS ABI handling and 8086 instructions, but that is not equivalent
+to physical 5150 or DOS 3 qualification.

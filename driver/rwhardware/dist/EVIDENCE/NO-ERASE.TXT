@@ -1,0 +1,12 @@
+Artifacts: /tmp/otter-hwrt-dos-z7tv__g1
+first INSTALL.TXT:
+OTTERFS: S: verified read/write, port 330, resident 39888 bytes.
+Card mounted. Run OTTERFS /UNMOUNT before removing it or running OTTERNAV.
+
+first CODE.TXT:
+1 
+
+first UNMOUNT.TXT:
+OTTERFS drive is offline; card may be removed.
+
+PASS: hardware tester no-erase stops safely

@@ -6,9 +6,10 @@ Run the fast suite from any working directory with Python 3 and GCC:
 python3 driver/tests/run.py --coverage /tmp/otter-coverage --mutations
 ```
 
-The 46 unit tests compile the production FAT32 reader, DOS redirector and card
-model. They take roughly three seconds without mutation checks on the development
-machine. No DOS toolchain, copyrighted DOS image, emulator or third-party Python
+The current combined suite has 223 tests and 95 mutation checks. It compiles the
+production reader, writable transport/filesystem/redirector, standalone writer,
+and card model. Tests take about 43 seconds without mutation checks on the
+development machine. No DOS toolchain, copyrighted DOS image, emulator or third-party Python
 package is required. The GitHub driver workflow runs coverage and mutation checks
 on changes under `driver` and retains the coverage artifacts.
 
@@ -125,3 +126,20 @@ asserted. Fixtures reproduce command/data-triggered read failures or discarded
 writes and detect early CS release. Tests cover nonzero original scratch,
 read-token samples, progress logging and unexpected idle-plus-CRC responses.
 Fresh-boot verification of the prior NORMAL hardware runs is user-confirmed.
+
+The resident writer adds separate SDRW/RWFS/RWOPS coverage and sensitivity
+checks. Current floors are 99% lines/75% branch outcomes for transport, 90%/66%
+for RWFS, 95%/72% for RWOPS, and 88%/63% for the combined redirector. Identical
+writer coverage graphs are merged across wire, filesystem and callback tests;
+the reported percentages are not sums.
+
+`rw_integration.py` boots genuine DOS on private images and runs DOS API checks,
+segmented writes, locks, wildcard deletion, resident MCB/stack and memory-pressure
+checks. Profiles cover strict CRC, slow busy completion, CRC rejection, corrupted
+readback, status failure, removal and a read-CRC failure. Linker layout and
+independent mtools/fsck content checking accompany the native tests.
+
+The deployable resident-DOS tester and its fresh-boot/guard/fault harness are in
+[../rwhardware/README.md](../rwhardware/README.md). The swap harness uses a private
+input wrapper to operate the emulator's card-removal port; the physical HWRT
+executable contains no such control. Human prompts are followed on real hardware.

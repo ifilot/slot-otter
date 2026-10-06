@@ -1,0 +1,22 @@
+Artifacts: /tmp/otter-hwrt-dos-uz9_no7d
+first INSTALL.TXT:
+OTTERFS: S: read-only, port 330, resident 40080 bytes.
+Card mounted. Run OTTERFS /UNMOUNT before removing it or running OTTERNAV.
+
+first CODE.TXT:
+1 
+
+first RWTEST.LOG:
+HWRT v0.1 / 8086 DOS API hardware test / source=203a4a9c4f71d9ae
+DOS=5.0 local=A: port=330 mode=2
+WARNING: expendable supplied image only. /ERASE authorizes test-file creation/deletion.
+DRIVER: drive=18 online=1 open_slots=0 port=330
+MODE: writable=0 attempts=3 online=1
+STOP: enhanced driver required; writing requires installation with /RW.
+HWRT RESULT: STOP/FAIL checks=0 ERRORLEVEL=2
+STOP: retain this log and last checkpoint. Reboot; re-image before new writes.
+
+first UNMOUNT.TXT:
+OTTERFS drive is offline; card may be removed.
+
+PASS: hardware tester readonly stops safely

@@ -16,5 +16,10 @@ void test_reset(void) {
     dos_search_offset=0x19e; dos_found_offset=0x1b3;
     memcpy(drive_cds,"S:\\",4); put16(drive_cds+0x43,0xc080);
     put16(dos_sda+12,0); put16(dos_sda+14,4);
+#ifdef RW_DRIVER
+    memset(locks,0,sizeof(locks)); rw_bios_ticks=0; rw_invalidate();
+    rw_error_function=rw_error_code=0;
+    memset(resident_stack,0xa5,sizeof(resident_stack));
+#endif
     fs_invalidate(); memset(&volume,0,sizeof(volume)); fs_error=0;
 }

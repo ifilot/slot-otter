@@ -1,0 +1,16 @@
+{
+  "source_manifest_sha256": "e9f5221f3cf9a65482351cf61a24e4b7aaf20369823af8da93268f5540efbb49",
+  "tester_sources_sha256": "84482a8847ec77a9190c60f14344c93023991b8131c5e770e97d243e4b242153",
+  "resident_bytes": 39888,
+  "read_only_resident_bytes": 17632,
+  "layout": {
+    "start": 2048,
+    "data": 3174,
+    "total": 71126,
+    "spc": 1
+  },
+  "image_bytes": 37748736,
+  "compiler_work": "/tmp/otter-reswrite-package-ynew2tfn",
+  "physical_hardware_qualified": false,
+  "physical_8088_testing": "deferred"
+}

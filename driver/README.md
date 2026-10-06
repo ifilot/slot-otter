@@ -1,5 +1,14 @@
 # OTTERFS: standalone read-only FAT32 driver
 
+An opt-in writable executable, `OTTERWR.EXE`, now shares this standalone source
+tree. Install it with `/DRIVE:S /PORT:330 /RW`; without `/RW` it is read-only.
+It retains 39,888 bytes, verifies each written sector through CRC-checked exact
+readback, and permits at most three total attempts after checked recovery.
+The original `OTTERFS.EXE` remains the 17,632-byte read-only option.
+See the [writable hardware test manual](rwhardware/MANUAL.md),
+[build/test instructions](rwhardware/README.md), and
+[source conventions](CODING.md). The rest of this page describes OTTERFS.
+
 `OTTERFS.EXE` makes a Slot-otter SD card available as a DOS drive letter. Ordinary
 DOS programs can list directories, read and seek files, copy files to local
 disks, and run executables directly from the card. It is a resident filesystem

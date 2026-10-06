@@ -47,6 +47,16 @@ def main():
                         str(args.coverage / "write"),"-o",str(merged)],check=True)
         import shutil
         shutil.copyfile(args.coverage / "model/slot_model.gcno",merged / "slot_model.gcno")
+        # Merge identical production writer graphs from filesystem, callback,
+        # and transport tests; each exercises different error paths.
+        rwfs = args.coverage / "combined-rwfs"
+        subprocess.run(["gcov-tool", "merge", str(args.coverage / "rwfs"),
+                        str(args.coverage / "rwredir"), "-o", str(rwfs)], check=True)
+        shutil.copyfile(args.coverage / "rwfs/rwfs.gcno", rwfs / "rwfs.gcno")
+        rwsd = args.coverage / "combined-rwsd"
+        subprocess.run(["gcov-tool", "merge", str(args.coverage / "rwsd"),
+                        str(rwfs), "-o", str(rwsd)], check=True)
+        shutil.copyfile(args.coverage / "rwsd/sdrw.gcno", rwsd / "sdrw.gcno")
         reports = []
         metrics = {}
         for notes in sorted(args.coverage.rglob("*.gcno")):
@@ -59,6 +69,8 @@ def main():
                 key = notes.parent.name + "/" + pathlib.Path(match[1]).name
                 metrics[key] = {"lines": float(match[2]), "branch_outcomes": float(match[3])}
         metrics["model/slot_model.c"]=metrics["combined-model/slot_model.c"]
+        metrics["rwfs/RWFS.C"] = metrics["combined-rwfs/RWFS.C"]
+        metrics["rwsd/SDRW.C"] = metrics["combined-rwsd/SDRW.C"]
         summary = "\n".join(reports)
         (args.coverage / "summary.txt").write_text(summary)
         (args.coverage / "coverage.json").write_text(json.dumps(metrics, indent=2) + "\n")
@@ -69,7 +81,11 @@ def main():
                                                ("port/PORT.C", 100, 100),
                                                ("write/WFS.C", 80, 65),
                                                ("write/WSD.C", 80, 65),
-                                               ("write/WTEST.C", 85, 60)]:
+                                               ("write/WTEST.C", 85, 60),
+                                               ("rwfs/RWFS.C", 90, 66),
+                                               ("rwsd/SDRW.C", 99, 75),
+                                               ("rwredir/RWOPS.C", 95, 72),
+                                               ("rwredir/REDIR.C", 88, 63)]:
             metric = metrics[key]
             if metric["lines"] < line_floor or metric["branch_outcomes"] < branch_floor:
                 raise RuntimeError(f"Coverage below regression floor: {key}: {metric}")
@@ -77,6 +93,8 @@ def main():
     if args.mutations:
         subprocess.run([sys.executable, str(TESTS / "mutations.py")], check=True)
         subprocess.run([sys.executable, str(TESTS.parent / "write/sensitivity.py")], check=True)
+        for name in ("rw_mutations.py", "rw_fs_mutations.py", "rw_redirector_mutations.py"):
+            subprocess.run([sys.executable, str(TESTS / name)], check=True)
     if args.build:
         subprocess.run(["bash", str(TESTS.parent / "build.sh")], check=True)
     for boot in args.boot_image:

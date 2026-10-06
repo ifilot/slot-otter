@@ -43,6 +43,8 @@ eligible:
     je available
     jmp chain_direct
 available:
+    ; Saved frame matches Registers: AX BX CX DX SI DI ES DS BP,
+    ; then interrupt IP CS FLAGS, then the caller's extra parameter word.
     push bp
     push ds
     push es
@@ -70,6 +72,8 @@ available:
     mov sp,offset resident_stack+2048
     mov ds,ax
     mov cs:busy,1
+    ; Set busy before enabling IRQs. IRQ handlers can use this private stack;
+    ; nested redirector calls chain rather than reusing C's static scratch.
     sti
     call dispatch
     cli
@@ -97,6 +101,7 @@ available:
     pop bp
     iret
 unhandled:
+    ; dispatch returned zero: restore the original caller frame unchanged.
     mov ax,cs:saved_ss
     mov ss,ax
     mov sp,cs:saved_sp

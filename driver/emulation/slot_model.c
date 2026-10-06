@@ -156,6 +156,8 @@ static void commit(slot_model *c) {
     else if(seek_file(c->image,(int64_t)c->pending_lba*512,SEEK_SET) ||
             fwrite(c->write_data,1,512,c->image)!=512 || fflush(c->image)) token=13;
     if(c->reject_at) --c->reject_at;
+    /* Removal occurs after programming, before completion can be verified.
+     * The first target may change; subsequent writes must stop. */
     if(c->drop_at && --c->drop_at==0) { fclose(c->image); c->image=NULL; return; }
     if(token==5) {
         if(c->ff_corrupt && (c->ff_corrupt==1 || c->negative_seen)) {
@@ -232,6 +234,9 @@ slot_model *slot_model_open_ex(const char *path,unsigned flags) {
     if (!path || !*path) return c; /* absent-card testing */
     c->image=fopen(path,(flags&SLOT_WRITABLE)?"r+b":"rb");
     if (!c->image) { free(c); return NULL; }
+    /* Host fault fixtures may alter sectors between commands. Never let a
+     * stdio read buffer substitute stale bytes for the image's current data. */
+    (void)setvbuf(c->image,NULL,_IONBF,0);
     if (seek_file(c->image,0,SEEK_END) || (size=tell_file(c->image))<512 || size%512) {
         slot_model_close(c); return NULL;
     }
@@ -245,6 +250,9 @@ slot_model *slot_model_open_ex(const char *path,unsigned flags) {
 }
 slot_model *slot_model_open(const char *path) { return slot_model_open_ex(path,0); }
 void slot_model_config(slot_model *c,unsigned option,unsigned value) {
+    /* *_WRITE, BUSY_FOREVER and STATUS_ERROR select an occurrence countdown;
+     * BAD_READ_CRC/GLITCH_READ count affected reads. Token/response/command
+     * modes persist until changed. These are digital protocol faults only. */
     switch(option) {
     case SLOT_BUSY: c->busy=value; break;
     case SLOT_REJECT_WRITE: c->reject_at=value; break;

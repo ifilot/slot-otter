@@ -5,6 +5,7 @@ driver_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 toolchain_dir="${TOOLCHAIN_DIR:-$driver_dir/../buildenv}"
 dosbox_bin="${DOSBOX_BIN:-dosbox}"
 build_dir="$(mktemp -d /tmp/otterfs-build.XXXXXX)"
+output_dir="${1:-$driver_dir}"
 cp "$driver_dir"/*.C "$driver_dir"/*.H "$driver_dir"/*.ASM "$driver_dir/MAKEFILE" "$build_dir/"
 python3 - "$build_dir" <<'PY'
 import pathlib, sys
@@ -21,7 +22,7 @@ if [[ ! -s "$build_dir/OTTERFS.EXE" ]]; then
   echo "Build failed; logs retained in $build_dir" >&2
   exit 1
 fi
-cp "$build_dir/OTTERFS.EXE" "$driver_dir/OTTERFS.EXE"
-cp "$build_dir/OTTERFS.MAP" "$driver_dir/OTTERFS.MAP"
-python3 "$driver_dir/tests/layout.py" "$driver_dir/OTTERFS.MAP"
-echo "Built $driver_dir/OTTERFS.EXE; build files: $build_dir"
+python3 "$driver_dir/tests/layout.py" "$build_dir/OTTERFS.MAP"
+mkdir -p "$output_dir"
+cp "$build_dir/OTTERFS.EXE" "$build_dir/OTTERFS.MAP" "$output_dir/"
+echo "Built $output_dir/OTTERFS.EXE; build files: $build_dir"
