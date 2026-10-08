@@ -19,6 +19,7 @@
  * ===================================================================== */
 
 #include "sdnav.h"
+#include <string.h>
 
 static int cursor_pos;
 static int start_pos;
@@ -46,7 +47,7 @@ void sdnav_display_commands() {
     gotoxy(1,25);
     set_hl();
     clreol();
-    cputs("F1: HELP | F3: COPY | F10: EXIT | TAB: SWITCH PANE");
+    cputs("F1: HELP | F2: MKDIR | F3: COPY | F4: DEL | F8: SETTINGS | F10: EXIT | TAB");
     set_regular();
 }
 
@@ -215,4 +216,105 @@ void sdnav_print_entry(unsigned char pos, unsigned int id) {
     } else {
     cprintf("  %.8s.%.3s           %8lu", entry->basename, entry->extension, entry->filesize);
     }
-}
+}
+
+/*
+ * sdnav_create_folder - Create folder on SD card
+ *
+ * Ask the user to type in a folder name and create that folder
+ */
+void sdnav_create_folder() {
+    char c = 0;
+    unsigned ctr = 0;
+    char dbuf[9] = {0};
+
+    store_screen();
+
+    /* print boxed prompt with title + input field */
+    window(28,13,53,17);
+    clrscr();
+    gotoxy(1,1);  cputs("\xDA\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xBF");
+    gotoxy(1,2);  cputs("\xB3 ENTER FOLDER NAME:     \xB3");
+    gotoxy(1,3);  cputs("\xB3                        \xB3");
+    gotoxy(1,4);  cputs("\xC0\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xD9");
+    textbackground(BLUE);
+    textcolor(WHITE);
+    gotoxy(3,3);
+    cputs("                    ");
+    gotoxy(3,3);
+
+    /* put in writing mode */
+    while(c != 0x0D) {
+        c = getch();
+        gotoxy(3+ctr, 3);
+        if(ctr < 8) {
+            if((c>='0' & c<='9') || (c>='A' && c<='Z') || (c>='a' && c<='z')) {
+            dbuf[ctr++] = c;
+            putch(c);
+            }
+        }
+        if(ctr > 0 && c == 8) {
+            gotoxy(2+ctr, 3);
+            putch(' ');
+            dbuf[--ctr] = 0;
+            gotoxy(3+ctr, 3);
+        }
+        if(c == 0x1B) {
+            break;
+        }
+    }
+
+    if(c == 0x0D) {
+        fat32_mkdir(dbuf);
+    }
+
+    set_regular();
+    window(1,1,80,25);
+    restore_screen();
+    sdnav_print_files();
+    sdnav_reset_cursor();
+}
+
+/*
+ * sdnav_delete_entry - Delete an SD card entry after confirmation
+ *
+ * Parameters:
+ *      f - Pointer to FAT32File entry
+ */
+void sdnav_delete_entry(const struct FAT32File* f) {
+    char rawname[11];
+    char filename[13];
+    char* ptr;
+
+    if(f == 0) {
+        return;
+    }
+
+    if(memcmp(f->basename, ".       ", 8) == 0 ||
+       memcmp(f->basename, "..      ", 8) == 0) {
+        return;
+    }
+
+    memcpy(rawname, f->basename, 11);
+
+    if(f->attrib & MASK_DIR) {
+        memset(filename, 0x00, sizeof(filename));
+        memcpy(filename, f->basename, 8);
+        ptr = strchr(filename, ' ');
+        if(ptr != 0) {
+            *ptr = 0;
+        }
+    } else {
+        build_dos_filename(f, filename);
+    }
+
+    if(confirm_delete_modal(filename, (f->attrib & MASK_DIR) != 0)) {
+        fat32_delete_entry(rawname);
+    }
+
+    sdnav_print_files();
+    sdnav_reset_cursor();
+}
+
+
+

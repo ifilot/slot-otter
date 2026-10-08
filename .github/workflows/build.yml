@@ -1,119 +1,122 @@
-name: Build
+name: Build and Release
 
 on:
   push:
-    branches:
-      - master
-      - develop
-    tags: [ 'v*' ]
+    branches: [master, develop]
+    tags: ['v*']
   pull_request:
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  build:
+  tests:
+    uses: ./.github/workflows/driver-tests.yml
+
+  driver:
+    name: OTTERSD public packages
+    needs: tests
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-
-      - name: Install dependencies fast
+      - uses: actions/checkout@v4
+      - name: Install build and filesystem tools
         run: |
-          sudo rm -f /var/lib/man-db/auto-update
           sudo apt-get update -qq
-          sudo apt-get install -y -qq --no-install-recommends dosbox xvfb make mtools
-
-      - name: Run DOSBox build (headless)
-        run: |
-          chmod +x build.sh
-          xvfb-run -a ./build.sh
-
-      - name: Show DOSBox log
+          sudo apt-get install -y -qq --no-install-recommends dosbox make mtools dosfstools ripgrep
+      - name: Check release tag matches the driver
+        if: startsWith(github.ref, 'refs/tags/')
+        run: python3 driver/release.py --check-tag "$GITHUB_REF_NAME"
+      - name: Build standalone DOS driver
+        run: bash driver/build.sh "$RUNNER_TEMP/ottersd-build"
+      - name: Package driver-only floppies and empty SD images
+        run: python3 driver/release.py --driver "$RUNNER_TEMP/ottersd-build/OTTERSD.EXE" --output release-assets
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ottersd-release
+          path: release-assets/
+          if-no-files-found: error
+      - name: Retain private build diagnostics
         if: always()
-        run: |
-          echo "=== DOSBOX LOG OUTPUT ==="
-          cat dosbox_build.log || echo "(no log file)"
-
-      - name: Create DOS floppy images
-        if: success()
-        run: |
-          mkdir -p floppies
-          EXE=$(basename src/*.EXE)
-          SOURCE_FILES=(
-            src/*.C
-            src/*.H
-            src/*.ASM
-            src/*.PRJ
-            src/MAKEFILE
-            src/README.MD
-          )
-          echo "Creating floppy images for $EXE ..."
-
-          copy_files_to_image() {
-            local image_path="$1"
-            mcopy -i "$image_path" "src/$EXE" ::
-            mmd -i "$image_path" ::/SOURCES
-            mcopy -i "$image_path" "${SOURCE_FILES[@]}" ::/SOURCES
-          }
-
-          # 360 KiB (5.25" DD)
-          mformat -f 360 -C -v SLOT360 -i floppies/floppy_360k.img ::
-          copy_files_to_image floppies/floppy_360k.img
-
-          # 720 KiB (3.5" DD)
-          mformat -f 720 -C -v SLOT720 -i floppies/floppy_720k.img ::
-          copy_files_to_image floppies/floppy_720k.img
-
-          # 1.44 MiB (3.5" HD)
-          mformat -f 1440 -C -v SLOT144 -i floppies/floppy_1440k.img ::
-          copy_files_to_image floppies/floppy_1440k.img
-
-          echo "Floppy images created:"
-          ls -lh floppies/
-
-      - name: Upload build artifacts
-        if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: slototter-build
-          path: |
-            src/*.EXE
-            floppies/*.img
+          name: ottersd-build-diagnostics
+          path: ${{ runner.temp }}/ottersd-build/*.MAP
+          if-no-files-found: ignore
+
+  legacy:
+    name: Legacy OTTERNAV executable
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install legacy build tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends dosbox make
+      - name: Build legacy Navigator
+        run: bash build.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: otternav-legacy
+          path: src/OTTERNAV.EXE
+          if-no-files-found: error
 
   release:
-    needs: build
-    if: startsWith(github.ref, 'refs/tags/')
+    needs: [driver, legacy]
+    # A legacy build failure must not block the primary driver release.
+    if: always() && startsWith(github.ref, 'refs/tags/') && needs.driver.result == 'success'
     runs-on: ubuntu-latest
-
+    permissions:
+      contents: write
     steps:
-      - name: Download build artifact
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
-          name: slototter-build
-          path: release
-
-      - name: Verify extracted files
-        run: |
-          echo "Contents of release folder:"
-          find release -type f -printf "%p (%k KiB)\n" | sort
-
-      - name: Create GitHub Release
+          name: ottersd-release
+          path: release/ottersd
+      - name: Publish OTTERSD release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          name: "Release ${{ github.ref_name }}"
+          name: OTTERSD ${{ github.ref_name }}
+          fail_on_unmatched_files: true
           body: |
-            Automated release for **${{ github.ref_name }}**.
+            OTTERSD is the primary DOS software for Slot-otter.
+            Version 1.0.0 is the first stable release.
 
-            Includes:
-            - Compiled SLOTOTTER.EXE
-            - 360 KiB / 720 KiB / 1.44 MiB DOS floppy images (.img)
+            Download OTTERSD-DOS.zip or a 360 KiB / 720 KiB / 1.44 MiB
+            installation floppy. Floppies contain the driver and user
+            instructions, with no testing utilities. They are not boot disks.
 
-            Build produced by GitHub Actions using DOSBox.
+            Recommended: **OTTERSD-FAT16-500MiB.zip**, with 16 KiB clusters.
+            OTTERSD-FAT32-500MiB.zip is the alternative with 4 KiB clusters.
+            Both are empty formatted volumes. Writing the IMG to the entire
+            card replaces existing partitions and files; back up first.
+            Whole images are 501 MiB including the partition offset.
+
+            For browsing and copying files, use Nightwatch with OTTERSD:
+            https://github.com/ifilot/nightwatch
+
+            OTTERNAV remains a separate legacy download when its build succeeds.
+            Source is included in GitHub's source archives for this tag.
           files: |
-            release/src/*.EXE
-            release/floppies/*.img
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            release/ottersd/OTTERSD.EXE
+            release/ottersd/OTTERSD-DOS.zip
+            release/ottersd/floppy_*.img
+            release/ottersd/OTTERSD-FAT16-500MiB.zip
+            release/ottersd/OTTERSD-FAT32-500MiB.zip
+            release/ottersd/README.TXT
+            release/ottersd/RELEASE.JSON
+            release/ottersd/SHA256.TXT
+      - name: Download optional legacy executable
+        if: needs.legacy.result == 'success'
+        uses: actions/download-artifact@v4
+        with:
+          name: otternav-legacy
+          path: release/legacy
+      - name: Attach optional legacy executable
+        if: needs.legacy.result == 'success'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          fail_on_unmatched_files: true
+          files: release/legacy/OTTERNAV.EXE

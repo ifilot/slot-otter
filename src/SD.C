@@ -31,27 +31,27 @@ int sd_boot() {
     unsigned char *ptr;
     unsigned char rsp5[5];
 
-    sd_set_miso_high(BASEPORT);
+    sd_set_miso_high(cfg_get_base_port());
 
     ctr = 0;
     v = 0xFF;
     while(v != 0x01 & ctr < MAXTRIAL) {
-        sddis(BASEPORT);
-        cmdclr(BASEPORT);
-        sden(BASEPORT);
-        v = cmd00(BASEPORT);	/* put card in idle state */
+        sddis(cfg_get_base_port());
+        cmdclr(cfg_get_base_port());
+        sden(cfg_get_base_port());
+        v = cmd00(cfg_get_base_port());	/* put card in idle state */
         ctr++;
     }
 
     if(ctr >= MAXTRIAL) {
         printf("Cannot put card in idle mode.\n");
         printf("Try to reinsert the card.\n");
-        sddis(BASEPORT);
+        sddis(cfg_get_base_port());
         return -1;
     }
     
     printf("CMD00 response: %02X\n", v);
-    v = cmd08(BASEPORT, rsp5);	/* send cmd08 */
+    v = cmd08(cfg_get_base_port(), rsp5);	/* send cmd08 */
     printf("CMD08 response: ");
     
     for(i=0; i<5; ++i) {
@@ -64,11 +64,11 @@ int sd_boot() {
     ctr = 0;
     while(v != 0x00 && ctr < MAXTRIAL) {
         delay(1); /* wait one ms */
-        v = cmd55(BASEPORT);
+        v = cmd55(cfg_get_base_port());
         if(v == 0xFF) {
             continue;	/* try again on 0xFF */
         }
-        v = acmd41(BASEPORT);
+        v = acmd41(cfg_get_base_port());
         ctr++;
     }
 
@@ -80,7 +80,7 @@ int sd_boot() {
     }
 
     /* CMD58 - READ OCR */
-    v = cmd58(BASEPORT, rsp5);
+    v = cmd58(cfg_get_base_port(), rsp5);
     printf("CMD58 response: ");
     for(i=0; i<5; ++i) {
         printf("%02X ", rsp5[i]);

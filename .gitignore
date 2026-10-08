@@ -14,3 +14,11 @@ gerbers/
 \#auto_saved_files\#
 _autosave*
 *.log
+pcb/release/production
+
+/release-assets/
+/archive/
+# Disk images are generated locally or supplied as external DOS test media.
+*.[iI][mM][gG]
+*.[iI][mM][aA]
+*.[iI][sS][oO]

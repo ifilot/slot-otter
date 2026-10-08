@@ -1,0 +1,7 @@
+*.OBJ
+*.EXE
+*.MAP
+*.BAK
+__pycache__/
+/build/
+/dist/

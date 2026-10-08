@@ -46,6 +46,11 @@ unsigned char cmd58(unsigned baseio, unsigned char *rsp);
 unsigned char cmd17(unsigned baseio, unsigned long addr, unsigned char* buf);
 
 /*
+ * Send CMD24
+ */
+unsigned char cmd24(unsigned baseio, unsigned long addr, unsigned char* buf);
+
+/*
  * Enable the SD-card by setting /CS low
  */
 void sden(unsigned baseio);

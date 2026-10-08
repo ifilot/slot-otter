@@ -20,36 +20,40 @@
 #include <stdio.h>
 #include <dos.h>
 
+#include "cfg.h"
 #include "sd.h"
 #include "fat32.h"
 #include "helpers.h"
 #include "hdnav.h"
 #include "sdnav.h"
+#include "help.h"
+#include "settings.h"
+#include "transfer.h"
 
 #define STATE_MAIN_MENU 0
 #define STATE_SD        1
 #define STATE_HDNAV     2
 #define STATE_EXIT      -1
-#define CWDBUFLEN	256
+#define CWDBUFLEN       256
 
 int state_main_menu();
 int state_sd();
 int state_hdnav();
 void init_fat();
 int boot_sd_card();
+int apply_settings_and_reinit();
 
 static char cwd[CWDBUFLEN];
 
 int main() {
-    const struct FAT32File* f;
-    int c;
-    int ret;
     int state = STATE_SD;
+
+    cfg_init(CFG_FILENAME);
 
     /* try to boot the sd card */
     if(boot_sd_card() != 0) {
-	sddis(BASEPORT);
-	return -1;
+        sddis(cfg_get_base_port());
+        return -1;
     }
 
     /* store current working directory */
@@ -86,7 +90,7 @@ int main() {
     }
 
     /* disable SD card */
-    sddis(BASEPORT);
+    sddis(cfg_get_base_port());
 
     /* close view and reset colors to MS-DOS default */
     window(1,1,80,25);
@@ -109,14 +113,22 @@ int main() {
 int state_main_menu() {
     int c;
     while(1) {
-    c = getch();
-    if(c == 0) { /* special key */
         c = getch();
-        switch(c) {
-        case 0x44:
-            return STATE_EXIT;
+        if(c == 0) { /* special key */
+            c = getch();
+            switch(c) {
+                case 0x3B:
+                    help_show();
+                break;
+                case 0x42:
+                    if(settings_show()) {
+                        apply_settings_and_reinit();
+                    }
+                break;
+                case 0x44:
+                    return STATE_EXIT;
+            }
         }
-    }
     }
 }
 
@@ -130,60 +142,81 @@ int state_sd() {
     char filename[13];
 
     while(1) {
-    c = getch();
-    if(c == 0) {
         c = getch();
-        switch(c) {
-        case 0x44:
-            return STATE_EXIT;
-        case 0x49:
-            sdnav_move_cursor(-22);
-        break;
-        case 0x51:
-            sdnav_move_cursor(22);
-        break;
-        }
-    }
-    switch(c) {
-        case 0x09:
-            sdnav_remove_cursor();
-            hdnav_set_cursor();
-            hdnav_display_commands();
-            return STATE_HDNAV;
-        case 0x3D:
-            fpos = sdnav_get_cursor_pos();
-            f = fat32_get_file_entry(fpos);
-            if(memcmp(f->basename, ".       ", 8) == 0 ||
-            memcmp(f->basename, "..      ", 8) == 0) {
+        if(c == 0) {
+            c = getch();
+            switch(c) {
+                case 0x3B:
+                    help_show();
+                    sdnav_display_commands();
+                    sdnav_set_cursor();
+                break;
+                case 0x3C:
+                    sdnav_create_folder();
+                break;
+                case 0x3E:
+                    fpos = sdnav_get_cursor_pos();
+                    f = fat32_get_file_entry(fpos);
+                    sdnav_delete_entry(f);
+                break;
+                case 0x42:
+                    if(settings_show()) {
+                        apply_settings_and_reinit();
+                        sdnav_display_commands();
+                        sdnav_set_cursor();
+                    }
+                break;
+                case 0x44:
+                    return STATE_EXIT;
+                case 0x49:
+                    sdnav_move_cursor(-22);
+                break;
+                case 0x51:
+                    sdnav_move_cursor(22);
                 break;
             }
-            if(f->attrib & MASK_DIR) {
-                fat32_transfer_folder(f);
-            } else {
-                build_dos_filename(f, filename);
-                fat32_transfer_file(f, filename);
-            }
-            hdnav_read_files();
-            hdnav_print_files();
-            hdnav_reset_cursor();
-            hdnav_remove_cursor();
-        break;
-        case 0x50:
-            sdnav_move_cursor(1);
-        break;
-        case 0x48:
-            sdnav_move_cursor(-1);
-        break;
-        case 0x0D:
-            fpos = sdnav_get_cursor_pos();
-            f = fat32_get_file_entry(fpos);
-            if(f->attrib & MASK_DIR) {
-                fat32_set_current_folder(f);
-                sdnav_print_files();
-                sdnav_reset_cursor();
-            }
-        break;
-    }
+        }
+
+        switch(c) {
+            case 0x09:
+                sdnav_remove_cursor();
+                hdnav_set_cursor();
+                hdnav_display_commands();
+                return STATE_HDNAV;
+            case 0x3D:
+                fpos = sdnav_get_cursor_pos();
+                f = fat32_get_file_entry(fpos);
+                if(memcmp(f->basename, ".       ", 8) == 0 ||
+                   memcmp(f->basename, "..      ", 8) == 0) {
+                    break;
+                }
+                if(f->attrib & MASK_DIR) {
+                    transfer_sd_folder_to_hd(f);
+                } else {
+                    build_dos_filename(f, filename);
+                    transfer_sd_file_to_hd(f, filename);
+                }
+                hdnav_read_files();
+                hdnav_print_files();
+                hdnav_reset_cursor();
+                hdnav_remove_cursor();
+            break;
+            case 0x50:
+                sdnav_move_cursor(1);
+            break;
+            case 0x48:
+                sdnav_move_cursor(-1);
+            break;
+            case 0x0D:
+                fpos = sdnav_get_cursor_pos();
+                f = fat32_get_file_entry(fpos);
+                if(f->attrib & MASK_DIR) {
+                    fat32_set_current_folder(f);
+                    sdnav_print_files();
+                    sdnav_reset_cursor();
+                }
+            break;
+        }
     }
 }
 
@@ -200,20 +233,52 @@ int state_hdnav() {
         if(c == 0) {
             c = getch();
             switch(c) {
-            case 0x3C:
-                hdnav_create_folder();
-            break;
-            case 0x44:
-                return STATE_EXIT;
-            case 0x49:
-                hdnav_move_cursor(-22);
-            break;
-            case 0x51:
-                hdnav_move_cursor(22);
-            break;
+                case 0x3B:
+                    help_show();
+                    hdnav_display_commands();
+                    hdnav_set_cursor();
+                break;
+                case 0x3C:
+                    hdnav_create_folder();
+                break;
+                case 0x3D:
+                    fpos = hdnav_get_cursor_pos();
+                    f = hdnav_get_file_entry(fpos);
+                    if(f->attrib & HDNAV_MASK_DIR) {
+                        transfer_hd_folder_to_sd(f);
+                        sdnav_print_files();
+                        sdnav_reset_cursor();
+                        sdnav_remove_cursor();
+                    } else {
+                        transfer_hd_file_to_sd_ui(f);
+                        sdnav_print_files();
+                        sdnav_reset_cursor();
+                        sdnav_remove_cursor();
+                    }
+                break;
+                case 0x3E:
+                    fpos = hdnav_get_cursor_pos();
+                    f = hdnav_get_file_entry(fpos);
+                    hdnav_delete_entry(f);
+                break;
+                case 0x42:
+                    if(settings_show()) {
+                        apply_settings_and_reinit();
+                        hdnav_display_commands();
+                        hdnav_set_cursor();
+                    }
+                break;
+                case 0x44:
+                    return STATE_EXIT;
+                case 0x49:
+                    hdnav_move_cursor(-22);
+                break;
+                case 0x51:
+                    hdnav_move_cursor(22);
+                break;
             }
         }
-        
+
         switch(c) {
             case 0x09:
                 hdnav_remove_cursor();
@@ -247,26 +312,44 @@ int boot_sd_card() {
     static unsigned char buf[514];
     int res = -1;
     unsigned attempts = 0;
+
     while(res != 0 && attempts < 10) {
-    attempts++;
-    printf("Trying to open SD card (%i)\n", attempts);
-    res = sd_boot();
-    if(res != 0) {
-        printf("Cannot open SD-card, exiting...\n");
-        continue;
+        attempts++;
+        printf("Trying to open SD card at base port 0x%X (%i)\n", cfg_get_base_port(), attempts);
+        res = sd_boot();
+        if(res != 0) {
+            printf("Cannot open SD-card, exiting...\n");
+            continue;
+        }
+
+        res = cmd17(cfg_get_base_port(), 0x00000000, buf);
+        if(res != 0) {
+            printf("Cannot read boot sector.\n");
+            continue;
+        }
+
+        if(buf[510] != 0x55 || buf[511] != 0xAA) {
+            printf("Cannot read boot sector pattern.\n");
+            res = -1;
+            continue;
+        }
     }
-    res = cmd17(BASEPORT, 0x00000000, buf);
-    if(res != 0) {
-        printf("Cannot read boot sector.\n");
-        continue;
-    }
-    if(buf[510] != 0x55 || buf[511] != 0xAA) {
-        printf("Cannot read boot sector pattern.\n");
-        res = -1;
-        continue;
-    }
-    }
+
     return res;
+}
+
+int apply_settings_and_reinit() {
+    if(boot_sd_card() != 0) {
+        return -1;
+    }
+
+    init_fat();
+    hdnav_read_files();
+    hdnav_print_files();
+    hdnav_reset_cursor();
+    hdnav_remove_cursor();
+
+    return 0;
 }
 
 /*
@@ -278,4 +361,5 @@ void init_fat() {
     fat32_read_current_folder();
     sdnav_print_files();
     sdnav_reset_cursor();
-}
+}
+

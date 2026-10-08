@@ -93,6 +93,18 @@ void store_screen();
 void restore_screen();
 
 /*
+ *  confirm_delete_modal - Ask for delete confirmation
+ *
+ *  Parameters:
+ *      name  - Entry name to show
+ *      isdir - Nonzero if the entry is a folder
+ *
+ *  Returns:
+ *      1 if confirmed, 0 otherwise
+ */
+int confirm_delete_modal(const char* name, unsigned isdir);
+
+/*
  *  draw_textbox - Draw a simple text window with title
  *
  *  Parameters:
@@ -171,4 +183,5 @@ void build_dos_filename(const struct FAT32File* f, char* path);
  */
 unsigned char get_video_mode();
 
-#endif
+#endif
+

@@ -25,9 +25,10 @@
 
 #include "fatstruc.h"
 #include "sdcmds.h"
+#include "cfg.h"
 
 #define F32LLSZ  2048  	/* maximum linked list size */
-#define F32MXFL  256  	/* maximum number of files in folder to parse */
+#define F32MXFL  512  	/* maximum number of files in folder to parse */
 #define F32MXDIR 256  	/* maximum number of folders that can be copied */
 #define MAXPATH   80  	/* maximum number of characters in path */
 
@@ -91,63 +92,37 @@ void fat32_read_dir(struct FAT32Folder* folder, struct FAT32File buffer[]);
  */
 void fat32_set_current_folder(const struct FAT32File* entry);
 
+/*
+ *  fat32_get_current_folder - Copy the current folder state
+ *
+ *  Parameters:
+ *      folder - Destination folder state
+ */
+void fat32_get_current_folder(struct FAT32Folder* folder);
+
+/*
+ *  fat32_set_current_folder_state - Restore the current folder state
+ *
+ *  Parameters:
+ *      folder - Folder state to restore
+ */
+void fat32_set_current_folder_state(const struct FAT32Folder* folder);
+
 /**
  *  fat32_list_dir - Prints all files in folder to screen
  */
 void fat32_list_dir();
 
 /**
- *  fat32_transfer_file - Transfer a single file
+ *  fat32_mkdir - Create a new directory on SD card
  *
  *  Parameters:
- *      f    - Pointer to FAT32File* struct
- *      path - Path to store file in
+ *      dirname - Name of the directory to create
  *
  *  Returns:
- *      0 on success
- *
- *  Transfers a single file from the SD-CARD to the hard drive. Uses MS-DOS
- *  write functions to store the file.
+ *      0 on success, -1 otherwise
  */
-int fat32_transfer_file(const struct FAT32File* f, const char* path);
-
-/**
- *  fat32_transfer_folder - Recursively transfer a folder from the SD-CARD
- *
- *  Parameters:
- *      f    - Pointer to FAT32File* corresponding to a folder
- *
- *  Recursively copies all the files and folders to the currently active folder
- *  in the MS-DOS environment. The currently active folder is assumed to already
- *  be set in the file navigator.
- */
-void fat32_transfer_folder(const struct FAT32File* f);
-
-/**
- *  fat32_build_path - Construct a subpath from a folder list using identifier
- *
- *  Parameters:
- *      folders    - Array of FAT32Folder to copy
- *      id         - Index of folder to construct path for
- *      path       - Subpath
- *
- *  Construct a subpath given the folder in the array of folders to be copied
- *  and which is identified by id. Used in `fat32_transfer_folder`.
- */
-void fat32_build_path(struct FAT32Folder folders[], unsigned id, char path[]);
-
-/**
- *  fat32_transfer_files_in_folder - Copies all files in folder
- *
- *  Parameters:
- *      f           - Pointer to FAT32Folder struct
- *      basepath    - Destination to copy folder to
- *
- *  Reads all files in folder, loops over these files and copies all files
- *  one-by-one to the MS-DOS filesystem. If a file exists, the user is prompted
- *  to overwrite (y/n/a).
- */
-void fat32_transfer_files_in_folder(struct FAT32Folder* f, const char* basepath);
+int fat32_mkdir(const char* dirname);
 
 /*
  *  fat32_calculate_sector_address - Calculate sector address from cluster and sector
@@ -169,6 +144,32 @@ unsigned long fat32_calculate_sector_address(unsigned long cluster,
  *      addr - SD-CARD sector address
  */
 void fat32_read_sector(unsigned long);
+
+/*
+ *  fat32_read_sector_to - Reads sector from SD-CARD into caller buffer
+ *
+ *  Parameters:
+ *      addr - SD-CARD sector address
+ *      buf  - Buffer to store sector data
+ */
+void fat32_read_sector_to(unsigned long, unsigned char*);
+
+/*
+ *  fat32_write_sector - Write sector to SD-CARD
+ *
+ *  Parameters:
+ *      addr - SD-CARD sector address
+ */
+int fat32_write_sector(unsigned long);
+
+/*
+ *  fat32_write_sector_from - Write sector to SD-CARD from caller buffer
+ *
+ *  Parameters:
+ *      addr - SD-CARD sector address
+ *      buf  - Buffer containing sector data
+ */
+int fat32_write_sector_from(unsigned long, unsigned char*);
 
 /*
  *  fat32_get_file_entry - Get file from buffer identified by id
@@ -217,4 +218,124 @@ void fat32_build_linked_list(unsigned long nextcluster);
  */
 unsigned long fat32_grab_cluster_address_from_fileblock(unsigned char* loc);
 
-#endif
+/*
+ *  fat32_normalize_name_83 - Convert a filename to FAT 8.3 raw format
+ *
+ *  Parameters:
+ *      input - User-facing name
+ *      out   - 11-byte FAT 8.3 name buffer
+ *
+ *  Returns:
+ *      0 if the name is valid, -1 otherwise
+ */
+int fat32_normalize_name_83(const char* input, char out[11]);
+
+/*
+ *  fat32_normalize_file_83 - Convert a filename to FAT 8.3 raw format
+ *
+ *  Parameters:
+ *      input - User-facing filename
+ *      out   - 11-byte FAT 8.3 name buffer
+ *
+ *  Returns:
+ *      0 if the name is valid, -1 otherwise
+ */
+int fat32_normalize_file_83(const char* input, char out[11]);
+
+/*
+ *  fat32_find_free_cluster - Find the first unused data cluster
+ *
+ *  Returns:
+ *      Cluster number, or 0 if no free cluster was found
+ */
+unsigned long fat32_find_free_cluster();
+
+/*
+ *  fat32_write_fat_entry - Write a FAT entry to all FAT copies
+ *
+ *  Parameters:
+ *      cluster - Cluster whose FAT entry should be written
+ *      value   - New low-28-bit FAT value
+ *
+ *  Returns:
+ *      0 on success, -1 otherwise
+ */
+int fat32_write_fat_entry(unsigned long cluster, unsigned long value);
+
+/*
+ *  fat32_zero_cluster - Write zeroes to all sectors in a cluster
+ *
+ *  Parameters:
+ *      cluster - Cluster to clear
+ *
+ *  Returns:
+ *      0 on success, -1 otherwise
+ */
+int fat32_zero_cluster(unsigned long cluster);
+
+/*
+ *  fat32_create_dir_entry - Create an entry in the current directory
+ *
+ *  Parameters:
+ *      name         - 11-byte FAT 8.3 name
+ *      attrib       - FAT attribute byte
+ *      firstcluster - First cluster of the file or directory
+ *      filesize     - File size in bytes
+ *
+ *  Returns:
+ *      0 on success, -1 otherwise
+ */
+int fat32_create_dir_entry(const char name[11],
+                           unsigned char attrib,
+                           unsigned long firstcluster,
+                           unsigned long filesize);
+
+/*
+ *  fat32_delete_file_entry - Delete a file entry from the current directory
+ *
+ *  Parameters:
+ *      name - 11-byte FAT 8.3 name
+ *
+ *  Returns:
+ *      0 on success, -1 otherwise
+ */
+int fat32_delete_file_entry(const char name[11]);
+
+/*
+ *  fat32_delete_entry - Delete an entry from the current directory
+ *
+ *  Parameters:
+ *      name - 11-byte FAT 8.3 name
+ *
+ *  Returns:
+ *      0 on success, -1 otherwise
+ */
+int fat32_delete_entry(const char name[11]);
+
+/*
+ *  fat32_find_free_dir_entry - Find or create a free directory entry
+ *
+ *  Parameters:
+ *      folder      - Folder whose directory chain should be searched
+ *      entrysector - Sector address containing the free entry
+ *      entryoffset - Byte offset of the free entry within that sector
+ *
+ *  Returns:
+ *      0 if a free entry was found or created, -1 otherwise
+ */
+int fat32_find_free_dir_entry(struct FAT32Folder* folder,
+                              unsigned long* entrysector,
+                              unsigned* entryoffset);
+
+#endif
+
+
+
+
+
+
+
+
+
+
+
