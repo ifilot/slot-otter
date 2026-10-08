@@ -36,7 +36,6 @@ byte for byte. Run the regression suite as well. Formatting changes are kept
 small so an invariant explanation remains easy to review separately from a
 behavior change.
 
-
 FASTIO.ASM uses a near small-model C call for normalized far memory copying.
 Its source and destination must be normalized before each <=512-byte chunk;
 neither offset may wrap. The helper preserves BX/SI/DI/BP/DS/ES, clears DF and

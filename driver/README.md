@@ -1,65 +1,35 @@
-# OTTERSD: standalone DOS SD driver
+# OTTERSD driver
 
-The primary product is `OTTERSD.EXE` 1.0.0, its first stable release. The single executable supports verified
-read/write operation with `/RW`, or read-only operation with `/RO` (the default).
-The developer hardware tester is `HWRT.EXE` 1.0.0. Both programs and all source are
-under `driver`; neither depends on Navigator or `src` after installation.
+This directory contains the source, build scripts and tests for `OTTERSD.EXE`,
+the DOS driver for the Slot-otter card, and `HWRT.EXE`, its developer
+hardware tester. It is self-contained: nothing here depends on the
+legacy Navigator in `../src`.
 
-Version 0.15 retains sequential read cursors under `/RW`, caches four FAT
-sectors and two directory sectors independently of the payload buffer, and
-invalidates retained cursors before any filesystem store. Directory refreshes
-still authenticate the card; mutation proofs still receive fresh evidence.
-The resident allocation is 42,896 bytes including PSP, 3,408 above 0.14.
-Raw-sector tools and Navigator require unmounting before changing the card.
+This document is for developers. End users should follow the
+[installation guide](docs/INSTALLATION.md), which is also shipped as
+`README.TXT` in the public downloads.
 
-Version 0.14 writes regular-file data directly into newly allocated clusters,
-without first zeroing the whole cluster. File reads stop at EOF; gaps and
-explicit extensions still receive zeros, and directory allocation still clears
-its clusters. Write verification remains enabled by default. Resident memory
-was 39,488 bytes including PSP, 32 bytes above 0.13.
+## Contents
 
-Version 0.13 adds FAT16 alongside FAT32 with automatic detection. `/FAT16`
-and `/FAT32` optionally restrict the installed driver's accepted format.
-They do not format or convert media. The new [500 MiB FAT16 kit](docs/FAT16_IMAGE.md)
-uses 16 KiB physical clusters; the existing FAT32 kits remain supported. The
-0.13 resident allocation was 39,456 bytes including PSP, 1,088 more than 0.12.
+- [Overview](#overview)
+- [Command-line reference](#command-line-reference)
+- [Platform and scope](#platform-and-scope)
+- [Design](#design)
+- [Source layout](#source-layout)
+- [Building and testing](#building-and-testing)
+- [Releasing](#releasing)
 
-Version 0.12 reduces repeated card-identity commands inside a complete chain
-audit, authenticating both audit boundaries and retaining checks around writes.
-CRC tables and validated cluster shifts reduce CPU work without changing the
-8088 target or SPI pacing. Matching-sector cache invalidation avoids discarding
-unrelated cached sectors. The driver retains 38,368 bytes, 800 more than 0.11.
-Writes remain synchronous and verified by default. FSInfo handling is unchanged.
-See [the implementation and test details](docs/PERFORMANCE.md#ottersd-012).
+## Overview
 
-Version 0.9 scales DOS disk-space counts using larger logical allocation units,
-so a 500 MiB volume with 4 KiB physical clusters is reported accurately.
-Both total and free counts round down, with less than one logical unit lost.
-The physical FAT32 geometry is unchanged. Synthesized units stop at 32 KiB;
-volumes above approximately 2 GiB still saturate the legacy DOS interface.
+OTTERSD is a TSR filesystem redirector. It hooks the DOS network-redirector
+interface (INT 2Fh), so it is started as an ordinary program, for example from
+AUTOEXEC.BAT, rather than loaded with `DEVICE=` in CONFIG.SYS. Once installed,
+it reads the FAT16 or FAT32 volume on the SD card and serves DOS file requests
+for the chosen drive letter. A single executable handles both file systems,
+read-only and verified read/write access.
 
-Version 0.8 restored the complete 0.6 C SD transport after a reported mounting
-failure with 0.7. The filesystem traversal improvements and
-assembly far memory copies remain. Emulation checks the recovery build; physical
-confirmation is pending. Later hardware evidence showed a separately formatted
-FAT32 card failed at sector 0 while the supplied image mounted; a format/layout
-rejection is now the leading explanation. See [recovery instructions](docs/RECOVERY.md).
-
-Version 0.11 adds `/SKIPFATCHECK` for faster writable mounting. It skips the
-full FAT-copy comparison at mount, while retaining a first-sector comparison,
-geometry/backup/clean/error/FSInfo checks, comparisons before FAT mutations,
-and full dirty-session commit checks. Strict mounting remains the default.
-The option requires `/RW`; `/RO` already avoids the full mount comparison.
-Use `/STATUS` or `HWRT /INFO` to record the policy. See the
-[fast-mount instructions](docs/MANUAL.md#optional-faster-mounting).
-
-Version 0.10 adds safe `/UNLOAD` to reclaim the entire resident allocation
-before memory-hungry games. `/UNMOUNT` still keeps the driver for quick remounts.
-See the [game/unload procedure](docs/MANUAL.md#reclaim-memory-before-running-a-game).
-
-## Install and use
-
-Merge these settings into your boot disk's CONFIG.SYS and reboot:
+CONFIG.SYS needs a LASTDRIVE at or beyond the chosen letter. The tested
+configuration is:
 
 ```dos
 LASTDRIVE=S
@@ -67,94 +37,162 @@ FILES=40
 BUFFERS=10
 ```
 
-From a local disk, install on an unused letter:
+## Command-line reference
+
+Install from a local disk, never from the SD drive itself:
 
 ```dos
 OTTERSD /DRIVE:S /PORT:330 /RW
-OTTERSD /STATUS
-DIR S:\
 ```
 
-`/PORT:` is hexadecimal and defaults to 330. Use `/RO` instead of `/RW` for
-read-only access. Access mode is fixed at installation; reboot to change it.
-This is a TSR filesystem redirector, not a CONFIG.SYS DEVICE driver or MSCDEX
-extension. Repeated installation is rejected. Installation can leave the drive
-offline when no usable card is present; insert a card and run `/MOUNT`.
+| Option | Meaning |
+| --- | --- |
+| `/DRIVE:x` | Drive letter to provide (C to Z). Required at installation. |
+| `/PORT:hhh` | Card base port in hexadecimal, matching the DIP switch. Default 330. |
+| `/RO` | Read-only access. This is the default. |
+| `/RW` | Read/write access with read-back verification of every sector. |
+| `/NOVERIFY` | With `/RW`: skip the read-back. See [Write verification](#write-verification). |
+| `/SKIPFATCHECK` | With `/RW`: faster mount. See [Mounting](#mounting). |
+| `/FAT16`, `/FAT32` | Accept only that file system. Without either, it is detected automatically. |
 
-Before card removal, reboot, or Navigator use:
+The access mode and options are fixed at installation; reboot or `/UNLOAD`
+to change them. A second installation is rejected. If no usable card is
+present, the driver stays loaded with the drive offline.
 
-```dos
-OTTERSD /UNMOUNT
-REM Only after successful unmount: remove/reinsert card or reboot.
-OTTERSD /MOUNT
-```
+Control commands operate on the installed driver:
 
-Close all applications/handles on S: first. Unmount commits and checks enabled
-FAT mirrors before publishing a clean volume. Mount performs full preflight.
-A failed mount/transport operation leaves the drive offline; the TSR remains
-loaded. Old handles/searches cannot silently resume against a replacement card.
+| Command | Effect |
+| --- | --- |
+| `OTTERSD /STATUS` | Report version, mode, policies and the last SD diagnostic. |
+| `OTTERSD /UNMOUNT` | Commit and check the FAT copies, mark the volume clean and take the drive offline. Required before removing the card, rebooting or using Navigator. |
+| `OTTERSD /MOUNT` | Bring the drive online again after inserting a card. |
+| `OTTERSD /UNLOAD` | Remove the driver completely and free its memory. |
 
-## Writes and durability
-
-By default each written 512-byte sector receives a CRC, bounded busy/status checks,
-CRC-checked readback and an exact comparison with the frozen intended bytes.
-Recovery allows at most three total attempts at the same sector, only after
-card identity and usable reads have been established. An unresolved failure
-poisons the session and prevents further writes. CRC checks remain enabled.
-
-Ordinary file close finishes verified data/metadata writes and releases its
-handles/locks. It leaves the volume dirty instead of scanning both entire FATs
-on every close. Explicit DOS commit, global flush and successful `/UNMOUNT`
-still compare complete enabled mirrors before publishing clean state. Always
-unmount successfully before shutdown/removal. An abruptly interrupted writable
-session can require external inspection/repair; the driver refuses a dirty
-volume and does not silently clear its dirty flag.
-
-`/RW /NOVERIFY` is an installation-only opt-in that omits post-write sector
-readback and exact comparison. It keeps outgoing CRC, accepted-response checks,
-busy completion, CMD13 status, card identity and bounded recovery (including its
-CRC-checked read). It can acknowledge silently incorrect data. It requires /RW,
-cannot be combined with /RO or a control command, and stays fixed until reboot.
-Installer, /STATUS and HWRT report the policy. The legacy diagnostic `verified`
-counter means completed sector calls in either mode.
-
-The writer reuses the reader's existing FAT cache and checks card identity even
-on hits. Fresh mutation validation and all sector stores invalidate caches.
-Linear cycle detection checks complete chains without alternating distant FAT
-sectors. Full-sector replacements avoid reading bytes they replace; partial
-writes still merge the previous contents. Matching timestamps need no extra
-metadata write. The complete validation walk also supplies logical EOF, and
-overwrites walk forward within a call. Far memory copying uses 8086 assembly;
-SD packets and CRC use the restored 0.6 C routines. No deferred writeback or
-additional cache buffer is introduced.
-See the [copy performance assessment](docs/PERFORMANCE.md).
-
-Verified sector writes do not make multi-sector FAT operations transactional.
-Mount checks geometry, capacity, backup boot, relevant FAT flags/mirrors and
-FSInfo signatures; it does not perform a complete allocation/crosslink scan.
+`/UNMOUNT` and `/UNLOAD` refuse to run while files on the SD drive are open.
+`/UNLOAD` must also be run from another drive, and it refuses if a TSR loaded
+later has hooked INT 2Fh after OTTERSD, if DOS memory ownership is not as
+expected, or if a commit fails. A failed mount or transport operation leaves
+the drive offline with the TSR still loaded. Handles and searches opened
+before that point cannot resume against a different card.
 
 ## Platform and scope
 
-Target: 8088/8086 and MS/PC-DOS 3.1 through 6.x, SDHC/SDXC, FAT16/FAT32, 512-byte
-sectors. No 286-only instructions, EMS, XMS, DMA or interrupt line are required.
-The current allocation is **42,896 bytes** of conventional RAM including PSP,
-in either access mode. The private callback stack remains 2,048 bytes; there
-are 16 open-file slots and 32 search cursors. DOS FILES/process limits also
-apply. DOS 5/6.22 with 1 MiB emulated RAM are the qualification kernels. Physical
-5150/8088 and DOS 3/4 testing remain deferred; a 1 MiB 286 is the immediate target.
+- **CPU:** 8088/8086 or later. No 286 instructions, EMS, XMS, DMA or IRQ line are used.
+- **DOS:** MS/PC-DOS 3.1 through 6.x. DOS 5 and 6.22 with 1 MiB of emulated RAM
+  are the qualification kernels. DOS 3/4 and a physical 5150/8088 are not yet
+  tested; a 286 with 1 MiB is the current hardware target.
+- **Media:** SDHC/SDXC with 512-byte sectors; FAT16 or FAT32 in the first
+  primary MBR partition, or as a superfloppy.
+- **Memory:** 42,896 bytes of conventional memory including the PSP, in either
+  access mode. Validation and packaging fail above 45,000 bytes. Resources include a
+  2,048-byte private stack, 16 open-file slots and 32 search cursors. DOS
+  FILES and process limits also apply.
 
-Files use short names or existing 8.3 aliases. Supported writes include creation,
-overwrite/append, gap zeroing, truncate/extend, deletion, attributes/timestamps,
-directory creation/removal and cross-directory moves. Handle sharing, duplicates
-and region locks are implemented. GPT, extended partitions, SDSC, FAT12,
-exFAT, LFN creation and general DOS server/network functions are outside scope.
-Standard FCB wildcard deletion is tested; FCB record I/O/abort lifecycle is not.
+File names are DOS 8.3 names or the 8.3 aliases of existing long names.
+Supported operations include creating, overwriting, appending, truncating
+and extending files; deleting files; attributes and timestamps; creating and
+removing directories; and moving across directories. Handle sharing,
+duplicate handles and region locks are implemented. Standard FCB wildcard
+deletion is tested; FCB record I/O and abort handling are not.
 
-## Build, qualify and test a card
+Not supported: GPT, extended partitions, SDSC cards, FAT12, exFAT, creating
+long file names, and general DOS network-server functions.
 
-Turbo C 2.0 and TASM 2 are supplied separately in `buildenv`, or through
-TOOLCHAIN_DIR. DOSBOX_BIN chooses the compiler emulator. Python 3, GCC/gcov,
-mtools and dosfstools support the host gates and packaging.
+## Design
+
+### Write verification
+
+By default, every 512-byte sector written goes through these checks: a CRC,
+the card's accepted response, bounded busy and status waits, a CRC-checked
+read-back, and an exact comparison with the intended data. The intended data
+is held in a frozen copy for the duration of the write. A failed sector is
+tried at most three times in total, and only after the card's identity and
+usable reads have been re-established. If the failure cannot be resolved, the
+session is poisoned and no further writes are accepted.
+
+`/NOVERIFY` drops only the read-back and comparison. CRC, response, busy,
+CMD13 status, identity and recovery checks remain. It can therefore
+acknowledge data the card stored incorrectly, and must be chosen explicitly
+at installation. The installer, `/STATUS` and HWRT report the active policy.
+The diagnostic `verified` counter counts completed sector writes in both modes.
+
+Writes are synchronous; there is no write-back cache. Verified sector writes
+do not make multi-sector FAT updates transactional. Closing a file finishes
+its data and directory writes but leaves the volume marked dirty, to avoid
+comparing both complete FATs on every close. An explicit DOS commit, a global
+flush and `/UNMOUNT` compare the FAT copies before marking the volume clean.
+A volume left dirty by an interrupted session is refused at the next mount and
+needs checking on another computer; the driver never clears the flag silently.
+
+### Mounting
+
+A full mount checks the geometry, capacity, backup boot sector, FAT flags,
+FSInfo signatures and that all FAT copies match. It does not scan for
+allocation errors or cross-linked files.
+
+`/SKIPFATCHECK` skips the complete FAT comparison at mount and compares only
+the first FAT sector. All other mount checks, the comparisons made before FAT
+changes and the full commit checks remain. It requires `/RW`; `/RO` never
+performs the full comparison.
+
+### Caching and card changes
+
+Reads use separate caches: one payload sector, four FAT sectors and two
+directory sectors. Under `/RW`, each open handle also keeps its position in
+the cluster chain, so sequential reads need not walk the chain from the start.
+Every cached FAT access, including a cache hit, rechecks the card's identity.
+Before any write, all retained positions are invalidated and any cached copy
+of the sector being written is discarded. A write starts its own validation
+from freshly read data rather than from cached results. Removing or replacing
+the card invalidates the mounted file system. Cards must be unmounted before
+raw-sector tools or Navigator change them.
+
+### Allocation
+
+Newly allocated clusters for regular files receive the incoming data directly,
+without being zeroed first. File reads stop at the end of the file, so stale
+bytes beyond it are never visible. Gaps and explicit extensions are filled
+with zeros, and new directory clusters are cleared before they are linked.
+
+### Disk-space reporting
+
+The DOS free-space call uses 16-bit counts. To report large volumes, the
+driver presents larger logical allocation units than the physical clusters,
+up to 32 KiB, and rounds total and free counts down. The physical geometry is
+unchanged. Volumes above about 2 GiB still exceed what the call can report.
+
+## Source layout
+
+| File | Responsibility |
+| --- | --- |
+| INSTALL.C / INSTALL.H | Installation and control commands; discarded after loading |
+| BOOT.C / CRT.C | Retained bootstrap and CRT/far call gates |
+| ENTRY.ASM | 8086 interrupt bridge, private stack and resident boundary |
+| REDIR.C / RWOPS.C / RWDIR.C | DOS redirector, handles, locks and write callbacks |
+| FAT32.C / RWFS.C / RWFS.H | FAT16/FAT32 reading, writing and directory operations |
+| SDRW.C / RWSD.H | Card identity, recovery and verified sector transport; version number |
+| FASTIO.ASM | 8086 far memory copy |
+| PORTBODY.H | Shared, exhaustively tested option parser |
+| HWRT.C / TESTCHLD.C | Hardware tester, including its self-exec child mode |
+| installer_segments.py / tests/layout.py | Checks that installer segments are discarded and the startup reserve fits |
+
+| Directory | Contents |
+| --- | --- |
+| `docs/` | [Installation guide](docs/INSTALLATION.md), [hardware test manual](docs/MANUAL.md), developer image notes ([FAT16](docs/FAT16_IMAGE.md), [FAT32](docs/LARGE_IMAGE.md)), [source conventions](docs/CODING.md) and [DOS ABI notes](docs/DOSREF.md) |
+| `tests/` | Host, mutation, native DOS and XCOPY tests; see [tests/README.md](tests/README.md). `tests/reference/` holds earlier protocol code used only as test input; `tests/emulation/` holds the SD card model and emulator adapters. |
+| `logs/` | Physical-card logs: `logs/historical/` for earlier runs, `logs/<card-name>/` for new ones |
+| `dist/` | Generated build, kit and release output. Ignored by Git. |
+
+## Building and testing
+
+### Requirements
+
+Turbo C 2.0 and TASM 2 are supplied separately, in `../buildenv` or the
+directory named by `TOOLCHAIN_DIR`. `DOSBOX_BIN` selects the DOSBox used to
+run the compiler. Python 3, GCC/gcov, mtools and dosfstools are needed for the
+host tests and packaging.
+
+### Build and validate
 
 ```sh
 bash driver/build.sh /tmp/otter-build
@@ -164,81 +202,63 @@ python3 driver/validate.py --full --output driver/dist \
   --boot-image /path/to/dos5.img --boot-image /path/to/dos622.img
 ```
 
-The first validation command runs host regression, coverage and mutation gates,
-builds both programs and creates a candidate kit. `--full` additionally boots
-actual DOS for read-only/CLI/EXEC/swap tests, write fault profiles, tester guards,
-genuine licensed XCOPY from a BIOS hard drive at two cluster sizes/policies,
-and the exact final image with stress/memory/reboot and independent contents/fsck
-checks. Artifacts and complete gate logs are kept in the selected output.
-Full XCOPY gates need XCOPY.EX_ in each boot image and EXPAND.EXE in one of them
-or in --xcopy-expand-media. Boot/compiler images, XCOPY and emulator executables
-are supplied separately and are not redistributed.
+`build.sh` builds both programs. `validate.py` runs the host regression,
+coverage and mutation tests, builds both programs and creates a candidate
+developer kit.
 
-The small stress-image distributable is `driver/dist/OTTERSD.IMG` and `OTTERSD.ZIP`.
-The alternative 500 MiB image with 4 KiB clusters is in `driver/dist/500M`;
-see [large-image instructions](docs/LARGE_IMAGE.md). Follow the
-[hardware manual](docs/MANUAL.md) for Navigator copying and a fresh per-card
-run. HWRT records CID, capacity, versions, source identifier, timings, progress
-and diagnostics. Save separate logs for every card; old successful runs do not
-qualify the new binary. Original physical-card logs are kept in
-`driver/logs/historical`; new per-card logs belong in `driver/logs/<card-name>`.
-Old release snapshots and generated outputs are not kept in the source repository.
+`--full` also boots real DOS in an emulator with the
+[DOSBox-VirtIsa](https://github.com/ifilot/dosbox-virtisa) ISA model. It runs:
+- read-only, command-line, EXEC and card-swap tests;
+- write-fault profiles and tester guards;
+- XCOPY from a BIOS hard disk at two cluster sizes and with each write policy;
+- stress, memory and reboot tests on the final image, with independent
+  content comparison and fsck.
 
-There are four functional subfolders: `docs` for the manual/ABI/memory notes,
-`tests` for unit/native/fault tests and emulator/reference infrastructure,
-`logs` for future per-card evidence, and `dist` for the current release.
-`tests/kit_fixture.py` is the sole shared kit fixture builder. Legacy protocol
-code is retained only as host regression/reference input in `tests/reference`;
-it has no public build target or distributed executable.
+These tests need `XCOPY.EX_` in each boot image and `EXPAND.EXE` in one of
+them, or in `--xcopy-expand-media`. Boot images, compiler images, XCOPY and
+the emulator are not redistributed. Results, gate logs and
+`EVIDENCE/QUALIFICATION.JSON` are written to the output directory.
 
-## Source layout
+Emulation does not qualify physical hardware.
 
-| File | Responsibility |
-|---|---|
-| INSTALL.C / INSTALL.H | Far installation/control code, discarded after loading |
-| BOOT.C / CRT.C | Retained bootstrap and CRT/far call gates |
-| ENTRY.ASM | 8086 interrupt bridge, private stack, resident boundary |
-| REDIR.C / RWOPS.C / RWDIR.C | DOS redirector, handles, locks and writable callbacks |
-| FAT32.C / RWFS.C | Read traversal, writable FAT/directory operations |
-| SDRW.C / RWSD.H | Identity, bounded recovery and verified sector transport |
-| FASTIO.ASM | 8086 normalized far memory copies |
-| PORTBODY.H | Shared bounded option parser, exhaustively tested |
-| installer_segments.py / tests/layout.py | Discarded-segment and startup reserve proofs |
-| HWRT.C / TESTCHLD.C | Single tester including private self-exec child mode |
+### Testing on a real card
 
-See [memory measurements](docs/MEMORY.md), [source conventions](docs/CODING.md),
-[DOS ABI notes](docs/DOSREF.md) and [consolidation record](docs/CONSOLIDATION.md).
+Validation produces developer kits with HWRT and test fixtures:
+`dist/OTTERSD.IMG` (small FAT32 stress image) with `dist/OTTERSD.ZIP`, plus
+500 MiB images in `dist/FAT16/` and `dist/500M/`. Follow the
+[hardware test manual](docs/MANUAL.md) separately for each card. HWRT records
+the card's CID, capacity, versions, source identifier, timings and
+diagnostics. Save each card's logs under `logs/<card-name>/`. Results from an
+earlier build do not carry over to a new one.
 
+## Releasing
 
-## Public release packaging
+`release.py` builds the public downloads from a qualified `OTTERSD.EXE`:
 
-Use [INSTALLATION.md](docs/INSTALLATION.md) for end-user instructions.
-Nightwatch (https://github.com/ifilot/nightwatch) is the recommended file
-manager. Navigator in ../src is legacy software.
+```sh
+python3 driver/release.py --driver /path/to/OTTERSD.EXE \
+  --output /path/to/new-public-output
+```
 
-`release.py` builds the public DOS ZIP, three installation floppy sizes,
-and empty 500 MiB FAT16/FAT32 SD images. The recommended public image is
-FAT16 with 16 KiB clusters. It never imports developer fixture builders.
-Floppies and the DOS ZIP contain OTTERSD.EXE, user instructions, a CONFIG.SYS
-example and the license; no HWRT or other test utilities are included.
-Empty SD images contain no KIT directory, fixtures or authorization markers.
+It produces:
+- the DOS ZIP;
+- 360 KiB, 720 KiB and 1.44 MiB installation floppies;
+- empty 500 MiB FAT16 and FAT32 SD images, with FAT16 at 16 KiB clusters recommended;
+- `SHA256.TXT`.
 
-    python3 driver/release.py --driver /path/to/OTTERSD.EXE \
-      --output /path/to/new-public-output
+The ZIP and floppies contain only `OTTERSD.EXE`, `README.TXT` (from
+[INSTALLATION.md](docs/INSTALLATION.md)), a CONFIG.SYS example and the
+license. They include no HWRT, fixtures or test markers. The script never uses
+the developer fixture builders. It refuses an existing output directory and
+checks each floppy's file list, the SD geometry, FAT copies, root contents,
+backup boot sector, FSInfo and fsck results. Local output can be placed in
+`dist/RELEASE/`.
 
-Generated local public assets can be placed under `driver/dist/RELEASE`.
-The entire `driver/dist` directory is ignored by Git and is created by the
-build/qualification tools; it is not supplied by cloning this repository.
-The other generated dist files are
-explicitly DEVELOPER hardware kits, with fixtures and HWRT; they are not GitHub
-release downloads. The public builder refuses existing output directories and
-checks each floppy's exact file allowlist, SD geometry, FAT mirrors, root
-contents, backups/FSInfo and fsck results. SHA256.TXT identifies public assets.
-GitHub Actions runs host coverage/mutations once as a reusable workflow, builds
-the standalone binaries and uploads only release.py's public output. Tagged
-releases require a tag matching RWSD.H's version, currently v1.0.0. OTTERNAV
-is built separately and is attached as an optional legacy executable.
+GitHub Actions runs the host and mutation tests, builds the binaries and
+uploads only `release.py`'s output. A tagged release requires the tag to be
+`v` followed by the version in RWSD.H. OTTERNAV is built separately and
+attached as an optional legacy download.
 
-RWSD.H defines the displayed semantic version and the resident 16-bit version
-ID: major in the high byte, minor/patch in the low nibbles. The query ABI and
-structure sizes remain unchanged. Matching developer HWRT rejects old drivers.
+RWSD.H defines the displayed version and a 16-bit resident version ID: the
+major version in the high byte, and minor and patch in the two low nibbles.
+HWRT refuses to work with a driver of a different version.

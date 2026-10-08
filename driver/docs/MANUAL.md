@@ -12,8 +12,6 @@ kit and logs separately; never run a raw card utility while this driver is
 mounted. Compilation uses Turbo C/TASM; emulation testing boots genuine DOS.
 Passing emulation does not qualify physical hardware.
 
-For the reported 0.7 mounting failure, start with [RECOVERY.md](RECOVERY.md).
-The restored transport still needs confirmation on your physical hardware.
 Failed installation, /MOUNT and /STATUS print the retained SD diagnostic;
 HWRT /INFO saves it to RWINFO.LOG even when the drive is offline.
 
