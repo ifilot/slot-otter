@@ -26,10 +26,25 @@ def entry(name, attr, cluster=0, size=0):
     return e
 
 
-def create(path, partitioned=True, active_fat=False, spc=1):
+def create(path, partitioned=True, active_fat=False, spc=1, total_sectors=None):
     start = 2048 if partitioned else 0
-    total = RESERVED + 2 * FATSZ + CLUSTERS * spc
-    data = start + RESERVED + 2 * FATSZ
+    if total_sectors is None:
+        clusters, fatsz = CLUSTERS, FATSZ
+        total = RESERVED + 2 * fatsz + clusters * spc
+    else:
+        # Each FAT sector holds 128 entries. Account for both FAT copies
+        # before deriving the data-cluster count; entries 0 and 1 are reserved.
+        total = total_sectors
+        fat_entries_per_cluster = 128 * spc + 2
+        fatsz = (total - RESERVED + 2 * spc + fat_entries_per_cluster - 1) // fat_entries_per_cluster
+        # Align the sized image's data area to a 1 MiB boundary as well as
+        # its partition. A little unused FAT capacity avoids starting the
+        # data area at a fractional MiB offset.
+        fatsz = ((RESERVED + 2 * fatsz + 2047) // 2048 * 2048 - RESERVED) // 2
+        clusters = (total - RESERVED - 2 * fatsz) // spc
+        if clusters < CLUSTERS or fatsz * 128 < clusters + 2:
+            raise ValueError('Volume is too small for the FAT32 test fixtures')
+    data = start + RESERVED + 2 * fatsz
     with open(path, "wb") as f:
         f.truncate((start + total) * 512)
 
@@ -52,14 +67,14 @@ def create(path, partitioned=True, active_fat=False, spc=1):
         boot[16] = 2
         boot[21] = 0xF8
         struct.pack_into("<II", boot, 28, start, total)
-        struct.pack_into("<IHHIHH", boot, 36, FATSZ, 0x81 if active_fat else 0,
+        struct.pack_into("<IHHIHH", boot, 36, fatsz, 0x81 if active_fat else 0,
                          0, 2, 1, 6)
         boot[66] = 0x29
         boot[71:82] = b"OTTER TEST "
         boot[82:90] = b"FAT32   "
         boot[510:] = b"\x55\xaa"
         sector(start, boot)
-        fat = bytearray(FATSZ * 512)
+        fat = bytearray(fatsz * 512)
 
         def link(cluster, next_cluster=0x0FFFFFFF):
             struct.pack_into("<I", fat, cluster * 4, next_cluster)
@@ -79,7 +94,7 @@ def create(path, partitioned=True, active_fat=False, spc=1):
             f.write(content.ljust(spc * 512, b"\0"))
         f.seek((start + RESERVED) * 512)
         f.write(bytes(len(fat)) if active_fat else fat)
-        f.seek((start + RESERVED + FATSZ) * 512)
+        f.seek((start + RESERVED + fatsz) * 512)
         f.write(fat)
         root = [entry("OTTER TEST", 8), entry("README.TXT", 0x20, 4, len(TEXT)),
                 entry("SUBDIR", 16, 3), entry("FRAG.BIN", 0x20, 5, 1000),
@@ -105,7 +120,8 @@ def create(path, partitioned=True, active_fat=False, spc=1):
         fragment = bytes(i % 251 for i in range(1000))
         for i, c in enumerate((5, 8)):
             sector(data + (c - 2) * spc, fragment[i * 512:(i + 1) * 512])
-    return {"start": start, "data": data, "total": total, "spc": spc}
+    return {"start": start, "data": data, "total": total, "spc": spc,
+            "fatsz": fatsz, "clusters": clusters}
 
 
 if __name__ == "__main__":

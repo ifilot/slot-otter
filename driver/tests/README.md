@@ -1,155 +1,81 @@
-# Current consolidated test entry point
+# Consolidated test infrastructure
 
-Run `python3 driver/validate.py` for host coverage/mutations, canonical driver
-and tester builds and a candidate image. Add `--full --dosbox PATH` and two
-`--boot-image PATH` arguments for DOS 5/6.22, faults, guards and final-image
-qualification. See [driver README](../README.md). The commands below retain
-legacy/internal development gates; `run.py --build` builds the archived RO
-comparison only. Current releases always use driver/build.sh and validate.py.
-PORTBODY.H is shared with INSTALL.C, so exhaustive port tests cover its body.
+Run `python3 driver/validate.py` to run host tests, coverage and mutations,
+build OTTERSD.EXE and HWRT.EXE together, and package a candidate release.
+Use `--full --dosbox PATH --boot-image DOS5 --boot-image DOS622` for actual DOS
+read-only/CLI/EXEC/swap, write fault profiles, tester guards and final-image
+stress/memory/reboot checks. All images are private copies. Physical testing
+follows [the manual](../docs/MANUAL.md); the source tree is standalone from src.
 
-# Regression tests
+- `kit_fixture.py`: one shared FAT32 image builder used by host/native/release
+  tests; preserves known patterns, backup BPB and FSInfo. `fixture.py` supplies
+  the basic fragmented read fixture. No old utility builder is imported.
+- `emulation/`: shared card model and DOSBox/86Box adapters. Required for
+  protocol/fault coverage; these are test tools, not resident code.
+- `reference/`: historical CRC diagnostics and FAT routines compiled as host
+  libraries to preserve independent regression/fault checks. Also contains the
+  old read transport exercised by the native SDPROBE. These files have no
+  standalone installer/build/package workflow and no released executables.
+- `test_*.py`, `*_mutations.py`: production/reflection safety and mutation gates.
+- `hardware.py`: native harness for the one public HWRT tester, including guards
+  and a private emulator swap-input wrapper absent from the real executable.
+- `integration.py`, `rw_integration.py`: internal DOS API/CLI/transport probes
+  against the CURRENT OTTERSD executable. CLIPROBE uses a large inherited DOS
+  environment and checks exit status, vector restoration and allocation cleanup.
 
-Run the fast suite from any working directory with Python 3 and GCC:
+`python3 driver/tests/run.py --coverage /tmp/coverage --mutations` runs host
+checks alone. Its optional `--build` builds the canonical driver/tester pair.
+PORTBODY.H is shared with the far installer; exhaustive tests cover its actual
+parser. Coverage floors and behavioral mutation counts remain enforced.
 
-```sh
-python3 driver/tests/run.py --coverage /tmp/otter-coverage --mutations
-```
+Independent mtools comparisons and fsck.fat -n check images after DOS operations.
+BIOS-tick timings describe emulation only; electrical/card and physical 8088
+qualification require hardware. DOS boot images and compilers are supplied
+separately and are not included in the release archive.
 
-The current combined suite has 223 tests and 95 mutation checks. It compiles the
-production reader, writable transport/filesystem/redirector, standalone writer,
-and card model. Tests take about 43 seconds without mutation checks on the
-development machine. No DOS toolchain, copyrighted DOS image, emulator or third-party Python
-package is required. The GitHub driver workflow runs coverage and mutation checks
-on changes under `driver` and retains the coverage artifacts.
-
-The host DOS adapter supplies simulated SDA/CDS/SFT/DTA memory and segmented
-pointer translation. It substitutes card presence and sector transport, but uses
-production dispatch and filesystem code. Every redirector test hashes the card
-before and after to detect writes. State resets between tests.
-
-Checks include:
-
-- Register results and carry flags, chaining to other redirectors, preservation
-  of DOS-owned SFT fields, extended-open actions, and denial of mutations.
-- All 16 file slots, reference counts, closing stale handles, independent file
-  positions, EOF, 65,535-byte reads, fragmented files and seek overflow.
-- Independent searches, attribute filters, result copying to DOS memory, search
-  cookie corruption, eviction and invalidation across mount generations.
-- Empty slots, changed identity, current-directory reset, failed mounts,
-  partial-read errors, preservation of completed bytes and offline recovery.
-- Deterministic randomized reads across 1/2/8/128-sector clusters, active FATs,
-  superfloppies, invalid geometry, invalid chains, bounded directory cycles,
-  cache invalidation and recovery after injected FAT/data sector faults.
-- SD protocol initialization, synchronous byte pipeline, CRC generation, CID
-  stability/replacement, empty sockets, chip select and write rejection.
-
-Coverage reports distinguish the standalone FAT32 library from the same reader
-linked into the redirector test library. Do not add those percentages together.
-The runner enforces floors for production code: FAT32 95% lines/80% branch
-outcomes, redirector 99%/90%, model 95%/80%, port/options 100%/100%. JSON and annotated gcov files are saved
-beside the text report. Host coverage excludes real segmented-pointer arithmetic,
-SD electrical I/O and assembly; those need the actual-DOS integration tests.
-
-Mutation checks change **temporary copies** of production sources and require
-assertion failures after successful compilation. They check nine targeted
-regressions: allowed writes, skipped removal checks, stale search generations,
-lost reference counts, truncated reads, advancing a failed FAT hop, stale caches,
-ignored active FAT selection, and allowing a remount with open handles. This is a sensitivity check, not an exhaustive
-mutation score. Update the mutation locations if the implementation changes.
-
-Before accepting a memory reduction, also build and run actual DOS:
-
-```sh
-python3 driver/tests/run.py --build \
-  --dosbox /path/to/test-dosbox --swap \
-  --boot-image /path/to/dos5.img \
-  --boot-image /path/to/dos622.img
-```
-
-Use the supplied DOSBox ISA adapter built with `OTTER_MODEL_TEST` for `--swap`.
-Also run `integration.py` without `--swap` to check installation with a card
-already present. Integration requires mtools, Turbo C/TASM, stock DOSBox for
-compilation, and your own bootable DOS images. Temporary images and logs are
-retained for inspection; original boot images are untouched.
-
-The real-DOS probe checks callback behavior, DOS COPY/EXEC, segment-boundary
-reads, all open slots, card swaps, and read-only image hashes. It walks DOS's MCB
-chain to measure the resident allocation independently of the installer's message.
-It then allocates and overwrites every remaining DOS free block and runs
-unmount/mount/read callbacks while that memory is occupied. This catches accesses
-to discarded resident code/data that may otherwise fail only when a large program
-loads. The harness checks the reported allocation against the MCB and saves
-`memory.txt` for comparisons. The default resident ceiling is 17,632 bytes;
-`--max-resident` explicitly changes that budget if needed. The baseline and reduced builds passed under
-DOS 5.0 and 6.22 with 1 MiB emulated RAM. Physical 8088 and full 86Box verification
-remain separate checks.
-
-The build also validates `_resident_end` against the linker's `_BSSEND` marker,
-checks that every static code/data/library segment and the private stack lies
-below it, and rejects unsafe layouts. Host tests cover malformed linker maps.
-The `--swap` integration run additionally executes `SDPROBE.C` against actual
-`SD.C`/`SDCMDS.ASM` while OTTERFS is unmounted. It checks exact payload contents,
-guard bytes after a 512-byte buffer, missing/out-of-range reads, and chip-select
-deassertion using the adapter's test-only latch observation. The probe reproduced
-the previous successful-read deselection bug before the fix.
-
-The second memory round adds exhaustive checks of all 65,536 input port values,
-malformed/prefixed/overflowing inputs, ASCII option case folding, scratch-buffer
-aliasing, and stale duplicated-handle references. Linker checks reject unused
-heap/stdio/parser/atexit dependencies in addition to validating memory boundaries.
-
-`CLIPROBE.C` uses DOS EXEC with an explicitly constructed 10 KiB environment in a
-16 KiB block. It checks ordinary and TSR termination types, ERRORLEVEL, quoted
-and tab-separated lowercase arguments, invalid ports, and a 127-byte command tail.
-It snapshots INT 0/4/5/6 and verifies their restoration after each child, then
-checks ordinary child execution returns all free DOS allocation space. The free
-space measurement includes free MCB headers so coalescing does not look like a
-leak or a saving. CLIPROBE installs OTTERFS and unmounts it; the remainder of the
-integration harness mounts or inserts the fixture as appropriate.
-
-The standalone write suite adds CRC-checked direct-I/O transport and restricted
-FAT32 mutation tests. See [../write/README.md](../write/README.md). Host gates
-include WSD/WFS at 80% lines and 65% branch outcomes. Model counters are merged
-across protocol/write libraries to retain its existing 95%/80% floor.
-`--mutations` also runs the forty-two write sensitivity probes; CI installs mtools
-and dosfstools for independent file-content and filesystem checks.
-
-The standalone write suite now includes 99 host tests, independent CRC oracles,
-packet/response fault injection and diagnostic evidence checks. WTEST diagnostics
-are gated at 85% line coverage and 60% branch outcomes in addition to WSD/WFS.
-Booted-DOS argument checks use `driver/write/validate.py --cli-checks`; these
-exercise the compiled executable and reject 26 unsafe/invalid combinations
-before initialization, with unchanged card hashes and no created card logs.
+`xcopy.py` runs genuine DOS XCOPY against a private FAT16 BIOS hard drive and
+modeled SD. A 400 KiB file, nested/empty directories, 30 boundary-sized files,
+read-only refusal, both write policies and cluster sizes 1/8 are exercised.
+The HDD-only tree control captures the DOS5 empty-directory exit-code behavior.
+Independent comparisons include bytes, sizes, timestamps and attributes; a
+fresh boot copies the large file back to the HDD without SD writes, followed
+by fsck. XCOPYT.C captures BIOS ticks/counter deltas before unmount's audit.
+Licensed XCOPY/EXPAND are supplied on the external DOS media, not distributed.
 
 
-v1.6 adds CMD55-ready/delayed ACMD41 and bounded startup-trace tests, exact
-SanDisk FF corruption fixtures before/after negative probes, normal-only full
-filesystem qualification, and expected/unexpected/missing recovery status.
-Tests enforce no metadata writes after raw corruption, no retry after poison,
-clean recovery status, independent persistence and preserved first-failure data.
+`fast_native.py` is a private emulation-only probe of FASTIO.ASM, using genuine
+DOS, a licensed Turbo C/TASM toolchain and the OTTER_MODEL_TEST adapter. It
+checks independent CRC vectors, ABI/segments/DF/IF and odd copy guards, then
+writes/restores a reserved scratch sector of its private image with three-access
+burst settling. CRC/transport now use the restored production C code.
+--mutations proves broken odd-tail copying and reversed copy direction are
+caught. These raw probes are not included in KIT or intended for mounted hardware.
+`rw_integration.py --profile settle` checks the same delay in the resident DOS
+API flow. Model ports 335/336 are test instrumentation, absent on the ISA card.
+`performance.py --label LABEL` counts real command traffic at SPC1/8 with exact
+contents and fsck; host elapsed seconds do not measure assembly or DOS throughput.
+Native XCOPY additionally reads under the writable mount before unmount/reboot.
+
+Initialization failure modes in hardware.py inject a missing CMD0 response or
+rejected CMD10 or a corrupt CID packet CRC. validate.py runs all three with
+write readback enabled and disabled;
+installation, /STATUS, failed /MOUNT and offline HWRT /INFO must preserve the
+same SD evidence and leave the entire card image unchanged. A count-based
+settling model cannot reproduce every elapsed-time regression on ISA hardware.
 
 
-v1.7 isolates command/data CRC probes, tests access after each, logs probe
-responses before recovery, and waits for rejected-data completion with CS
-asserted. Fixtures reproduce command/data-triggered read failures or discarded
-writes and detect early CS release. Tests cover nonzero original scratch,
-read-token samples, progress logging and unexpected idle-plus-CRC responses.
-Fresh-boot verification of the prior NORMAL hardware runs is user-confirmed.
+FAT16 regressions are in test_fat16.py and test_fat16_redirector.py; the fixture
+builder fat16_fixture.py produces fixed-root FAT16 without importing Navigator.
+The host runner merges both formats' production-code coverage while keeping
+library outputs separate, so repeated compilations cannot overwrite loaded
+coverage notes. test_large_image.py independently checks the 500 MiB FAT16
+geometry and all original read patterns. After full main-kit qualification,
+large_kits.py builds/qualifies both 500 MiB kits under the supplied real DOS
+kernels; see docs/FAT16_IMAGE.md for the reproducible command.
 
-The resident writer adds separate SDRW/RWFS/RWOPS coverage and sensitivity
-checks. Current floors are 99% lines/75% branch outcomes for transport, 90%/66%
-for RWFS, 95%/72% for RWOPS, and 88%/63% for the combined redirector. Identical
-writer coverage graphs are merged across wire, filesystem and callback tests;
-the reported percentages are not sums.
-
-`rw_integration.py` boots genuine DOS on private images and runs DOS API checks,
-segmented writes, locks, wildcard deletion, resident MCB/stack and memory-pressure
-checks. Profiles cover strict CRC, slow busy completion, CRC rejection, corrupted
-readback, status failure, removal and a read-CRC failure. Linker layout and
-independent mtools/fsck content checking accompany the native tests.
-
-The deployable resident-DOS tester and its fresh-boot/guard/fault harness are in
-[../rwhardware/README.md](../rwhardware/README.md). The swap harness uses a private
-input wrapper to operate the emulator's card-removal port; the physical HWRT
-executable contains no such control. Human prompts are followed on real hardware.
+Public release safety is exercised by test_release.py: exact floppy allowlists,
+empty FAT16/FAT32 images, mirrors, backups/FSInfo, geometry, ZIP integrity and
+version/tag consistency. release_integration.py boots real DOS with the public
+floppy binary and an empty public SD image, creates/copies a file, unloads,
+then verifies persistence on a fresh read-only boot. Public image tests need
+no authorization marker or hardware tester. These probes are developer-only.

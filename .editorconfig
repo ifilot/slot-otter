@@ -1,5 +1,17 @@
 root = true
 
+[{src,driver}/**.{C,H,ASM,INC,BAT,PRJ}]
+end_of_line = crlf
+
+[{src,driver}/MAKEFILE]
+end_of_line = crlf
+
+[src/README.MD]
+end_of_line = crlf
+
+[*.{py,sh,c,h,cpp}]
+end_of_line = lf
+
 [*.{asm,ASM}]
 indent_style = tab
 tab_width = 8

@@ -23,17 +23,18 @@ def main():
     p.add_argument('--dosbox', required=True)
     p.add_argument('--driver', type=Path, required=True)
     p.add_argument('--timeout', type=float, default=180)
-    p.add_argument('--profile', choices=('normal', 'strict', 'slow', 'corrupt',
+    p.add_argument('--profile', choices=('normal', 'strict', 'settle', 'slow', 'corrupt',
                                         'reject', 'status', 'drop', 'bad-read'), default='normal')
-    p.add_argument('--max-resident', type=int, default=40064)
+    p.add_argument('--max-resident', type=int, default=45000)
     a = p.parse_args()
     work = Path(tempfile.mkdtemp(prefix='otter-rw-dos-'))
     print(f'Artifacts: {work}', flush=True)
-    spec = importlib.util.spec_from_file_location('rwfixture', ROOT/'write/build.py')
+    spec = importlib.util.spec_from_file_location('rwfixture', ROOT/'tests/kit_fixture.py')
     builder = importlib.util.module_from_spec(spec); spec.loader.exec_module(builder)
     image = work/'card.img'; layout = builder.prepare(image)
     before = image.read_bytes()
     source = (ROOT/'tests/RWPROBE.C').read_bytes().replace(b'\r\n', b'\n')
+    if a.profile=='settle': source=b'#define TEST_SETTLE\n'+source
     (work/'RWPROBE.C').write_bytes(source.replace(b'\n', b'\r\n'))
     for name in ('OTTER.H', 'RWSD.H'):
         (work/name).write_bytes((ROOT/name).read_bytes().replace(b'\r\n', b'\n').replace(b'\n', b'\r\n'))
@@ -56,17 +57,17 @@ def main():
             subprocess.run(['mdel', '-i', str(boot), name], check=True)
     (work/'CONFIG.SYS').write_bytes(b'LASTDRIVE=S\r\nFILES=40\r\nBUFFERS=10\r\n')
     (work/'AUTOEXEC.BAT').write_bytes(
-        b'@echo off\r\nOTTERWR /DRIVE:S /RW > INSTALL.TXT\r\n'
-        b'OTTERWR /STATUS > STATUS.TXT\r\nRWPROBE > RESULT.TXT\r\n'
+        b'@echo off\r\nOTTERSD /DRIVE:S /RW > INSTALL.TXT\r\n'
+        b'OTTERSD /STATUS > STATUS.TXT\r\nRWPROBE > RESULT.TXT\r\n'
         b'if errorlevel 1 goto failed\r\necho 0 > CODE.TXT\r\ngoto finish\r\n'
         b':failed\r\necho 1 > CODE.TXT\r\n:finish\r\n'
         b'echo CMDDEL > S:\\RWTEMP\\CLI.TMP\r\n'
         b'del S:\\RWTEMP\\CLI*.TMP > DEL.TXT\r\n'
-        b'OTTERWR /UNMOUNT > UNMOUNT.TXT\r\necho RW-DONE > DONE.TXT\r\n'
+        b'OTTERSD /UNMOUNT > UNMOUNT.TXT\r\necho RW-DONE > DONE.TXT\r\n'
         b'dir a:\\ > FLUSH.TXT\r\n')
     for name in ('CONFIG.SYS', 'AUTOEXEC.BAT', 'RWPROBE.EXE'):
         subprocess.run(['mcopy', '-o', '-i', str(boot), str(work/name), '::'+name], check=True)
-    subprocess.run(['mcopy', '-o', '-i', str(boot), str(a.driver), '::OTTERWR.EXE'], check=True)
+    subprocess.run(['mcopy', '-o', '-i', str(boot), str(a.driver), '::OTTERSD.EXE'], check=True)
     config = work/'dosbox.conf'
     config.write_text(f'[sdl]\nfullscreen=false\n[dosbox]\nmemsize=1\nisa_sd_image={image}\n'
                       '[cpu]\ncore=normal\ncycles=fixed 3000000\n[midi]\nmpu401=none\n')
@@ -74,6 +75,8 @@ def main():
         if name.startswith(('OTTER_MODEL_', 'OTTER_TEST_')): env.pop(name)
     env['OTTER_MODEL_WRITE'] = '1'
     if a.profile=='strict': env['OTTER_MODEL_STRICT']='1'
+    if a.profile=='settle':
+        env['OTTER_MODEL_STRICT']='1'; env['OTTER_MODEL_SETTLE']='3'
     faults = {'slow': ('BUSY', '4096'), 'corrupt': ('CORRUPT', '1'),
               'reject': ('REJECT', '1'), 'status': ('STATUS', '1'),
               'drop': ('DROP', '1'), 'bad-read': ('BAD_READ', '1')}

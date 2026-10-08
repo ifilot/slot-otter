@@ -8,7 +8,7 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 #include "OTTER.H"
 
-#include "RWSD.H"
+#include "RWFS.H"
 #include "INSTALL.H"
 
 
@@ -61,19 +61,86 @@ static void far mount_error(U16 code) {
     text("Cannot mount card (DOS error "); number(code,10,0);
     line("); drive is offline.");
 }
+/* Installation/control-only diagnostics. These strings and formatting leave
+ * memory with INITTAIL/INITDATA; the resident 40-byte snapshot is unchanged. */
+static void far sd_report(const SdDiagnostic *d) {
+    const U16 *lba=(const U16 *)&d->lba;
+    text("SD: error="); number(d->error,10,0);
+    text(" stage="); number(d->stage,10,0);
+    text(" LBA_hex="); number(lba[1],16,4); number(lba[0],16,4);
+    text(" R1="); number(d->r1,16,2);
+    text(" token="); number(d->token,16,2);
+    text(" status="); number(d->status,16,2);
+    text(" poison="); number(d->poisoned,10,0);
+    text(" attempts="); number(d->attempts,10,0); line("");
+}
+static void far resident_sd_report(void) {
+    SdDiagnostic d;
+    union REGS r;
+    struct SREGS s;
+    i_zero(&r,sizeof(r)); i_zero(&d,sizeof(d)); segread(&s); s.es=s.ds;
+    r.x.ax=0xd74f; r.x.bx=0x4f54; r.x.dx=0x524f; r.x.si=4;
+    r.x.cx=sizeof(d); r.x.di=(U16)&d; int86x(0x2f,&r,&r,&s);
+    if (!r.x.cflag && r.x.cx==sizeof(d)) sd_report(&d);
+    else line("SD diagnostic query unavailable.");
+}
 static int far usage(void) {
-#ifdef RW_DRIVER
-    line("OTTERWR 0.4 - Slot-otter verified FAT32 drive");
-    line("Usage: OTTERWR /DRIVE:S [/PORT:330] [/RW | /RO]");
+    line("OTTERSD " OTTER_VERSION_TEXT " - Slot-otter verified FAT16/FAT32 drive");
+    line("Usage: OTTERSD /DRIVE:S [/PORT:330] [/RW | /RO] [/NOVERIFY] [/SKIPFATCHECK] [/FAT16 | /FAT32]");
     line("Writing is disabled unless /RW is supplied at installation.");
-#else
-    line("OTTERWR 0.2 - read-only Slot-otter FAT32 drive");
-    line("Usage: OTTERWR /DRIVE:S [/PORT:330]");
-#endif
-    line("       OTTERWR /MOUNT | /UNMOUNT | /STATUS");
+    line("       OTTERSD /MOUNT | /UNMOUNT | /STATUS | /UNLOAD");
     line("Requires DOS 3.1-6.x, 8088+, SDHC/SDXC, and LASTDRIVE >= letter.");
     return 1;
 }
+/* The caller is a separate DOS process. Return from the resident bridge,
+ * detach INT 2F, then release its PSP block using DOS. No resident instruction
+ * or pointer may be used after AH=49. Refuse a later TSR in the vector chain:
+ * DOS cannot safely splice an arbitrary third-party interrupt handler. */
+static int far unload_driver(U16 drive) {
+    union REGS r;
+    struct SREGS s;
+    U16 psp, own_off, own_seg, old_off, old_seg, released;
+    U8 far *mcb;
+    void interrupt far (*handler)(void);
+    r.h.ah=0x19; int86(0x21,&r,&r);
+    if (r.h.al==drive) {
+        line("Change to a local drive (for example C:) before /UNLOAD."); return 1;
+    }
+    i_zero(&r,sizeof(r)); r.x.ax=0xd74f; r.x.bx=0x4f54;
+    r.x.dx=0x524f; r.x.si=9; int86(0x2f,&r,&r);
+    if (r.x.cflag || r.x.si!=OTTER_VERSION || !r.x.ax) {
+        line("Unload requires the matching OTTERSD version; reboot to replace an older driver."); return 1;
+    }
+    psp=r.x.ax; own_off=r.x.bx; own_seg=r.x.cx; old_off=r.x.dx; old_seg=r.x.di;
+    handler=getvect(0x2f);
+    if (FP_OFF(handler)!=own_off || FP_SEG(handler)!=own_seg) {
+        line("Cannot unload: a later TSR hooks INT 2F. Remove it first, or reboot."); return 1;
+    }
+    mcb=(U8 far *)MK_FP(psp-1,0);
+    if ((mcb[0]!='M' && mcb[0]!='Z') || get16(mcb+1)!=psp ||
+        own_seg<psp || own_seg-psp>=get16(mcb+3) ||
+        get16((U8 far *)MK_FP(psp,0))!=0x20cd) {
+        line("Cannot unload: resident DOS memory ownership is invalid."); return 1;
+    }
+    released=get16(mcb+3)*16;
+    i_zero(&r,sizeof(r)); r.x.ax=0xd74f; r.x.bx=0x4f54;
+    r.x.dx=0x524f; r.x.si=10; int86(0x2f,&r,&r);
+    if (r.x.cflag) {
+        if (r.x.ax==E_ACCESS) line("Cannot unload: close all SD files; remove any later INT 2F TSR.");
+        else { line("Cannot unload: card commit failed. Driver remains resident; save diagnostics before reboot.");
+               resident_sd_report(); }
+        return 1;
+    }
+    setvect(0x2f,(void interrupt far (*)(void))MK_FP(old_seg,old_off));
+    segread(&s); s.es=psp; r.h.ah=0x49; int86x(0x21,&r,&r,&s);
+    if (r.x.cflag) {
+        line("Driver detached, but DOS could not free its memory. Reboot to reclaim it."); return 1;
+    }
+    text("OTTERSD unloaded; resident memory released: "); number(released,10,0);
+    line(" bytes. SD drive is no longer available.");
+    return 0;
+}
+
 int far installer(int argc, char **argv) {
     union REGS r;
     struct SREGS s;
@@ -81,8 +148,8 @@ int far installer(int argc, char **argv) {
     void interrupt far (*previous)(void);
     U16 cds_size, paragraphs, env, mounted;
     U16 port;
-    int i, have_drive, command, have_port, have_access;
-    have_drive=command=have_port=have_access=0;
+    int i, have_drive, command, have_port, have_access, have_noverify, have_skipfat, have_format;
+    have_drive=command=have_port=have_access=have_noverify=have_skipfat=have_format=0;
     for (i=1; i<argc; ++i) {
         i_option_upper(argv[i]);
         if (!i_strncmp(argv[i], "/DRIVE:", 7) && i_strlen(argv[i])==8 &&
@@ -92,30 +159,56 @@ int far installer(int argc, char **argv) {
             if (!i_parse_port(argv[i]+6,&port))
                 return usage();
             sd_port=(U16)port; have_port=1;
-#ifdef RW_DRIVER
         } else if (!i_strcmp(argv[i],"/RW") && !have_access) {
             sd_write_enabled=1; have_access=1;
         } else if (!i_strcmp(argv[i],"/RO") && !have_access) {
             sd_write_enabled=0; have_access=1;
-#endif
+        } else if (!i_strcmp(argv[i],"/NOVERIFY") && !have_noverify) {
+            sd_verify_writes=0; have_noverify=1;
+        } else if (!i_strcmp(argv[i],"/FAT16") && !have_format) {
+            fs_required=16; have_format=1;
+        } else if (!i_strcmp(argv[i],"/FAT32") && !have_format) {
+            fs_required=32; have_format=1;
+        } else if (!i_strcmp(argv[i],"/SKIPFATCHECK") && !have_skipfat) {
+            rw_skip_fat_check=1; have_skipfat=1;
         } else if (!i_strcmp(argv[i],"/MOUNT") && !command) command=2;
         else if (!i_strcmp(argv[i],"/UNMOUNT") && !command) command=1;
         else if (!i_strcmp(argv[i],"/STATUS") && !command) command=3;
+        else if (!i_strcmp(argv[i],"/UNLOAD") && !command) command=4;
         else return usage();
     }
     if ((!command && !have_drive) || (command && (have_drive || have_port)))
         return usage();
-#ifdef RW_DRIVER
-    if (command && have_access) return usage();
-#endif
+    if (command && (have_access || have_format)) return usage();
+    if (have_noverify && (command || !sd_write_enabled)) return usage();
+    if (have_skipfat && (command || !sd_write_enabled)) return usage();
     i_zero(&r,sizeof(r)); r.x.ax=0xd74f; int86(0x2f,&r,&r);
     if (command) {
         if (r.x.ax!=0x4f54 || r.x.bx!=0x524f) {
-            line("OTTERWR is not resident."); return 1;
+            line("OTTERSD is not resident."); return 1;
         }
+        if (command==4) return unload_driver(r.x.cx);
         if (command==3) {
-            text("OTTERWR "); letter(r.x.cx); text(r.x.dx?": mounted, ":": offline, ");
+            DriverInfo info;
+            text("OTTERSD "); letter(r.x.cx); text(r.x.dx?": mounted, ":": offline, ");
             number(r.x.si,10,0); text(" open files, port "); number(r.x.di,16,3); line(".");
+            i_zero(&r,sizeof(r)); r.x.ax=0xd74f; r.x.bx=0x4f54;
+            r.x.dx=0x524f; r.x.si=8; r.x.cx=sizeof(info); r.x.di=(U16)&info;
+            segread(&s); s.es=s.ds; int86x(0x2f,&r,&r,&s);
+            if (!r.x.cflag && r.x.cx==sizeof(info) && info.abi==1) {
+                line(!(info.flags&4)?"Filesystem: offline":
+                    (info.flags&32)?"Filesystem: FAT16":"Filesystem: FAT32");
+                line((info.flags&64)?"Format restriction: FAT16":
+                    (info.flags&128)?"Format restriction: FAT32":"Format restriction: automatic");
+                text("Resident allocation: "); number(info.resident,10,0); line(" bytes.");
+                line((info.flags&8)?
+                    "Write readback: DISABLED; silent corruption may go undetected.":
+                    "Write readback: enabled.");
+                line(!(info.flags&2)?"Mount FAT comparison: not applicable (read-only).":(info.flags&16)?
+                    "Mount FAT comparison: SKIPPED; sector/commit checks remain.":
+                    "Mount FAT comparison: enabled.");
+            }
+            resident_sd_report();
             return 0;
         }
         i_zero(&r,sizeof(r)); r.x.ax=0xd74f; r.x.bx=0x4f54;
@@ -123,18 +216,15 @@ int far installer(int argc, char **argv) {
         if (r.x.cflag) {
             if (r.x.ax==5) line("Close all files on the drive before mounting or unmounting.");
             else mount_error(r.x.ax);
+            resident_sd_report();
             return 1;
         }
-        line(command==1?"OTTERWR drive is offline; card may be removed.":
-#ifdef RW_DRIVER
-                           "OTTERWR card mounted in its installed access mode.");
-#else
-                           "OTTERWR card mounted read-only.");
-#endif
+        line(command==1?"OTTERSD drive is offline; card may be removed.":
+                           "OTTERSD card mounted in its installed access mode.");
         return 0;
     }
     if (r.x.ax==0x4f54 && r.x.bx==0x524f) {
-        text("OTTERWR is already resident on "); letter(r.x.cx); line(":."); return 1;
+        text("OTTERSD is already resident on "); letter(r.x.cx); line(":."); return 1;
     }
     r.h.ah=0x30; int86(0x21,&r,&r); dos_major=r.h.al;
     if (dos_major<3 || dos_major>6 || (dos_major==3 && r.h.ah<10)) {
@@ -157,7 +247,10 @@ int far installer(int argc, char **argv) {
     cds=(U8 far *)MK_FP(get16(lol+0x18), get16(lol+0x16)+drive_number*cds_size);
     if (get16(cds+0x43)&0xc000) { line("Drive letter is already in use."); return 1; }
     drive_cds=cds;
-    line("Initializing SD card and checking filesystem; FAT comparison may take time.");
+    for (i=0;i<cds_size;++i) saved_cds[i]=cds[i];
+    line(rw_skip_fat_check?
+        "Initializing SD card; full mount FAT comparison is SKIPPED.":
+        "Initializing SD card and checking filesystem; FAT comparison may take time.");
     mounted=media_mount();
     text("Mount timing: SD "); number(mount_sd_ticks,10,0);
     text(", filesystem "); number(mount_fs_ticks,10,0);
@@ -170,29 +263,36 @@ int far installer(int argc, char **argv) {
      * restores CRT interrupt vectors before DOS terminates this process. */
     paragraphs=(U16)(s.ds-_psp+(((U16)&resident_end+15U)>>4));
     resident_bytes=paragraphs*16;
-    text("OTTERWR: "); letter(drive_number);
-#ifdef RW_DRIVER
-    text(sd_write_enabled?": verified read/write, port ":": read-only, port ");
-#else
-    text(": read-only, port ");
-#endif
+    text("OTTERSD: "); letter(drive_number);
+    text(sd_write_enabled?(sd_verify_writes?": verified read/write, port ":
+        ": read/write WITHOUT readback, port "):": read-only, port ");
     number(sd_port,16,3); text(", resident "); number(paragraphs*16,10,0); line(" bytes.");
+    if (rw_skip_fat_check)
+        line("WARNING: /SKIPFATCHECK postpones detection of existing FAT mismatches. Commit checks remain.");
+    if (sd_write_enabled && !sd_verify_writes)
+        line("WARNING: /NOVERIFY can miss silent corruption. CRC/status checks remain.");
     if (mounted) {
         text("Drive offline (DOS error "); number(mounted,10,0);
-        line("). Insert a card and run OTTERWR /MOUNT.");
+        line("). Insert a card and run OTTERSD /MOUNT.");
+        sd_report(&sd_diag);
     }
-    else line("Card mounted. Run OTTERWR /UNMOUNT before removing it or running OTTERNAV.");
+    else {
+        text(volume.fat_bits==16?"Card mounted: FAT16, ":"Card mounted: FAT32, ");
+        number((U32)volume.spc*512UL,10,0); line(" bytes per physical cluster.");
+        line("Run OTTERSD /UNMOUNT before removing it or running OTTERNAV.");
+    }
     /* A TSR must release its inherited standard handles, especially redirected
      * output. Direct writes have no C buffers to flush. */
     for (i=0;i<5;++i) { r.x.ax=0x3e00; r.x.bx=i; int86(0x21,&r,&r); }
     env=get16((U8 far *)MK_FP(_psp,0x2c));
     if (env) { r.h.ah=0x49; s.es=env; int86x(0x21,&r,&r,&s); }
-#ifdef RW_DRIVER
     /* Fill before installing the bridge. The private query scans untouched
      * A5 bytes for observed stack use; IRQ use is included, not predicted. */
     i_fill(resident_stack,0xa5,sizeof(resident_stack));
-#endif
     previous=getvect(0x2f); bridge_init(previous);
+    unload_state[0]=_psp;
+    unload_state[1]=FP_OFF(redirect_entry); unload_state[2]=FP_SEG(redirect_entry);
+    unload_state[3]=FP_OFF(previous); unload_state[4]=FP_SEG(previous);
     /* DOS updates the CDS path after our change-directory validation. */
     cds[0]='A'+drive_number; cds[1]=':'; cds[2]='\\'; cds[3]=0;
     put16(cds+0x43,0xc080); put32(cds+0x45,0);

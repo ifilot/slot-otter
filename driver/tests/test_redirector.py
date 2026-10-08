@@ -196,7 +196,7 @@ class RedirectorTests(unittest.TestCase):
         self.assertEqual((r.ax, r.bx, r.di, r.cx, r.dx), (0x21, 0, 24, 0x6000, 0x5821))
         self.path("S:\\" + "A" * 80); self.call(0x16, error=3)
         r = self.call(0x0c, es=2)
-        self.assertEqual((r.ax, r.bx, r.cx, r.dx), (0xf801, 65535, 512, 0))
+        self.assertEqual((r.ax, r.bx, r.cx, r.dx), (0xf802, 35000, 512, 0))
         self.call(0x0c, es=3, handled=False)
         C.c_ubyte.in_dll(self.lib, "dos_major").value = 3
         self.path("S:\\README.TXT"); self.call(0x2e, error=1)

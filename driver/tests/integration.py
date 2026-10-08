@@ -23,25 +23,24 @@ def main():
     parser.add_argument("--dosbox", required=True, help="DOSBox-VirtIsa executable")
     parser.add_argument("--toolchain", type=pathlib.Path, default=ROOT.parent / "buildenv")
     parser.add_argument("--compiler-dosbox", default="dosbox")
-    parser.add_argument("--driver",type=pathlib.Path,default=ROOT/'OTTERFS.EXE',
-                        help="Executable to install in read-only mode as OTTERFS.EXE")
+    parser.add_argument("--driver",type=pathlib.Path,default=ROOT/'build/OTTERSD.EXE',
+                        help="Executable to install in read-only mode as OTTERSD.EXE")
     parser.add_argument("--timeout", type=float, default=45)
     parser.add_argument("--swap", action="store_true", help="Exercise empty slot and swapping; requires OTTER_MODEL_TEST adapter")
-    parser.add_argument("--consolidated",action="store_true",help="Qualify explicit /RO and conflicting access options")
-    parser.add_argument("--max-resident", type=int, default=17632, help="Resident DOS allocation ceiling in bytes")
+    parser.add_argument("--max-resident", type=int, default=45000, help="Resident DOS allocation ceiling in bytes")
     args = parser.parse_args()
-    work = pathlib.Path(tempfile.mkdtemp(prefix="otterfs-integration-"))
+    work = pathlib.Path(tempfile.mkdtemp(prefix="ottersd-integration-"))
     print(f"Test artifacts: {work}", flush=True)
     env = dict(os.environ, SDL_VIDEODRIVER="dummy", SDL_AUDIODRIVER="dummy")
     # Compile probes independently, with CRLF and 8.3 source names.
     probes = ["PROBE", "CLIPROBE"] + (["SWAP", "SDPROBE"] if args.swap else [])
     if args.swap:
         for filename in ("OTTER.H", "SD.C", "SDCMDS.ASM"):
-            content = (ROOT / filename).read_bytes().replace(b"\r\n", b"\n")
+            content = (ROOT / filename if filename=='OTTER.H' else ROOT / 'tests/reference' / filename).read_bytes().replace(b"\r\n", b"\n")
             (work / filename).write_bytes(content.replace(b"\n", b"\r\n"))
     for probe in probes:
         source = (ROOT / f"tests/{probe}.C").read_bytes().replace(b"\r\n", b"\n")
-        if args.consolidated and probe=='CLIPROBE': source=b'#define UNIFIED_DRIVER\n'+source
+        if probe=='CLIPROBE': source=b'#define UNIFIED_DRIVER\n'+source
         (work / f"{probe}.C").write_bytes(source.replace(b"\n", b"\r\n"))
         commands = ["tasm /mx SDCMDS.ASM > ASM.TXT",
                     "tcc -ms -eSDPROBE.EXE SDPROBE.C SD.C SDCMDS.OBJ > BUILD.TXT"] if probe == "SDPROBE" else [f"tcc -ms -e{probe}.EXE {probe}.C > BUILD.TXT"]
@@ -79,21 +78,21 @@ def main():
     (work / "CONFIG.SYS").write_bytes(b"LASTDRIVE=S\r\nFILES=40\r\nBUFFERS=10\r\n")
     (work / "AUTOEXEC.BAT").write_bytes(
         b"@echo off\r\n"
-        b"otterfs /status > missing.txt\r\n"
-        b"otterfs /drive:s /port:333 > args.txt\r\n"
+        b"ottersd /status > missing.txt\r\n"
+        b"ottersd /drive:s /port:333 > args.txt\r\n"
         b"cliprobe > install.txt\r\n"
-        b"otterfs /drive:s > repeat.txt\r\n" +
-        (b"swap > swap.txt\r\n" if args.swap else b"otterfs /mount > mount.txt\r\n") +
-        b"otterfs /status > status.txt\r\n"
+        b"ottersd /drive:s > repeat.txt\r\n" +
+        (b"swap > swap.txt\r\n" if args.swap else b"ottersd /mount > mount.txt\r\n") +
+        b"ottersd /status > status.txt\r\n"
         b"dir s:\\ > dir.txt\r\n"
         b"probe > result.txt\r\n"
         b"s:\\hello.com > exec.txt\r\n"
         b"copy /b s:\\readme.txt a:\\small.txt > smalllog.txt\r\n"
         b"copy /b s:\\big.bin a:\\copy.bin > copylog.txt\r\n"
-        + (b"otterfs /unmount > sdprep.txt\r\nsdprobe > sdresult.txt\r\notterfs /mount > sdrestore.txt\r\n" if args.swap else b"") +
+        + (b"ottersd /unmount > sdprep.txt\r\nsdprobe > sdresult.txt\r\nottersd /mount > sdrestore.txt\r\n" if args.swap else b"") +
         b"echo OTTER-DONE > done.txt\r\n"
         b"dir a:\\ > flush.txt\r\n")
-    subprocess.run(["mcopy","-o","-i",str(boot),str(args.driver),"::OTTERFS.EXE"],check=True)
+    subprocess.run(["mcopy","-o","-i",str(boot),str(args.driver),"::OTTERSD.EXE"],check=True)
     for source in (work / "PROBE.EXE", work / "CLIPROBE.EXE", work / "CONFIG.SYS", work / "AUTOEXEC.BAT"):
         subprocess.run(["mcopy", "-o", "-i", str(boot), str(source), "::" + source.name], check=True)
     if args.swap:
@@ -102,9 +101,12 @@ def main():
     # Clear an inherited completion marker if the supplied image was used before.
     subprocess.run(["mdel", "-i", str(boot), "::DONE.TXT"], stdout=subprocess.DEVNULL,
                    stderr=subprocess.DEVNULL)
+    # This legacy floppy boot exceeds its 45-second deadline under DOS 6.22
+    # at a 3,000,000-cycle budget. 300,000 boots both kernels and still gives
+    # twenty times the former 15,000 budget; this is not a timing benchmark.
     config = work / "dosbox.conf"
     config.write_text(f"[sdl]\nfullscreen=false\n[dosbox]\nmemsize=1\nisa_sd_image={image}\n"
-                      "[cpu]\ncore=normal\ncycles=fixed 15000\n[midi]\nmpu401=none\n")
+                      "[cpu]\ncore=normal\ncycles=fixed 300000\n[midi]\nmpu401=none\n")
     with (work / "emulator.log").open("wb") as log:
         proc = subprocess.Popen([args.dosbox, "-conf", str(config), "-c", f'boot "{boot}"'],
                                 env=env, stdout=log, stderr=log)

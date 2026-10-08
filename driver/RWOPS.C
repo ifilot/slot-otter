@@ -138,6 +138,7 @@ static int rw_open_file(U8 FAR *sft,U16 mode,U16 action,U8 attr) {
     if (fs_parent(path,&parent,leaf) || fs_pattern(leaf,name,0)) return filesystem_error();
     files[i].sft=sft; FILE_DISK(files+i)=f; files[i].owner=get16(dos_sda+0x10);
     files[i].created_ro=(U8)(branch!=1 && (attr&1));
+    files[i].read_serial=0;
     /* DOS owns SFT reference count at +0 and sharing/PSP fields at +43 onward.
      * Open fills our fields only; final-close reference cleanup is below. */
     put16(sft+2,mode); sft[4]=f.attr;
@@ -224,7 +225,11 @@ static int rw_write_file(U8 FAR *sft) {
     if (!result || fs_error==E_FULL) {
         U16 code=fs_error;
         timestamp(&time,&date);
+        /* publish already sets archive. Preserve immediate timestamps, but
+         * avoid another chain audit/store when the FAT timestamp is equal. */
         if ((done || old_size!=FILE_DISK(file).size) &&
+            ((FILE_DISK(file).attr|32)!=FILE_DISK(file).attr ||
+             time!=FILE_DISK(file).time || date!=FILE_DISK(file).date) &&
             rw_metadata(&FILE_DISK(file),FILE_DISK(file).attr|32,time,date)) return filesystem_error();
         put16(sft+13,FILE_DISK(file).time); put16(sft+15,FILE_DISK(file).date);
         sync_files(file);
@@ -287,7 +292,7 @@ static int delete_pattern(void) {
         if (!match) continue;
         memset(&f,0,sizeof(f)); f.first=fs_entry_cluster(e); f.size=get32(e+28);
         f.parent=parent; f.attr=e[11]; f.time=get16(e+22); f.date=get16(e+24);
-        f.lba=volume.data+(cursor.cluster-2)*volume.spc+(cursor.slot-1)/16;
+        f.lba=fs_dir_lba(cursor.cluster,(U16)(cursor.slot-1));
         f.offset=(U16)((cursor.slot-1)%16)*32;
         if (file_busy(&f)) return error(E_SHARE);
         if (rw_delete(&f)) return filesystem_error();

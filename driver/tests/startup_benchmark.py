@@ -60,7 +60,7 @@ def main():
             '-c',r'set PATH=C:\TC','-c','d:','-c','tcc -ms -eTIMER.EXE TIMER.C > BUILD.TXT',
             '-c','exit'],env=env,stdout=log,stderr=log,check=True,timeout=60)
     assert (work/'TIMER.EXE').is_file()
-    spec=importlib.util.spec_from_file_location('kit_fixture',ROOT/'rwhardware/build.py')
+    spec=importlib.util.spec_from_file_location('kit_fixture',ROOT/'build_test.py')
     builder=importlib.util.module_from_spec(spec); spec.loader.exec_module(builder)
     rows=[]
     for label,driver in [('baseline',a.baseline),('current',a.current)]:
@@ -73,10 +73,10 @@ def main():
                 subprocess.run(['mdel','-i',str(boot),name],check=True)
         (work/'CONFIG.SYS').write_bytes(b'LASTDRIVE=S\r\nFILES=40\r\nBUFFERS=10\r\n')
         (work/'AUTOEXEC.BAT').write_bytes(b'@echo off\r\nTIMER /S\r\n'
-            b'OTTERWR /DRIVE:S /RW > INSTALL.TXT\r\nTIMER /E > TIME.TXT\r\n'
-            b'OTTERWR /STATUS > STATUS.TXT\r\nOTTERWR /UNMOUNT > UNMOUNT.TXT\r\n'
+            b'OTTERSD /DRIVE:S /RW > INSTALL.TXT\r\nTIMER /E > TIME.TXT\r\n'
+            b'OTTERSD /STATUS > STATUS.TXT\r\nOTTERSD /UNMOUNT > UNMOUNT.TXT\r\n'
             b'echo BENCH-DONE > DONE.TXT\r\ndir a:\\ > FLUSH.TXT\r\n')
-        for source,name in [(driver,'OTTERWR.EXE'),(work/'TIMER.EXE','TIMER.EXE'),
+        for source,name in [(driver,'OTTERSD.EXE'),(work/'TIMER.EXE','TIMER.EXE'),
                             (work/'CONFIG.SYS','CONFIG.SYS'),(work/'AUTOEXEC.BAT','AUTOEXEC.BAT')]:
             subprocess.run(['mcopy','-o','-i',str(boot),str(source),'::'+name],check=True)
         conf=work/(label+'.conf'); conf.write_text('[sdl]\nfullscreen=false\n[dosbox]\nmemsize=1\n'

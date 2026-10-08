@@ -1,4 +1,4 @@
-/* Resident SFN FAT32 writer, adapted from the independently tested writer.
+/* Resident SFN FAT16/FAT32 writer, adapted from the independently tested writer.
  * GPL-3.0-or-later. Data is initialized before links; directory size is
  * published after data. Transport write failures, dirty-session read failures
  * and dirty-session FAT mirror mismatches poison the session. Ordinary input
@@ -7,6 +7,7 @@
 #include "RWFS.H"
 #include <string.h>
 U32 rw_start, rw_end, rw_fatsz, rw_allocated, rw_freed;
+U8 rw_skip_fat_check;
 /* Fixed scratch keeps the resident code heap-free and non-reentrant.
  * ENTRY's busy guard serializes dispatch. begun means mounted and armed;
  * dirty means mutations have begun, not that a sector awaits transmission. */
@@ -17,6 +18,12 @@ static U8 block[512];
 static U32 hint, first_fat, fsinfo_lba, backup_info, backup_boot;
 static U8 fat_count, active_fat, mirrored;
 static unsigned begun, dirty;
+U32 rw_read_serial=1;
+static void invalidate_reads(void) {
+  /* Never recycle a serial: dormant handles must not inherit an old cursor.
+   * After wrap, reads always start fresh for the rest of this installation. */
+  if (rw_read_serial) ++rw_read_serial;
+}
 static int chain_valid(U32 c);
 static int validate_file(RwFile *f);
 static int erase_lfn(RwFile *f);
@@ -37,16 +44,26 @@ static int read_sector(U32 lba,U8 *p) {
   return result?fail((U16)result):0;
 }
 static int valid(U32 c) { return c >= 2 && c - 2 < volume.clusters; }
-static U32 address(U32 c) { return volume.data + (c - 2) * volume.spc; }
+static U32 address(U32 c) { return volume.data + ((c - 2)<<fs_spc_shift); }
+/* The fixed FAT16 root is outside the cluster area. Never admit a FAT or
+ * reserved sector as a writable directory slot. */
+static int slot_valid(U32 lba,U16 offset) {
+  if ((offset&31) || offset>480 || lba>=rw_end) return 0;
+  if (lba>=volume.data) return 1;
+  return volume.fat_bits==16 && lba>=volume.root_lba &&
+         lba-volume.root_lba<(U32)volume.root_entries/16;
+}
 static int raw_store(U32 lba, const U8 *p) {
   int result;
   if (!begun || sd_diag.poisoned) return fail(E_NOTREADY);
   if (lba < rw_start || lba >= rw_end || lba == rw_start || lba == backup_boot ||
       (lba < first_fat && lba != fsinfo_lba && lba != backup_info))
     return fail(E_ACCESS);
+  invalidate_reads();
+  fs_invalidate_sector(lba);
   result=sd_write(lba,p);
   if (result) return fail((U16)result);
-  fs_invalidate(); return 0;
+  return 0;
 }
 static int store(U32 lba, const U8 *p) {
   if (!dirty) return fail(E_INVALID);
@@ -57,9 +74,16 @@ U32 rw_fat(U32 c) {
     fail(E_INVALID);
     return 0;
   }
-  if (read_sector(volume.fat + (c >> 7), block))
-    return 0;
-  return get32(block + (unsigned)(c & 127) * 4) & 0x0fffffffUL;
+  /* Reuse the reader's FAT buffer rather than receiving 512 bytes per link.
+   * Identity remains checked even on hits; stores invalidate matching sectors. */
+  fs_error=0;
+  if (sd_check_media()) {
+    if (dirty) sd_diag.poisoned=1;
+    (void)fail(E_NOTREADY); return 0;
+  }
+  c=fs_fat_entry(c);
+  if (fs_error && dirty) sd_diag.poisoned=1;
+  return c;
 }
 int rw_lookup(const char *path, RwFile *f) {
   U32 parent;
@@ -78,7 +102,7 @@ int rw_lookup(const char *path, RwFile *f) {
   while ((result=fs_next(&cursor,e))==0) {
     if ((e[11]&8) || memcmp(e,pattern,11)) continue;
     memset(f,0,sizeof(*f)); f->first=fs_entry_cluster(e); f->size=get32(e+28);
-    f->lba=address(cursor.cluster)+(cursor.slot-1)/16;
+    f->lba=fs_dir_lba(cursor.cluster,(U16)(cursor.slot-1));
     f->offset=(U16)((cursor.slot-1)%16)*32; f->parent=parent;
     f->attr=e[11]; f->directory=(U8)((e[11]&16)!=0);
     f->time=get16(e+22); f->date=get16(e+24); return 0;
@@ -89,9 +113,9 @@ int rw_free_space(U32 *count) {
   U32 c,tag=0xffffffffUL,lba;
   *count=0;
   for (c=2;c<volume.clusters+2;++c) {
-    lba=volume.fat+(c>>7);
+    lba=volume.fat+fs_fat_sector(c);
     if (lba!=tag) { if (read_sector(lba,block)) return -1; tag=lba; }
-    if (!(get32(block+(U16)(c&127)*4)&0x0fffffffUL)) ++*count;
+    if (!fs_fat_value(block,c)) ++*count;
   }
   return 0;
 }
@@ -100,9 +124,12 @@ int rw_free_space(U32 *count) {
 int rw_refresh(RwFile *f) {
   U8 *e;
   if (!begun || sd_diag.poisoned) return fail(E_NOTREADY);
-  if (f->lba<volume.data || f->lba>=rw_end || (f->offset&31) || f->offset>480)
+  if (!slot_valid(f->lba,f->offset))
     return fail(E_INVALID);
-  if (read_sector(f->lba,block)) return -1;
+  if (fs_read_metadata(f->lba,block)) {
+    if (dirty) sd_diag.poisoned=1;
+    return -1;
+  }
   e=block+f->offset;
   if (!e[0] || e[0]==229 || (e[11]&24)) return fail(E_INVALID);
   f->first=fs_entry_cluster(e); f->last=0; f->size=get32(e+28);
@@ -118,43 +145,54 @@ int rw_metadata(RwFile *f,U8 attr,U16 time,U16 date) {
   if (store(f->lba,block)) return -1;
   f->attr=attr; f->time=time; f->date=date; return 0;
 }
-static int setfat(U32 c, U32 value) {
-  U32 lba=volume.fat+(c>>7);
-  unsigned offset=(unsigned)(c&127)*4, i;
+/* block already contains this primary FAT sector. Compare every mirror
+ * before changing it; the allocation scan can supply the same fresh read. */
+static int setfat_loaded(U32 c, U32 value) {
+  U32 lba=volume.fat+fs_fat_sector(c);
+  unsigned offset=fs_fat_offset(c), i;
   if (!valid(c)) return fail(E_INVALID);
-  if (read_sector(lba,block)) return -1;
   if (mirrored) for (i=1;i<fat_count;++i) {
-    if (read_sector(first_fat+(U32)i*rw_fatsz+(c>>7),other)) return -1;
+    if (read_sector(first_fat+(U32)i*rw_fatsz+fs_fat_sector(c),other)) return -1;
     if (memcmp(block,other,512)) return inconsistent();
   }
-  put32(block+offset,(get32(block+offset)&0xf0000000UL)|value);
+  if (volume.fat_bits==16) put16(block+offset,(U16)value);
+  else put32(block+offset,(get32(block+offset)&0xf0000000UL)|value);
   if (store(lba,block)) return -1;
   if (mirrored) for (i=1;i<fat_count;++i)
-    if (store(first_fat+(U32)i*rw_fatsz+(c>>7),block)) return -1;
+    if (store(first_fat+(U32)i*rw_fatsz+fs_fat_sector(c),block)) return -1;
   return 0;
 }
-static U32 allocate(void) {
-  /* Reserve as EOF and zero the entire cluster before linking it into a live
-   * chain. An interruption can leak this reservation; there is no journal. */
+static int setfat(U32 c,U32 value) {
+  if (!valid(c)) return fail(E_INVALID);
+  if (read_sector(volume.fat+fs_fat_sector(c),block)) return -1;
+  return setfat_loaded(c,value);
+}
+static U32 allocate(int clear) {
+  /* Reserve as EOF. Directory clusters must be cleared before linking:
+   * their entries are scanned without a byte-size limit. Regular files
+   * instead initialize only bytes made visible by the published file size.
+   * An interruption can leak this reservation; there is no journal. */
   U32 c, i, value, tag = 0xffffffffUL, lba;
   unsigned s;
   if (rw_begin()) return 0;
   c = hint;
   for (i = 0; i < volume.clusters; ++i) {
-    lba = volume.fat + (c >> 7);
+    lba = volume.fat + fs_fat_sector(c);
     if (lba != tag) {
       if (read_sector(lba, block))
         return 0;
       tag = lba;
     }
-    value = get32(block + (unsigned)(c & 127) * 4) & 0x0fffffffUL;
+    value = fs_fat_value(block,c);
     if (!value) {
-      if (setfat(c, 0x0fffffffUL))
+      if (setfat_loaded(c, 0x0fffffffUL))
         return 0;
-      memset(other, 0, 512);
-      for (s = 0; s < volume.spc; ++s)
-        if (store(address(c) + s, other))
-          return 0;
+      if (clear) {
+        memset(other, 0, 512);
+        for (s = 0; s < volume.spc; ++s)
+          if (store(address(c) + s, other))
+            return 0;
+      }
       hint = c + 1;
       if (!valid(hint))
         hint = 2;
@@ -167,51 +205,70 @@ static U32 allocate(void) {
   fail(E_FULL);
   return 0;
 }
-static int chain_valid(U32 c) {
-  U32 n, i, slow = c;
-  if (!c)
-    return 0;
-  for (i = 0; i < volume.clusters; ++i) {
-    if (!valid(c))
-      return fail(E_INVALID);
-    fs_error = 0;
-    n = rw_fat(c);
-    if (fs_error)
-      return -1;
-    if (n >= 0x0ffffff8UL)
+/* Brent cycle detection visits each link once. Unlike a slow/fast pair, it
+ * does not alternate between distant FAT sectors and evict the small cache.
+ * The cluster count also establishes allocation length before mutation. */
+static int chain_length(U32 c,U32 *count,U32 wanted,U32 *at) {
+  U32 n, i, anchor=c, power=1, length=0;
+  *count=0;
+  if (at) *at=0;
+  if (!c) return 0;
+  /* Authenticate at both audit boundaries. Cache misses authenticate
+   * again through sd_read; no write can use an unfinished proof. */
+  if (sd_check_media()) {
+    if (dirty) sd_diag.poisoned=1;
+    return fail(E_NOTREADY);
+  }
+  for (i=0;i<volume.clusters;++i) {
+    if (!valid(c)) return fail(E_INVALID);
+    fs_error=0; n=fs_fat_entry(c);
+    if (fs_error) { if (dirty) sd_diag.poisoned=1; return -1; }
+    ++*count;
+    /* Capture logical EOF without stopping the proof of surplus allocation. */
+    if (at && *count==wanted) *at=c;
+    if (n>=0x0ffffff8UL) {
+      if (sd_check_media()) {
+        if (dirty) sd_diag.poisoned=1;
+        return fail(E_NOTREADY);
+      }
       return 0;
-    c = n;
-    if (i & 1) {
-      fs_error = 0;
-      slow = rw_fat(slow);
-      if (fs_error)
-        return -1;
     }
-    if (c == slow)
-      return fail(E_INVALID);
+    ++length;
+    if (n==anchor) return fail(E_INVALID);
+    if (length==power) { anchor=n; power<<=1; length=0; }
+    c=n;
   }
   return fail(E_INVALID);
 }
+static int chain_valid(U32 c) {
+  U32 count;
+  fs_invalidate();
+  if (volume.fat_bits==16 && c==ROOT16) {
+    if (sd_check_media()) {
+      if (dirty) sd_diag.poisoned=1;
+      return fail(E_NOTREADY);
+    }
+    return 0;
+  }
+  return chain_length(c,&count,0,0);
+}
 /* Verify both the directory location and every FAT link before mutation. */
 static int validate_file(RwFile *f) {
-  U32 c,n,count=0,needed;
+  U32 count=0,needed;
   U8 *e;
+  /* Begin each mutation with fresh FAT evidence. Cache only within this
+   * validation/traversal; external changes never inherit a prior proof. */
+  fs_invalidate();
   if (!begun || sd_diag.poisoned) return fail(E_NOTREADY);
-  if (f->lba<volume.data || f->lba>=rw_end || f->offset>480 || (f->offset&31))
+  if (!slot_valid(f->lba,f->offset))
     return fail(E_INVALID);
   if (read_sector(f->lba,block)) return -1;
   e=block+f->offset;
   if (!e[0] || e[0]==229 || (e[11]&8) ||
       fs_entry_cluster(e)!=f->first || get32(e+28)!=f->size ||
       ((e[11]&16)!=0)!=f->directory) return fail(E_INVALID);
-  if (chain_valid(f->first)) return -1;
-  needed=f->size?((f->size-1)/512)/volume.spc+1:0;
-  c=f->first;
-  while (c) {
-    ++count;
-    fs_error=0; n=rw_fat(c); if (fs_error) return -1;
-    c=n>=0x0ffffff8UL?0:n;
-  }
+  needed=f->size?((f->size-1)>>(9+fs_spc_shift))+1:0;
+  if (chain_length(f->first,&count,needed,&f->last)) return -1;
   if (count<needed || (f->directory && !count)) return fail(E_INVALID);
   return 0;
 }
@@ -234,7 +291,8 @@ static int release_chain(U32 c) {
 static int publish(RwFile *f) {
   if (read_sector(f->lba, block))
     return -1;
-  put16(block + f->offset + 20, (U16)(f->first >> 16));
+  if (volume.fat_bits==32)
+    put16(block + f->offset + 20, (U16)(f->first >> 16));
   put16(block + f->offset + 26, (U16)f->first);
   put32(block + f->offset + 28, f->size);
   block[f->offset+11]|=32; f->attr|=32;
@@ -244,6 +302,11 @@ static int publish(RwFile *f) {
  * them. Constant memory, including when the sequence crosses a FAT boundary. */
 static int dir_slot(DirCursor *cur,U32 *lba,U16 *offset) {
   U32 next;
+  if (volume.fat_bits==16 && cur->cluster==ROOT16) {
+    if (cur->slot>=volume.root_entries) return 1;
+    *lba=fs_dir_lba(cur->cluster,cur->slot);
+    *offset=(U16)(cur->slot%16)*32; return 0;
+  }
   if (!valid(cur->cluster)) return fail(E_INVALID);
   if (cur->slot>=(U16)volume.spc*16) {
     if (++cur->hops==0 || (U32)cur->hops>=volume.clusters) return fail(E_INVALID);
@@ -306,7 +369,19 @@ static int valid_fsinfo(const U8 *p) {
          get32(p + 508) == 0xaa550000UL;
 }
 void rw_invalidate(void) {
-  begun=dirty=0; sd_write_disarm();
+  invalidate_reads();
+  begun=dirty=0; sd_write_disarm(); fs_invalidate();
+}
+/* block contains primary FAT sector zero. Never overwrite a disagreeing
+ * mirror while publishing clean/dirty flags, even with fast mounting. */
+static int head_mirrors(void) {
+  unsigned f;
+  if (!mirrored) return 0;
+  for (f=1;f<fat_count;++f) {
+    if (read_sector(first_fat+(U32)f*rw_fatsz,other)) return -1;
+    if (memcmp(block,other,512)) return inconsistent();
+  }
+  return 0;
 }
 static int mirrors(void) {
   U32 i;
@@ -326,26 +401,21 @@ int rw_mount(void) {
    * FAT mirrors, clean/error flags and optional FSInfo signatures. This is
    * not a whole-volume consistency or cross-linked-cluster scan. */
   U32 start=0,total;
-  U16 i,reserved,flags,info,backup;
+  U16 reserved,flags,info,backup;
   int result;
   rw_invalidate(); rw_allocated=rw_freed=0;
   if (fs_mount()) return -1;
-  if (read_sector(0,block)) return -1;
-  if (get16(block+11)!=512 || !block[16] || get16(block+17) || get16(block+22)) {
-    for (i=0;i<4;++i) {
-      U8 *p=block+446+i*16;
-      if (p[4]==11 || p[4]==12 || p[4]==27 || p[4]==28) { start=get32(p+8); break; }
-    }
-    if (i==4) return fail(E_INVALID);
-    if (read_sector(start,block)) return -1;
-  }
-  reserved=get16(block+14); fat_count=block[16]; flags=get16(block+40);
+  start=volume.start;
+  if (read_sector(start,block)) return -1;
+  reserved=get16(block+14); fat_count=block[16];
+  flags=volume.fat_bits==16?0:get16(block+40);
   mirrored=(U8)((flags&128)==0); active_fat=mirrored?0:(U8)(flags&15);
-  rw_fatsz=get32(block+36); total=get32(block+32);
+  rw_fatsz=volume.fat_sectors; total=volume.total;
   rw_start=start; rw_end=start+total; first_fat=start+reserved;
   if (rw_end-1>sd_last_lba || volume.fat!=first_fat+(U32)active_fat*rw_fatsz)
     return fail(E_INVALID);
-  info=get16(block+48); backup=get16(block+50);
+  info=backup=0;
+  if (volume.fat_bits==32) { info=get16(block+48); backup=get16(block+50); }
   fsinfo_lba=backup_info=backup_boot=0xffffffffUL;
   if (backup && backup!=65535U) {
     if (backup>=reserved) return fail(E_INVALID);
@@ -363,9 +433,15 @@ int rw_mount(void) {
     if (get16(block+510)!=0xaa55 || memcmp(block+11,other+11,41))
       return fail(E_INVALID);
   }
-  if (mirrors()) return -1;
+  if (!rw_skip_fat_check && mirrors()) return -1;
   if (read_sector(volume.fat,block)) return -1;
-  if ((get32(block+4)&0x0c000000UL)!=0x0c000000UL) return fail(E_INVALID);
+  if (volume.fat_bits==16) {
+    if ((get16(block+2)&0xc000U)!=0xc000U) return fail(E_INVALID);
+  } else if ((get32(block+4)&0x0c000000UL)!=0x0c000000UL) return fail(E_INVALID);
+  /* The clean/error flags share FAT sector zero with allocation entries.
+   * mark_clean copies that whole sector to each mirror. Even a fast mount
+   * must compare it first, so the first write cannot hide a disagreement. */
+  if (rw_skip_fat_check && head_mirrors()) return -1;
   if (fsinfo_lba!=0xffffffffUL) {
     if (read_sector(fsinfo_lba,block)) return -1;
     if (!valid_fsinfo(block)) return fail(E_INVALID);
@@ -382,9 +458,16 @@ static int mark_clean(int clean) {
   unsigned f;
   U32 flags;
   if (read_sector(volume.fat,block)) return -1;
-  flags=get32(block+4);
-  if (clean) flags|=0x08000000UL; else flags&=~0x08000000UL;
-  put32(block+4,flags);
+  if (rw_skip_fat_check && head_mirrors()) return -1;
+  if (volume.fat_bits==16) {
+    flags=get16(block+2);
+    if (clean) flags|=0x8000UL; else flags&=~0x8000UL;
+    put16(block+2,(U16)flags);
+  } else {
+    flags=get32(block+4);
+    if (clean) flags|=0x08000000UL; else flags&=~0x08000000UL;
+    put32(block+4,flags);
+  }
   if (raw_store(volume.fat,block)) return -1;
   if (mirrored) for (f=1;f<fat_count;++f)
     if (raw_store(first_fat+(U32)f*rw_fatsz,block)) return -1;
@@ -408,6 +491,7 @@ int rw_begin(void) {
   }
   return 0;
 }
+int rw_dirty_session(void) { return dirty!=0; }
 int rw_flush(void) {
   /* Every store is already verified. Commit checks mirrors before publishing
    * the clean flag; FAT-mirror-inconsistent or poisoned sessions cannot become
@@ -417,11 +501,30 @@ int rw_flush(void) {
   if (mirrors() || mark_clean(1)) return -1;
   dirty=0; return 0;
 }
+/* FAT16's root cannot grow. Find an existing free slot without allocating
+ * clusters or changing the FAT; a full root is an ordinary disk-full error. */
+static int reserve_root(const U8 pattern[11],U32 *target,U16 *slot) {
+  U16 n,offset,free_offset=0;
+  U32 lba,tag=0xffffffffUL,free_lba=0;
+  if (chain_valid(ROOT16)) return -1;
+  for (n=0;n<volume.root_entries;++n) {
+    lba=fs_dir_lba(ROOT16,n); offset=(U16)(n%16)*32;
+    if (tag!=lba) { if (read_sector(lba,block)) return -1; tag=lba; }
+    if (!block[offset] || block[offset]==229) {
+      if (!free_lba) { free_lba=lba; free_offset=offset; }
+      if (!block[offset]) break;
+    } else if (same_name(block+offset,pattern)) return fail(E_EXISTS);
+  }
+  if (!free_lba) return fail(E_FULL);
+  *target=free_lba; *slot=free_offset; return 0;
+}
 static int reserve_slot(U32 parent,const U8 pattern[11],U32 *target,U16 *slot) {
   U32 c,next,i,free_lba=0;
   unsigned sector,offset,free_offset=0;
   int end=0;
   if (!begun || sd_diag.poisoned) return fail(E_NOTREADY);
+  if (volume.fat_bits==16 && parent==ROOT16)
+    return reserve_root(pattern,target,slot);
   if (!valid(parent)) return fail(E_INVALID);
   if (chain_valid(parent)) return -1;
   c = parent;
@@ -453,7 +556,7 @@ static int reserve_slot(U32 parent,const U8 pattern[11],U32 *target,U16 *slot) {
       return -1;
     if (next >= 0x0ffffff8UL) {
       if (!free_lba) {
-        next = allocate();
+        next = allocate(1);
         if (!next || setfat(c, next))
           return -1;
         free_lba = address(next);
@@ -513,7 +616,7 @@ static int create(U32 parent, const char *name, RwFile *f, int directory) {
   f->directory = (U8)directory;
   f->parent=parent; f->attr=(U8)(directory?16:32);
   if (directory) {
-    f->first = f->last = allocate();
+    f->first = f->last = allocate(1);
     if (!f->first)
       return -1;
     memset(other, 0, 512);
@@ -593,7 +696,8 @@ int rw_rename(RwFile *f,const char *destination) {
     if (read_sector(address(f->first),block)) return -1;
     if (memcmp(block+32,"..         ",11) || block[43]!=16) return fail(E_INVALID);
     next=parent==volume.root?0:parent;
-    put16(block+52,(U16)(next>>16)); put16(block+58,(U16)next);
+    if (volume.fat_bits==32) put16(block+52,(U16)(next>>16));
+    put16(block+58,(U16)next);
     if (store(address(f->first),block)) return -1;
   }
   if (write_entry(parent,target,off,entry) || read_sector(f->lba,block)) return -1;
@@ -602,7 +706,7 @@ int rw_rename(RwFile *f,const char *destination) {
   f->parent=parent; f->lba=target; f->offset=off; fs_error=0; return 0;
 }
 static U32 locate(RwFile *f, U32 pos) {
-  U32 c = f->first, i, n, index = pos / ((U32)volume.spc * 512);
+  U32 c = f->first, i, n, index = pos >> (9+fs_spc_shift);
   for (i = 0; i < index; ++i) {
     fs_error = 0;
     n = rw_fat(c);
@@ -621,40 +725,45 @@ static U32 locate(RwFile *f, U32 pos) {
 }
 int rw_overwrite(RwFile *f, U32 pos, const U8 FAR *data, U16 count) {
   U32 c, lba;
-  unsigned offset, n, i;
+  unsigned offset, n;
   if (f->directory || (f->attr&1)) return fail(E_ACCESS);
   if (pos > f->size || count > f->size - pos)
     return fail(E_INVALID);
   if (!count) return 0;
   if (validate_file(f)) return -1;
   if (rw_begin()) return -1;
+  /* Full validation above remains fresh. Walk forward only within this call;
+   * no cluster-position proof survives a callback or mutation. */
+  c=locate(f,pos); if (!c) return -1;
   while (count) {
-    c = locate(f, pos);
-    if (!c)
-      return -1;
-    lba = address(c) + (pos / 512) % volume.spc;
+    lba = address(c) + ((pos>>9)&(volume.spc-1U));
     offset = (unsigned)(pos % 512);
     n = 512 - offset;
     if (n > count)
       n = count;
-    if (read_sector(lba, block))
+    /* A full replacement has no bytes to preserve from the old sector. */
+    if ((offset || n!=512) && read_sector(lba, block))
       return -1;
 #ifndef HOST_TEST
     data=(const U8 far *)MK_FP(FP_SEG(data)+(FP_OFF(data)>>4),FP_OFF(data)&15);
 #endif
-    for (i=0;i<n;++i) block[offset+i]=data[i];
+    fs_copy(block+offset,data,n);
     if (store(lba, block))
       return -1;
     pos += n;
     data += n;
     count -= n;
+    if (count && !(pos&(((U32)volume.spc<<9)-1UL))) {
+      fs_error=0; c=rw_fat(c); if (fs_error) return -1;
+      if (!valid(c)) return fail(E_INVALID);
+    }
   }
   fs_error = 0;
   return 0;
 }
 int rw_append(RwFile *f, const U8 FAR *data, U16 count) {
   U32 c, lba;
-  unsigned offset, n, i;
+  unsigned offset, n;
   U32 old_size = f->size;
   if (f->directory || (f->attr&1)) return fail(E_ACCESS);
   if (f->size > 0xffffffffUL - count)
@@ -662,11 +771,12 @@ int rw_append(RwFile *f, const U8 FAR *data, U16 count) {
   if (!count) return 0;
   if (validate_file(f)) return -1;
   if (rw_begin()) return -1;
-  if (f->size) {
-    f->last=locate(f,f->size-1); if (!f->last) return -1;
-  } else f->last=0;
+  /* validate_file captured the cluster at logical EOF, not physical EOC.
+   * Unwritten allocation slack may contain old data. Store each incoming
+   * byte (or explicit gap/extension zero) before publishing the new size;
+   * reads stop at that size. Partial sectors preserve existing file bytes. */
   while (count) {
-    if (!(f->size % ((U32)volume.spc * 512))) {
+    if (!(f->size&(((U32)volume.spc<<9)-1UL))) {
       c=0;
       if (!f->size && f->first) c=f->first;
       else if (f->last) {
@@ -674,7 +784,7 @@ int rw_append(RwFile *f, const U8 FAR *data, U16 count) {
         if (c>=0x0ffffff8UL) c=0;
       }
       if (!c) {
-        c = allocate();
+        c = allocate(0);
         if (!c) {
           if (fs_error==E_FULL && f->size!=old_size) {
             if (publish(f)) return -1;
@@ -688,18 +798,18 @@ int rw_append(RwFile *f, const U8 FAR *data, U16 count) {
         f->first = c;
       f->last = c;
     }
-    lba = address(f->last) + (f->size / 512) % volume.spc;
+    lba = address(f->last) + ((f->size>>9)&(volume.spc-1U));
     offset = (unsigned)(f->size % 512);
     n = 512 - offset;
     if (n > count)
       n = count;
-    if (read_sector(lba, block))
+    if ((offset || n!=512) && read_sector(lba, block))
       return -1;
     if (data) {
 #ifndef HOST_TEST
       data=(const U8 far *)MK_FP(FP_SEG(data)+(FP_OFF(data)>>4),FP_OFF(data)&15);
 #endif
-      for (i=0;i<n;++i) block[offset+i]=data[i];
+      fs_copy(block+offset,data,n);
     } else memset(block+offset,0,n);
     if (store(lba, block))
       return -1;

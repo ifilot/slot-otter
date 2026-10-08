@@ -23,7 +23,7 @@ class ResidentTransportTests(unittest.TestCase):
         cls.tmp = tempfile.TemporaryDirectory(prefix='otter-rwsd-')
         cls.work = pathlib.Path(cls.tmp.name)
         cls.lib = C.CDLL(str(library(cls.work, 'rwsd', [
-            'SDRW.C', 'tests/HOSTRW.C', 'emulation/slot_model.c'], ['-std=c99'])))
+            'SDRW.C', 'tests/HOSTRW.C', 'tests/emulation/slot_model.c'], ['-std=c99'])))
         cls.lib.rw_host_open.argtypes = [C.c_char_p, C.c_uint]
         cls.lib.sd_write_arm.argtypes = [C.c_uint32, C.c_uint32]
         cls.lib.sd_write.argtypes = [C.c_uint32, C.c_void_p]
@@ -44,6 +44,7 @@ class ResidentTransportTests(unittest.TestCase):
         self.buffer = C.create_string_buffer(self.payload, 512)
         self.scratch = 2056
         C.c_int.in_dll(self.lib, 'sd_write_enabled').value = 1
+        C.c_int.in_dll(self.lib, 'sd_verify_writes').value = 1
         self.open()
 
     def tearDown(self):
@@ -81,6 +82,96 @@ class ResidentTransportTests(unittest.TestCase):
         self.assertEqual(before, self.digest())
         self.assertEqual(bytes(self.diag), diagnostic, 'preserve failure evidence after poison')
         self.assertTrue(self.diag.poisoned)
+
+    def test_noverify_normal_write_has_crc_status_and_no_readback(self):
+        C.c_int.in_dll(self.lib, 'sd_verify_writes').value = 0
+        self.arm()
+        before = C.c_uint.in_dll(self.lib, 'rw_host_reads').value
+        self.assertEqual(self.lib.sd_write(self.scratch, self.buffer), 0)
+        self.assertEqual(C.c_uint.in_dll(self.lib, 'rw_host_reads').value, before)
+        self.assertEqual(self.sector(), self.payload)
+        packet = bytes((C.c_uint8 * 514).in_dll(self.lib, 'rw_host_packets'))
+        self.assertEqual(int.from_bytes(packet[512:], 'big'), binascii.crc_hqx(self.payload, 0))
+        self.assertEqual((self.diag.attempts, self.diag.verified), (1, 1))
+
+    def test_initialization_register_crc_failure_retains_exact_stage_and_disarms(self):
+        before=self.digest()
+        for command in (10,9):
+            for verify in (1,0):
+                with self.subTest(command=command,verify=verify):
+                    self.open()
+                    C.c_int.in_dll(self.lib,'sd_verify_writes').value=verify
+                    self.arm()
+                    self.lib.rw_host_config(29,command+1)
+                    self.assertEqual(self.lib.sd_init(),21)
+                    self.assertEqual((self.diag.error,self.diag.stage,self.diag.r1,self.diag.token),
+                                     (102,command,0,254))
+                    evidence=bytes(self.diag)
+                    self.lib.sd_release()
+                    self.assertEqual(bytes(self.diag),evidence)
+                    self.assertEqual(self.lib.sd_write_arm(self.scratch,self.scratch+1),21)
+                    self.assertEqual(self.lib.sd_write(self.scratch,self.buffer),5)
+                    self.assertEqual(self.commands(),0)
+                    self.assertEqual(self.digest(),before)
+
+    def test_noverify_can_acknowledge_silent_corruption(self):
+        C.c_int.in_dll(self.lib, 'sd_verify_writes').value = 0
+        self.arm(); self.lib.rw_host_config(8, 1)
+        self.assertEqual(self.lib.sd_write(self.scratch, self.buffer), 0)
+        self.assertNotEqual(self.sector(), self.payload)
+        self.assertEqual((self.diag.error, self.diag.retries), (0, 0))
+        out = C.create_string_buffer(512)
+        self.assertEqual(self.lib.sd_read(self.scratch, out), 0)
+        self.assertNotEqual(out.raw, self.payload, 'later independent verification must detect it')
+
+    def test_noverify_recovery_restores_shared_scratch_and_frozen_crc(self):
+        for option in (2, 5):
+            with self.subTest(option=option):
+                self.open(); self.arm()
+                C.c_int.in_dll(self.lib, 'sd_verify_writes').value = 0
+                scratch = (C.c_uint8 * 512).in_dll(self.lib, 'sd_scratch')
+                C.memmove(scratch, self.payload, 512)
+                self.lib.rw_host_config(option, 1)
+                self.lib.rw_host_mutate_on_reset(scratch)
+                self.assertEqual(self.lib.sd_write(self.scratch, scratch), 0)
+                self.assertEqual(bytes(scratch), self.payload)
+                self.assertEqual(self.sector(), self.payload)
+                self.assertEqual((self.diag.attempts, self.diag.retries), (2, 1))
+                self.assertEqual(C.c_uint.in_dll(self.lib, 'rw_host_reads').value, 1)
+
+    def test_noverify_crc_rejection_still_recovers_and_checks_recovery_read(self):
+        C.c_int.in_dll(self.lib, 'sd_verify_writes').value = 0
+        self.arm(); self.lib.rw_host_flip_crc(1)
+        self.assertEqual(self.lib.sd_write(self.scratch, self.buffer), 0)
+        self.assertEqual((self.diag.first_error, self.diag.attempts), (102, 2))
+        self.assertEqual(self.sector(), self.payload)
+        self.open(); self.arm(); self.lib.rw_host_config(5, 1)
+        self.lib.rw_host_config(10, self.scratch)
+        self.assertEqual(self.lib.sd_write(self.scratch, self.buffer), 29)
+        self.assertEqual(self.commands(), 1)
+        self.assertEqual(self.diag.first_error, 104)
+        self.assert_stopped()
+
+    def test_noverify_removal_and_persistent_status_still_stop(self):
+        for option in (7, 5):
+            with self.subTest(option=option):
+                self.open(); self.arm()
+                C.c_int.in_dll(self.lib, 'sd_verify_writes').value = 0
+                self.lib.rw_host_repeat(option, 1)
+                self.assertNotEqual(self.lib.sd_write(self.scratch, self.buffer), 0)
+                self.assertEqual(self.commands(), 1 if option == 7 else 3)
+                self.assert_stopped()
+
+    def test_noverify_status_recovery_never_writes_replacement_card(self):
+        C.c_int.in_dll(self.lib, 'sd_verify_writes').value = 0
+        other = self.work / 'replacement.img'
+        create(other); before = hashlib.sha256(other.read_bytes()).digest()
+        self.arm(); self.lib.rw_host_config(5, 1)
+        self.lib.rw_host_replace_on_reset(str(other).encode())
+        self.assertEqual(self.lib.sd_write(self.scratch, self.buffer), 21)
+        self.assertEqual(self.commands(), 1)
+        self.assertEqual(hashlib.sha256(other.read_bytes()).digest(), before)
+        self.assert_stopped()
 
     def test_crc_vectors_and_independent_oracle(self):
         self.assertEqual(self.lib.sd_crc16(b'123456789', 9), 0x31c3)

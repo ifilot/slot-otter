@@ -3,3 +3,5 @@
 *.MAP
 *.BAK
 __pycache__/
+/build/
+/dist/

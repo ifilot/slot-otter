@@ -339,6 +339,10 @@ int main(int argc,char **argv) {
     check(!r.x.cflag && r.x.cx==2048 && r.x.ax+r.x.bx==2048 && r.x.bx>=128,
           "resident private stack retains at least 128 guard bytes");
 finish:
+#ifdef TEST_SETTLE
+    check(inportb(0x336)==0xa5 && inportb(0x335)==0,
+          "native delayed byte bursts complete before the next OUT");
+#endif
     transport_report("FINISH");
     printf("CRITICAL ERRORS: count=%u device=%04X error=%u (FAIL returned)\n",
            critical_count,critical_device,critical_error);

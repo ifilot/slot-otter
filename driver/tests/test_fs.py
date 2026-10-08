@@ -21,6 +21,38 @@ class DirCursor(C.Structure):
 
 
 class FilesystemTests(unittest.TestCase):
+    def test_selective_store_invalidation_preserves_unrelated_cache(self):
+        self.lib.fs_fat_entry.argtypes = [C.c_uint32]
+        self.lib.fs_fat_entry.restype = C.c_uint32
+        self.lib.fs_invalidate_sector.argtypes = [C.c_uint32]
+        reads = C.c_uint.in_dll(self.lib, 'reads')
+        fat_lba = self.layout['start'] + RESERVED
+        data_lba = self.layout['data'] + 2
+
+        def read_data():
+            self.assertEqual(self.read(FileCursor(4, 4, 0), 0, len(TEXT)), TEXT)
+
+        def read_fat():
+            self.assertEqual(self.lib.fs_fat_entry(4), 0x0fffffff)
+
+        read_data()
+        read_fat()
+        before = reads.value
+        self.lib.fs_invalidate_sector(data_lba + 100)
+        read_data()
+        read_fat()
+        self.assertEqual(reads.value, before)
+        self.lib.fs_invalidate_sector(data_lba)
+        read_fat()
+        self.assertEqual(reads.value, before)
+        read_data()
+        self.assertEqual(reads.value, before + 1)
+        self.lib.fs_invalidate_sector(fat_lba)
+        read_data()
+        self.assertEqual(reads.value, before + 1)
+        read_fat()
+        self.assertEqual(reads.value, before + 2)
+
     @classmethod
     def setUpClass(cls):
         cls.tmp = tempfile.TemporaryDirectory(prefix="otterfs-tests-")

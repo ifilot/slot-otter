@@ -26,12 +26,20 @@ typedef struct {
 extern SdDiagnostic sd_diag;
 extern U32 sd_last_lba;
 extern int sd_write_enabled;
+/* Installation policy; CRC/status/recovery stay enabled in either mode. */
+extern int sd_verify_writes;
 /* Volatile filesystem/readback scratch; independent frozen retry data is
  * private to SDRW. Successful writes restore an aliased input exactly. */
 extern U8 sd_scratch[512];
-#define OTTER_VERSION 0x0004
+/* Stable release ID: major in the high byte, minor/patch in two low nibbles.
+ * Keep the 16-bit query field and ABI unchanged. Pre-1.0 IDs were sequential. */
+#define OTTER_VERSION 0x0100
+#define OTTER_VERSION_TEXT "1.0.0"
 /* Private query 8, ABI 1: mounted identity is cached, not a fresh CID check.
- * Flags: bit 0 cached identity valid, bit 1 writable, bit 2 online. */
+ * Flags: bit 0 cached identity valid, bit 1 writable, bit 2 online,
+ * bit 3 post-write readback disabled, bit 4 full mount FAT check skipped,
+ * bit 5 online FAT16 (online without this bit is FAT32), bits 6/7 require
+ * FAT16/FAT32 respectively. Format restrictions survive media changes. */
 typedef struct {
     U32 last_lba;
     U8 cid[16];

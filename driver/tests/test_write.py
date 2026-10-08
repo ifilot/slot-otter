@@ -11,7 +11,7 @@ import unittest
 from support import library, ROOT
 from fixture import TEXT,BIG
 
-spec=importlib.util.spec_from_file_location('write_build',ROOT/'write/build.py')
+spec=importlib.util.spec_from_file_location('write_build',ROOT/'tests/kit_fixture.py')
 builder=importlib.util.module_from_spec(spec); spec.loader.exec_module(builder)
 
 class WFile(C.Structure):
@@ -22,8 +22,8 @@ class WriteTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.tmp=tempfile.TemporaryDirectory(prefix='otter-write-tests-'); cls.work=pathlib.Path(cls.tmp.name)
-        so=library(cls.work,'write',['write/WSD.C','write/WFS.C','write/WTEST.C','write/HOSTIO.C',
-                                    'FAT32.C','emulation/slot_model.c'],['-std=c99','-I',str(ROOT/'write')])
+        so=library(cls.work,'write',['tests/reference/WSD.C','tests/reference/WFS.C','tests/reference/WTEST.C','tests/reference/HOSTIO.C',
+                                    'FAT32.C','tests/emulation/slot_model.c'],['-std=c99','-I',str(ROOT/'tests/reference')])
         cls.lib=C.CDLL(str(so))
         cls.lib.wt_host_open.argtypes=[C.c_char_p,C.c_uint]
         cls.lib.sd_read.argtypes=[C.c_uint32,C.c_void_p]

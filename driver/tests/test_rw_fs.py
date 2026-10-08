@@ -9,7 +9,7 @@ import unittest
 from fixture import create, TEXT, BIG
 from support import library, ROOT
 
-spec=importlib.util.spec_from_file_location('resident_fixture_build',ROOT/'write/build.py')
+spec=importlib.util.spec_from_file_location('resident_fixture_build',ROOT/'tests/kit_fixture.py')
 builder=importlib.util.module_from_spec(spec)
 spec.loader.exec_module(builder)
 
@@ -25,9 +25,9 @@ class ResidentFilesystemTests(unittest.TestCase):
     def setUpClass(cls):
         cls.tmp = tempfile.TemporaryDirectory(prefix='otter-rwfs-')
         cls.work = pathlib.Path(cls.tmp.name)
-        cls.lib = C.CDLL(str(library(cls.work, 'rwfs', [
+        cls.lib = C.CDLL(str(library(cls.work, getattr(cls,'library_name','rwfs'), [
             'SDRW.C', 'RWFS.C', 'FAT32.C', 'tests/HOSTRW.C',
-            'emulation/slot_model.c'], ['-std=c99'])))
+            'tests/emulation/slot_model.c'], ['-std=c99'])))
         cls.lib.rw_host_open.argtypes = [C.c_char_p, C.c_uint]
         cls.lib.rw_lookup.argtypes = [C.c_char_p, C.POINTER(File)]
         for name in ('rw_create', 'rw_mkdir'):
@@ -48,7 +48,9 @@ class ResidentFilesystemTests(unittest.TestCase):
     def setUp(self):
         self.image = self.work/'card.img'
         self.layout = builder.prepare(self.image)
+        C.c_ubyte.in_dll(self.lib, 'rw_skip_fat_check').value = 0
         C.c_int.in_dll(self.lib, 'sd_write_enabled').value = 1
+        C.c_int.in_dll(self.lib, 'sd_verify_writes').value = 1
         self.assertEqual(self.lib.rw_host_open(str(self.image).encode(), 3), 0)
         self.assertEqual(self.lib.sd_init(), 0)
         self.assertEqual(self.lib.rw_mount(), 0)
@@ -80,6 +82,236 @@ class ResidentFilesystemTests(unittest.TestCase):
 
     def content(self, path):
         return subprocess.check_output(['mtype','-i',str(self.image)+'@@1048576','::'+path])
+
+    def test_copy_chunk_read_budget_and_exact_data_for_both_cluster_sizes(self):
+        for spc in (1, 8):
+            with self.subTest(spc=spc):
+                self.lib.rw_host_close()
+                self.layout = builder.prepare(self.image, spc=spc)
+                self.assertEqual(self.lib.rw_host_open(str(self.image).encode(), 3), 0)
+                self.assertEqual(self.lib.sd_init(), 0)
+                self.assertEqual(self.lib.rw_mount(), 0)
+                f = self.create_file('COPY.BIN')
+                chunk = bytes(i % 251 for i in range(4096))
+                before = C.c_uint.in_dll(self.lib, 'rw_host_reads').value
+                commands = (C.c_uint32 * 64).in_dll(self.lib, 'rw_host_commands')
+                identity_before = commands[10]
+                for unused in range(100):
+                    self.assertEqual(self.lib.rw_refresh(C.byref(f)), 0)
+                    self.assertEqual(self.lib.rw_append(C.byref(f), chunk, 4096), 0)
+                    self.assertEqual(self.lib.rw_metadata(C.byref(f), f.attr | 32, 0, 0), 0)
+                reads = C.c_uint.in_dll(self.lib, 'rw_host_reads').value - before
+                # Pre-cache baseline: 250397 receives at spc=1. This generous
+                # bound measures actual wire traffic, not an implementation tag.
+                self.assertLess(reads, 11000 if spc == 1 else 6000)
+                # Bound actual wire work, while fault tests guard audit boundaries.
+                self.assertLess(commands[10] - identity_before, 20000 if spc == 1 else 7000)
+                self.assertEqual(self.content('COPY.BIN'), chunk * 100)
+                self.finish()
+
+    def test_fragmented_overwrite_forward_walk_preserves_edges(self):
+        for spc in (1, 8):
+            with self.subTest(spc=spc):
+                self.lib.rw_host_close()
+                self.layout = builder.prepare(self.image, spc=spc)
+                self.assertEqual(self.lib.rw_host_open(str(self.image).encode(), 3), 0)
+                self.assertEqual(self.lib.sd_init(), 0)
+                self.assertEqual(self.lib.rw_mount(), 0)
+                f = self.lookup('BIG.BIN')
+                original = self.content('BIG.BIN')
+                commands = (C.c_uint32 * 64).in_dll(self.lib, 'rw_host_commands')
+                before = commands[10]
+                pos, payload = 65536 - 513, b'Z' * 4097
+                self.assertEqual(self.lib.rw_overwrite(C.byref(f), pos, payload, len(payload)), 0)
+                self.assertLess(commands[10] - before, 450 if spc == 1 else 90)
+                self.assertEqual(self.content('BIG.BIN'), original[:pos] + payload + original[pos + len(payload):])
+                self.finish()
+
+    def test_append_uses_logical_eof_with_nonempty_surplus_chain(self):
+        for spc in (1, 8):
+            for extra in (0, 1):
+                with self.subTest(spc=spc, extra=extra):
+                    self.lib.rw_host_close()
+                    self.layout = builder.prepare(self.image, spc=spc)
+                    self.assertEqual(self.lib.rw_host_open(str(self.image).encode(), 3), 0)
+                    self.assertEqual(self.lib.sd_init(), 0)
+                    self.assertEqual(self.lib.rw_mount(), 0)
+                    f = self.create_file()
+                    chain = (1300, 1601, 1703)
+                    cluster_bytes = 512 * spc
+                    for i, cluster in enumerate(chain):
+                        self.set_fat(cluster, chain[i + 1] if i < 2 else 0x0fffffff)
+                    size = cluster_bytes + extra
+                    with self.image.open('r+b') as disk:
+                        disk.seek(f.lba * 512 + f.offset + 26)
+                        disk.write(struct.pack('<H', chain[0]))
+                        disk.seek(f.lba * 512 + f.offset + 28)
+                        disk.write(struct.pack('<I', size))
+                        for cluster in chain:
+                            disk.seek((self.layout['data'] + (cluster - 2) * spc) * 512)
+                            disk.write(b'A' * cluster_bytes)
+                    self.lib.fs_invalidate()
+                    f = self.lookup('NEW.BIN')
+                    before = C.c_uint32.in_dll(self.lib, 'rw_allocated').value
+                    self.assertEqual(self.lib.rw_append(C.byref(f), b'Z' * 100, 100), 0)
+                    self.assertEqual(self.content('NEW.BIN'), b'A' * size + b'Z' * 100)
+                    self.assertEqual(C.c_uint32.in_dll(self.lib, 'rw_allocated').value, before)
+                    self.assertEqual(self.lib.rw_fat(chain[0]), chain[1])
+                    self.assertEqual(self.lib.rw_fat(chain[1]), chain[2])
+                    # Consume the remaining reservation before independent fsck;
+                    # a deliberately oversize chain otherwise needs trimming.
+                    self.assertEqual(self.lib.rw_resize(C.byref(f), 3 * cluster_bytes), 0)
+                    self.assertEqual(C.c_uint32.in_dll(self.lib, 'rw_allocated').value, before)
+                    self.assertEqual(self.content('NEW.BIN'), b'A' * size + b'Z' * 100 + bytes(3 * cluster_bytes - size - 100))
+                    self.finish()
+
+    def test_corrupt_surplus_tail_still_refuses_append_before_writes(self):
+        f = self.create_file()
+        self.set_fat(1300, 1601)
+        self.set_fat(1601, 1703)
+        with self.image.open('r+b') as disk:
+            disk.seek(f.lba * 512 + f.offset + 26)
+            disk.write(struct.pack('<H', 1300))
+            disk.seek(f.lba * 512 + f.offset + 28)
+            disk.write(struct.pack('<I', 1))
+        self.lib.fs_invalidate()
+        f = self.lookup('NEW.BIN')
+        for link in (0, 0x0ffffff7, 1601):
+            with self.subTest(link=link):
+                self.set_fat(1703, link)
+                before = C.c_uint.in_dll(self.lib, 'rw_host_writes').value
+                self.assertNotEqual(self.lib.rw_append(C.byref(f), b'Z', 1), 0)
+                self.assertEqual(self.error(), 13)
+                self.assertEqual(C.c_uint.in_dll(self.lib, 'rw_host_writes').value, before)
+
+    def test_forward_overwrite_transition_crc_failure_poisons_and_stops(self):
+        from test_rw_transport import Diagnostic
+        self.create_file('DIRTY.BIN')
+        f = self.lookup('BIG.BIN')
+        # A valid surplus tail spans five distant FAT sectors, evicting the
+        # first sector from the four-slot cache during the fresh proof. The
+        # subsequent transition must actually receive the injected bad CRC.
+        tail=100+2*((len(BIG)+511)//512-1)
+        for cluster in (6001,7001,8001,9001,10001):
+            self.set_fat(tail,cluster);tail=cluster
+        self.set_fat(tail,0x0fffffff)
+        before = C.c_uint.in_dll(self.lib, 'rw_host_writes').value
+        self.lib.rw_host_fault_after_write(before + 1, self.layout['start'] + 32)
+        self.assertNotEqual(self.lib.rw_overwrite(C.byref(f), 511, b'Z' * 1024, 1024), 0)
+        self.assertEqual(self.error(), 30)
+        self.assertEqual(Diagnostic.in_dll(self.lib, 'sd_diag').poisoned, 1)
+        self.assertEqual(C.c_uint.in_dll(self.lib, 'rw_host_writes').value, before + 1)
+        self.assertEqual(self.content('BIG.BIN'), BIG[:511] + b'Z' + BIG[512:])
+        self.assertNotEqual(self.lib.rw_overwrite(C.byref(f), 0, b'X', 1), 0)
+        self.assertEqual(C.c_uint.in_dll(self.lib, 'rw_host_writes').value, before + 1)
+
+    def test_cached_fat_does_not_hide_external_chain_corruption(self):
+        f = self.create_file()
+        self.assertEqual(self.lib.rw_append(C.byref(f), b'A' * 1024, 1024), 0)
+        self.lib.rw_fat.argtypes = [C.c_uint32]
+        self.lib.rw_fat.restype = C.c_uint32
+        self.assertNotEqual(self.lib.rw_fat(f.first), 0)
+        with self.image.open('r+b') as disk:
+            for fat in (self.layout['start'] + 32, self.layout['start'] + 32 + builder.FATSZ):
+                disk.seek(fat * 512 + f.first * 4)
+                disk.write(struct.pack('<I', f.first))
+        before = C.c_uint.in_dll(self.lib, 'rw_host_writes').value
+        self.assertNotEqual(self.lib.rw_overwrite(C.byref(f), 0, b'B', 1), 0)
+        self.assertEqual(C.c_uint.in_dll(self.lib, 'rw_host_writes').value, before)
+
+    def test_cached_fat_checks_identity_after_removal(self):
+        f = self.create_file()
+        self.assertEqual(self.lib.rw_append(C.byref(f), b'A' * 512, 512), 0)
+        self.lib.rw_fat(f.first)
+        before = C.c_uint.in_dll(self.lib, 'rw_host_reads').value
+        self.lib.rw_fat(f.first)
+        self.assertEqual(C.c_uint.in_dll(self.lib, 'rw_host_reads').value, before)
+        self.assertEqual(self.lib.rw_host_replace(b''), 0)
+        self.assertEqual(self.lib.rw_fat(f.first), 0)
+        self.assertEqual(self.error(), 21)
+        from test_rw_transport import Diagnostic
+        self.assertEqual(Diagnostic.in_dll(self.lib, 'sd_diag').poisoned, 1)
+
+    def test_fresh_chain_validation_detects_crc_fault_despite_warm_cache(self):
+        from test_rw_transport import Diagnostic
+        f = self.create_file()
+        self.assertEqual(self.lib.rw_append(C.byref(f), b'A' * 512, 512), 0)
+        self.lib.rw_fat(f.first)
+        self.lib.rw_host_config(10, self.layout['start'] + 32 + (f.first >> 7))
+        before = C.c_uint.in_dll(self.lib, 'rw_host_writes').value
+        self.assertNotEqual(self.lib.rw_overwrite(C.byref(f), 0, b'B', 1), 0)
+        self.assertEqual(self.error(), 30)
+        self.assertEqual(Diagnostic.in_dll(self.lib, 'sd_diag').poisoned, 1)
+        self.assertEqual(C.c_uint.in_dll(self.lib, 'rw_host_writes').value, before)
+
+    def test_noverify_full_sector_replaces_without_preimage_partial_preserves(self):
+        C.c_int.in_dll(self.lib, 'sd_verify_writes').value = 0
+        f = self.create_file()
+        self.assertEqual(self.lib.rw_append(C.byref(f), b'A' * 1024, 1024), 0)
+        target = self.layout['data'] + f.first - 2
+        self.lib.rw_host_config(10, target)
+        self.assertEqual(self.lib.rw_overwrite(C.byref(f), 0, b'B' * 512, 512), 0)
+        before = C.c_uint.in_dll(self.lib, 'rw_host_writes').value
+        self.assertNotEqual(self.lib.rw_overwrite(C.byref(f), 1, b'C', 1), 0)
+        self.assertEqual(C.c_uint.in_dll(self.lib, 'rw_host_writes').value, before)
+        self.lib.rw_host_config(10, 0)
+        self.assertEqual(self.content('NEW.BIN'), b'B' * 512 + b'A' * 512)
+
+    def test_fat_cache_invalidation_after_truncate_and_remount(self):
+        f = self.create_file()
+        self.assertEqual(self.lib.rw_append(C.byref(f), b'A' * 1024, 1024), 0)
+        self.assertLess(self.lib.rw_fat(f.first), 0x0ffffff8)
+        self.assertEqual(self.lib.rw_truncate(C.byref(f), 512), 0)
+        self.assertGreaterEqual(self.lib.rw_fat(f.first), 0x0ffffff8)
+        self.finish()
+        self.lib.rw_invalidate()
+        self.assertEqual(self.lib.sd_init(), 0)
+        self.assertEqual(self.lib.rw_mount(), 0)
+        self.assertEqual(self.content('NEW.BIN'), b'A' * 512)
+
+    def test_cycle_with_prefix_across_fat_sector_boundary_refuses_write(self):
+        f = self.create_file()
+        chunk = b'A' * 4096
+        for unused in range(25):
+            self.assertEqual(self.lib.rw_append(C.byref(f), chunk, 4096), 0)
+        # Contiguous allocation crosses a 128-entry cache boundary. A long
+        # prefix followed by a cycle exercises detection beyond a self-loop.
+        chain = [f.first]
+        for unused in range(199):
+            chain.append(self.lib.rw_fat(chain[-1]))
+            self.assertLess(chain[-1], 0x0ffffff8)
+        with self.image.open('r+b') as disk:
+            for fat in (self.layout['start'] + 32, self.layout['start'] + 32 + builder.FATSZ):
+                disk.seek(fat * 512 + chain[180] * 4)
+                disk.write(struct.pack('<I', chain[70]))
+        before = C.c_uint.in_dll(self.lib, 'rw_host_writes').value
+        self.assertNotEqual(self.lib.rw_overwrite(C.byref(f), 0, b'B', 1), 0)
+        self.assertEqual(C.c_uint.in_dll(self.lib, 'rw_host_writes').value, before)
+
+    def test_free_or_reserved_link_is_never_valid_nonempty_chain(self):
+        f = self.create_file()
+        self.assertEqual(self.lib.rw_append(C.byref(f), b'A' * 512, 512), 0)
+        for bad in (0, 1, 0x0ffffff7):
+            with self.subTest(link=bad):
+                with self.image.open('r+b') as disk:
+                    for fat in (self.layout['start'] + 32, self.layout['start'] + 32 + builder.FATSZ):
+                        disk.seek(fat * 512 + f.first * 4)
+                        disk.write(struct.pack('<I', bad))
+                before = C.c_uint.in_dll(self.lib, 'rw_host_writes').value
+                self.assertNotEqual(self.lib.rw_overwrite(C.byref(f), 0, b'B', 1), 0)
+                self.assertEqual(C.c_uint.in_dll(self.lib, 'rw_host_writes').value, before)
+
+    def test_warm_parent_fat_cannot_hide_directory_cycle_during_create(self):
+        self.lib.rw_fat(2)
+        with self.image.open('r+b') as disk:
+            for fat in (self.layout['start'] + 32, self.layout['start'] + 32 + builder.FATSZ):
+                disk.seek(fat * 512 + 8)
+                disk.write(struct.pack('<I', 2))
+        before = C.c_uint.in_dll(self.lib, 'rw_host_writes').value
+        f = File()
+        self.assertNotEqual(self.lib.rw_create(2, b'BAD.BIN', C.byref(f)), 0)
+        self.assertNotEqual(self.lib.rw_mkdir(2, b'BADDIR', C.byref(f)), 0)
+        self.assertEqual(C.c_uint.in_dll(self.lib, 'rw_host_writes').value, before)
 
     def test_mount_and_lookup_do_not_write(self):
         f=self.lookup('README.TXT')
@@ -217,6 +449,90 @@ class ResidentFilesystemTests(unittest.TestCase):
         self.assertEqual(self.lib.rw_append(C.byref(f),b'B'*513,513),0,self.error())
         self.finish()
         self.assertEqual(self.content('NEW.BIN'),b'A'*512+b'B'*513)
+
+    def skip_mount(self):
+        C.c_ubyte.in_dll(self.lib,'rw_skip_fat_check').value=1
+        return self.lib.rw_mount()
+
+    def test_skipfatcheck_reduces_mount_reads_without_writes(self):
+        before=self.image.read_bytes()
+        self.assertEqual(self.lib.rw_mount(),0)
+        reads=C.c_uint.in_dll(self.lib,'rw_host_reads')
+        start=reads.value
+        self.assertEqual(self.skip_mount(),0)
+        fast=reads.value-start
+        C.c_ubyte.in_dll(self.lib,'rw_skip_fat_check').value=0
+        start=reads.value; self.assertEqual(self.lib.rw_mount(),0)
+        strict=reads.value-start
+        self.assertLess(fast,20)
+        self.assertGreater(strict-fast,1000)
+        self.assertEqual(C.c_uint.in_dll(self.lib,'rw_host_writes').value,0)
+        self.assertEqual(self.image.read_bytes(),before)
+
+    def test_skipfatcheck_untouched_mismatch_is_detected_at_dirty_commit(self):
+        with self.image.open('r+b') as disk:
+            disk.seek((2048+32+547+100)*512+100); disk.write(b'BAD!')
+        before=self.image.read_bytes()
+        self.assertEqual(self.skip_mount(),0)
+        self.assertEqual(self.image.read_bytes(),before,'fast mount must not repair or write')
+        self.create_file('FAST.BIN')
+        self.assertNotEqual(self.lib.rw_flush(),0)
+        self.assertEqual(self.error(),13)
+        count=C.c_uint.in_dll(self.lib,'rw_host_writes').value
+        self.assertNotEqual(self.lib.rw_create(2,b'AGAIN.BIN',C.byref(File())),0)
+        self.assertEqual(self.error(),21)
+        self.assertEqual(C.c_uint.in_dll(self.lib,'rw_host_writes').value,count)
+
+    def test_skipfatcheck_still_checks_fat_sector_zero_before_mount_and_write(self):
+        for after_mount in (False,True):
+            self.setUp()
+            if after_mount: self.assertEqual(self.skip_mount(),0)
+            with self.image.open('r+b') as disk:
+                disk.seek((2048+32+547)*512+100); disk.write(b'BAD!')
+            before=self.image.read_bytes()
+            if after_mount:
+                self.assertNotEqual(self.lib.rw_create(2,b'FAST.BIN',C.byref(File())),0)
+            else: self.assertNotEqual(self.skip_mount(),0)
+            self.assertEqual(self.error(),13)
+            self.assertEqual(self.image.read_bytes(),before)
+            self.assertEqual(C.c_uint.in_dll(self.lib,'rw_host_writes').value,0)
+
+    def test_skipfatcheck_still_compares_modified_fat_sectors(self):
+        self.assertEqual(self.skip_mount(),0)
+        f=self.lookup('HIGH.TXT')
+        sector=f.first>>7
+        self.assertGreater(sector,0)
+        primary=(2048+32+sector)*512
+        mirror=(2048+32+547+sector)*512
+        with self.image.open('r+b') as disk:
+            disk.seek(mirror+100); disk.write(b'BAD!')
+        before=self.image.read_bytes()
+        self.assertNotEqual(self.lib.rw_truncate(C.byref(f),0),0)
+        self.assertEqual(self.error(),13)
+        after=self.image.read_bytes()
+        self.assertEqual(after[primary:primary+512],before[primary:primary+512])
+        self.assertEqual(after[mirror:mirror+512],before[mirror:mirror+512])
+
+    def test_skipfatcheck_keeps_geometry_backup_flags_and_fsinfo_guards(self):
+        for offset,data in ((2048*512+13,b'\0'),(2054*512+13,b'\x08'),
+                            (2049*512,b'BAD!'),((2048+32)*512+7,b'\x03')):
+            self.setUp()
+            with self.image.open('r+b') as disk:
+                disk.seek(offset); disk.write(data)
+            before=self.image.read_bytes()
+            self.assertNotEqual(self.skip_mount(),0)
+            self.assertEqual(self.error(),13)
+            self.assertEqual(self.image.read_bytes(),before)
+            self.assertEqual(C.c_uint.in_dll(self.lib,'rw_host_writes').value,0)
+
+    def test_skipfatcheck_keeps_header_read_crc_checks(self):
+        C.c_ubyte.in_dll(self.lib,'rw_skip_fat_check').value=1
+        self.lib.rw_host_config(10,2048+32+547)
+        before=self.image.read_bytes()
+        self.assertNotEqual(self.lib.rw_mount(),0)
+        self.assertEqual(self.error(),30)
+        self.assertEqual(self.image.read_bytes(),before)
+        self.assertEqual(C.c_uint.in_dll(self.lib,'rw_host_writes').value,0)
 
     def test_mirror_mismatch_refuses_mount_without_writes(self):
         self.lib.rw_host_close()
@@ -577,10 +893,10 @@ class ResidentFilesystemTests(unittest.TestCase):
 
     def test_removal_at_every_write_stage_stops_all_following_mutations(self):
         # Includes dirty flags, both FSInfo copies, directory publication,
-        # both allocation FAT copies, initialized data, content and clean flags.
+        # both allocation FAT copies, file content and clean flags.
         self.assertEqual(self.operation_with_flush(),0)
         stages=C.c_uint.in_dll(self.lib,'rw_host_writes').value
-        self.assertGreaterEqual(stages,12)
+        self.assertEqual(stages,11)  # Whole-cluster preclear was the twelfth write.
         for stage in range(1,stages+1):
             with self.subTest(stage=stage):
                 self.restart_fixture()

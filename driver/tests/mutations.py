@@ -6,6 +6,7 @@ fail an assertion in an existing test. This is a targeted sensitivity check, not
 an exhaustive mutation score.
 """
 import os
+import argparse
 import pathlib
 import shutil
 import subprocess
@@ -27,7 +28,7 @@ CASES = [
     ("advance failed FAT hop", "FAT32.C", "result=next_cluster(cursor->cluster, &next);",
      "++cursor->index; result=next_cluster(cursor->cluster, &next);",
      "test_fs.FilesystemTests.test_invalid_and_premature_chain_end_never_advance_file_cursor"),
-    ("reuse stale sector cache", "FAT32.C", "void fs_invalidate(void) { data_lba = fat_lba = 0xffffffffUL; }",
+    ("reuse stale sector cache", "FAT32.C", 'void fs_invalidate(void) {\n    unsigned i;\n    data_lba=0xffffffffUL;\n    for (i=0;i<4;++i) fat_cache[i].lba=0xffffffffUL;\n    for (i=0;i<2;++i) directory_cache[i].lba=0xffffffffUL;\n    fat_next=directory_next=0;\n}',
      "void fs_invalidate(void) { }",
      "test_fs.FilesystemTests.test_invalidation_forces_fresh_data_and_fat"),
     ("allow remount with open handles", "REDIR.C", "if (open_count()) return E_ACCESS;",
@@ -39,8 +40,13 @@ CASES = [
 
 
 def main():
-    subprocess.run([sys.executable, "-m", "unittest", "discover", "-s", str(ROOT / "tests"),
-                    "-p", "test_*.py"], check=True)
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--skip-suite',action='store_true',
+                        help='Caller has already run the complete host suite')
+    args=parser.parse_args()
+    if not args.skip_suite:
+        subprocess.run([sys.executable, "-m", "unittest", "discover", "-s", str(ROOT / "tests"),
+                        "-p", "test_*.py"], check=True)
     for name, filename, before, after, test in CASES:
         with tempfile.TemporaryDirectory(prefix="otter-mutation-") as directory:
             work = pathlib.Path(directory)

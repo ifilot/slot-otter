@@ -36,7 +36,7 @@ static void run(char *command, unsigned status, unsigned resident) {
     void interrupt far (*vectors[4])(void);
     unsigned ints[4]={0,4,5,6}, i, length=strlen(command), kind, code;
     unsigned long before;
-    static char program[]="OTTERFS.EXE";
+    static char program[]="OTTERSD.EXE";
     if(length>127) { check(0,"test command fits DOS command tail"); return; }
     for(i=0;i<4;++i) vectors[i]=getvect(ints[i]);
     before=free_memory();
@@ -70,12 +70,21 @@ int main(void) {
         env[offset++]=0;
     }
     env[offset++]=0; env[offset++]=1; env[offset++]=0;
-    for(i=0;i<sizeof("A:\\OTTERFS.EXE");++i) env[offset++]=("A:\\OTTERFS.EXE")[i];
+    for(i=0;i<sizeof("A:\\OTTERSD.EXE");++i) env[offset++]=("A:\\OTTERSD.EXE")[i];
     run("",1,0); run("/status",1,0); run("/unknown",1,0);
     run("/drive:s /port:10000",1,0); run("/drive:s /port:333",1,0);
     run("/drive:s /port:-fffffd00",1,0); run("/mount /drive:s",1,0);
 #ifdef UNIFIED_DRIVER
+    run("/drive:s /fat16 /fat32",1,0); run("/drive:s /fat16 /fat16",1,0);
+    run("/status /fat16",1,0); run("/mount /fat32",1,0);
+    run("/unload /fat16",1,0);
+    run("/drive:s /skipfatcheck",1,0); run("/drive:s /ro /skipfatcheck",1,0);
+    run("/drive:s /rw /skipfatcheck /skipfatcheck",1,0);
+    run("/status /skipfatcheck",1,0); run("/mount /skipfatcheck",1,0);
+    run("/unload /skipfatcheck",1,0);
     run("/drive:s /ro /rw",1,0); run("/status /ro",1,0);
+    run("/drive:s /noverify",1,0); run("/drive:s /ro /noverify",1,0);
+    run("/drive:s /rw /noverify /noverify",1,0); run("/status /noverify",1,0);
     run("/drive:s /rw /rw",1,0); run("/drive:s /ro /ro",1,0);
     run("\t\"/drive:s\"\t\"/port:+0x330\" /ro",0,1);
 #else

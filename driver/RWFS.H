@@ -9,21 +9,29 @@ typedef struct {
     /* lba/offset is the containing directory slot; parent is its directory.
      * first/size cache file metadata and are published before successful
      * completion; failed mutations may leave this cache ahead of disk.
-     * last is an append aid, recomputed after another handle changes size. */
+     * last is logical EOF from the current complete chain proof, not the
+     * physical tail of a preallocated chain. It is never a retained proof. */
     U32 first, last, size, lba, parent;
     U16 offset, time, date;
     U8 directory, attr;
 } RwFile;
 extern U32 rw_start, rw_end, rw_fatsz, rw_allocated, rw_freed;
+/* Any attempted filesystem store invalidates retained DOS read cursors.
+ * Zero permanently disables retention after generation counter wrap. */
+extern U32 rw_read_serial;
 /* Operations return 0 or -1 with fs_error. rw_fat returns zero for both a
  * free entry and failure: clear/check fs_error when traversing a chain.
  * Paths and names use DOS short aliases; this module does not create LFNs. */
+/* Installed policy persists across invalidate/remount; only mount scans skip. */
+extern U8 rw_skip_fat_check;
 int rw_mount(void);
 /* Invalidate disarms without committing. Flush verifies mirrors and marks
  * the volume clean; callers must explicitly flush before safe removal. */
 void rw_invalidate(void);
 int rw_begin(void);
 int rw_flush(void);
+/* Mutations not yet covered by a successful global commit. */
+int rw_dirty_session(void);
 int rw_lookup(const char *path, RwFile *file);
 int rw_refresh(RwFile *file);
 int rw_mkdir(U32 parent, const char *name, RwFile *file);

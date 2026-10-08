@@ -17,7 +17,7 @@ class ModelTests(unittest.TestCase):
     def setUpClass(cls):
         cls.tmp = tempfile.TemporaryDirectory(prefix="otter-model-tests-")
         cls.work = pathlib.Path(cls.tmp.name)
-        so = library(cls.work, "model", ["emulation/slot_model.c"], ["-std=c99"])
+        so = library(cls.work, "model", ["tests/emulation/slot_model.c"], ["-std=c99"])
         cls.lib = C.CDLL(str(so))
         cls.lib.slot_model_open.argtypes = [C.c_char_p]
         cls.lib.slot_model_open.restype = C.c_void_p
@@ -27,6 +27,7 @@ class ModelTests(unittest.TestCase):
         cls.lib.slot_model_read.argtypes = [C.c_void_p, C.c_uint]
         cls.lib.slot_model_read.restype = C.c_uint8
         cls.lib.slot_model_write.argtypes = [C.c_void_p, C.c_uint, C.c_uint8]
+        cls.lib.slot_model_config.argtypes = [C.c_void_p, C.c_uint, C.c_uint]
 
     @classmethod
     def tearDownClass(cls):
@@ -127,6 +128,24 @@ class ModelTests(unittest.TestCase):
         self.assertEqual(self.command(24, 0), 4)
         self.assertEqual(self.command(17, 0xFFFFFFFF), 0x20)
         self.assertEqual(hashlib.sha256(self.image.read_bytes()).digest(), before)
+
+    def test_register_crc_injection_changes_only_selected_checksum(self):
+        self.initialize()
+        for command in (10,9):
+            self.lib.slot_model_config(self.card,29,0)
+            self.assertEqual(self.command(command),0)
+            original=self.receive(20)
+            self.lib.slot_model_config(self.card,29,command+1)
+            self.assertEqual(self.command(command),0)
+            corrupted=self.receive(20)
+            self.assertEqual(corrupted[:18],original[:18])
+            self.assertEqual(int.from_bytes(corrupted[18:],'big'),
+                             binascii.crc_hqx(original[2:18],0)^1)
+            other=9 if command==10 else 10
+            self.assertEqual(self.command(other),0)
+            unaffected=self.receive(20)
+            self.assertEqual(int.from_bytes(unaffected[18:],'big'),
+                             binascii.crc_hqx(unaffected[2:18],0))
 
 
 if __name__ == "__main__":

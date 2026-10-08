@@ -1,6 +1,6 @@
 /* Test-only bridge to the byte-level card model; not resident. */
 #include "RWSD.H"
-#include "../emulation/slot_model.h"
+#include "emulation/slot_model.h"
 #include <string.h>
 static slot_model *card;
 static U32 clocks;
@@ -12,7 +12,9 @@ static int replace_pending;
 static U8 *mutate_buffer;
 static U16 delay, pending, pending_offset;
 static U8 pending_value;
+static U32 fault_write, fault_read_lba;
 unsigned rw_host_writes, rw_host_reads, rw_host_resets, rw_host_unfinished;
+U32 rw_host_commands[64];
 /* Capture the first eight payload+CRC packets. writes counts observed CMD24
  * commands, unlike sd_diag.transmissions, which requires command acceptance. */
 U32 rw_host_lbas[8];
@@ -26,6 +28,8 @@ int rw_host_open(const char *path, unsigned flags) {
     replace_pending=0; mutate_buffer=0;
     rw_host_writes=rw_host_resets=rw_host_unfinished=packet_count=0;
     rw_host_reads=0;
+    fault_write=fault_read_lba=0;
+    memset(rw_host_commands,0,sizeof(rw_host_commands));
     memset(rw_host_lbas,0,sizeof(rw_host_lbas));
     memset(rw_host_packets,0,sizeof(rw_host_packets));
     return card?0:-1;
@@ -41,6 +45,7 @@ void rw_host_replace_on_reset(const char *path) {
 void rw_host_mutate_on_reset(U8 *p) { mutate_buffer=p; }
 void rw_host_timing(U16 accesses) { delay=accesses; }
 void rw_host_flip_crc(U16 count) { flip_crc=count; }
+void rw_host_fault_after_write(U32 count,U32 lba) { fault_write=count; fault_read_lba=lba; }
 static void exchange(U16 offset,U8 value) {
     /* Reset injection tests identity replacement and caller-buffer mutation;
      * repeat_option is reapplied at each CMD24 to create persistent faults. */
@@ -51,6 +56,7 @@ static void exchange(U16 offset,U8 value) {
                 command_bytes[command_count++]=value;
                 if (command_count==6) {
                     command_done=1;
+                    ++rw_host_commands[command_bytes[0]&63];
                     if ((command_bytes[0]&63)==17) ++rw_host_reads;
                     if ((command_bytes[0]&63)==0) {
                         ++rw_host_resets;
@@ -66,6 +72,8 @@ static void exchange(U16 offset,U8 value) {
                             ((U32)command_bytes[3]<<8)|command_bytes[4];
                         if (rw_host_writes<8) rw_host_lbas[rw_host_writes]=lba;
                         packet_index=rw_host_writes++; packet_count=0;
+                        if (fault_write && rw_host_writes==fault_write)
+                            slot_model_config(card,SLOT_BAD_READ_LBA,fault_read_lba);
                         if (repeat_option) slot_model_config(card,repeat_option,repeat_value);
                     }
                 }

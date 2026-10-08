@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One canonical standalone driver build; no source dependencies on src.
+# One standalone build for the driver and its public hardware tester.
 set -euo pipefail
 driver_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 toolchain_dir="${TOOLCHAIN_DIR:-$driver_dir/../buildenv}"
@@ -15,7 +15,7 @@ for p in pathlib.Path(sys.argv[1]).iterdir():
 DOS_TEXT
 SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy timeout 90 "$dosbox_bin" -noconsole -exit \
   -c "mount c \"$toolchain_dir\"" -c "mount d \"$build_dir\"" \
-  -c 'set PATH=C:\TC;C:\TASM' -c 'd:' -c 'make BOOT.OBJ CRT.OBJ RWDIR.OBJ RWFS.OBJ FAT32.OBJ SDRW.OBJ ENTRY.OBJ > CORE.TXT' \
+  -c 'set PATH=C:\TC;C:\TASM' -c 'd:' -c 'make BOOT.OBJ CRT.OBJ RWDIR.OBJ RWFS.OBJ FAT32.OBJ SDRW.OBJ FASTIO.OBJ ENTRY.OBJ > CORE.TXT' \
   -c 'tcc -ms -O -d -Z -S -zCINITTAIL INSTALL.C > INIT.TXT' -c exit \
   > "$build_dir/compiler.log" 2>&1
 cat "$build_dir/CORE.TXT" "$build_dir/INIT.TXT"
@@ -28,10 +28,11 @@ SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy timeout 90 "$dosbox_bin" -noconsole 
   -c 'set PATH=C:\TC;C:\TASM' -c 'd:' -c 'make > LINK.TXT' -c exit \
   > "$build_dir/linker.log" 2>&1
 cat "$build_dir/LINK.TXT"
-if [[ ! -s "$build_dir/OTTERWR.EXE" ]] || rg -qi '(^Error [^ ]+ [0-9]+|^Error:|^Fatal:|^Warning [^ ]+ [0-9]+|^Warning:|^Warning messages:[[:space:]]*[1-9]|Undefined symbol)' "$build_dir/LINK.TXT"; then
+if [[ ! -s "$build_dir/OTTERSD.EXE" ]] || rg -qi '(^Error [^ ]+ [0-9]+|^Error:|^Fatal:|^Warning [^ ]+ [0-9]+|^Warning:|^Warning messages:[[:space:]]*[1-9]|Undefined symbol)' "$build_dir/LINK.TXT"; then
   echo "Assembly/link failed: $build_dir" >&2; exit 1
 fi
-python3 "$driver_dir/tests/layout.py" "$build_dir/OTTERWR.MAP"
+python3 "$driver_dir/tests/layout.py" "$build_dir/OTTERSD.MAP"
 mkdir -p "$output_dir"
-cp "$build_dir/OTTERWR.EXE" "$build_dir/OTTERWR.MAP" "$output_dir/"
-echo "Built $output_dir/OTTERWR.EXE; compiler files: $build_dir"
+cp "$build_dir/OTTERSD.EXE" "$build_dir/OTTERSD.MAP" "$output_dir/"
+echo "Built $output_dir/OTTERSD.EXE; compiler files: $build_dir"
+python3 "$driver_dir/build_test.py" --output "$output_dir"

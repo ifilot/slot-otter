@@ -9,7 +9,9 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 CASES = [
-    ('wrong byte CRC polynomial', [('^(x<<5)^x', '^x')],
+    ('lose fast retry scratch restoration', [('memcpy(actual,expected,512);', 'memset(actual,0,512);')],
+     'test_noverify_recovery_restores_shared_scratch_and_frozen_crc'),
+    ('wrong byte CRC polynomial', [('crc16_table[((crc>>8)^*p++)&255]', 'crc16_table[*p++ & 0]')],
      'test_crc_all_single_bytes_and_variable_packet_lengths'),
     ('report stale read LBA', [('sd_diag.error=0; sd_diag.lba=lba;', 'sd_diag.error=0;')],
      'test_readonly_initialization_and_crc_checked_read'),
@@ -57,7 +59,7 @@ def main():
         with tempfile.TemporaryDirectory(prefix='otter-rw-mutation-') as folder:
             work = Path(folder)
             for relative in ('OTTER.H', 'RWSD.H', 'SDRW.C', 'tests/HOSTRW.C',
-                             'emulation/slot_model.c', 'emulation/slot_model.h'):
+                             'tests/emulation/slot_model.c', 'tests/emulation/slot_model.h'):
                 target = work / relative
                 target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(ROOT / relative, target)

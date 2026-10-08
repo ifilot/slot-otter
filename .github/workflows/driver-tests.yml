@@ -1,13 +1,7 @@
 name: Driver regression tests
 on:
-  push:
-    paths:
-      - 'driver/**'
-      - '.github/workflows/driver-tests.yml'
-  pull_request:
-    paths:
-      - 'driver/**'
-      - '.github/workflows/driver-tests.yml'
+  workflow_call:
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:
@@ -15,10 +9,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Reject committed archives and generated outputs
+        run: |
+          tracked_outputs=$(git ls-files -- archive driver/dist release-assets '*.[iI][mM][gG]' '*.[iI][mM][aA]' '*.[iI][sS][oO]')
+          if [ -n "$tracked_outputs" ]; then
+            echo "Generated outputs must be build artifacts, not committed files:"
+            echo "$tracked_outputs"
+            exit 1
+          fi
       - name: Filesystem validation tools
         run: sudo apt-get update && sudo apt-get install -y mtools dosfstools
       - name: Production C unit tests, coverage, and regression sensitivity
-        run: python3 driver/tests/run.py --coverage "$RUNNER_TEMP/otter-coverage" --mutations
+        run: python3 driver/tests/run.py --coverage "$RUNNER_TEMP/otter-coverage" --mutations --jobs 8
       - uses: actions/upload-artifact@v4
         if: always()
         with:

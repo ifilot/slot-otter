@@ -9,6 +9,54 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 CASES = [
+    ('restart every writable read','REDIR.C','if (!rw_read_serial || file->read_serial!=rw_read_serial ||',
+     'if (1 || file->read_serial!=rw_read_serial ||',
+     'test_read_cache.Fat32ReadCacheTests.test_sequential_read_walk_and_metadata_budget'),
+    ('retain cursors across writes','RWFS.C','  invalidate_reads();\n  fs_invalidate_sector(lba);',
+     '  fs_invalidate_sector(lba);',
+     'test_read_cache.Fat32ReadCacheTests.test_tail_relinked_with_same_first_cluster_invalidates_retained_cursor'),
+    ('recycle wrapped serial','RWFS.C','  if (rw_read_serial) ++rw_read_serial;',
+     '  if (++rw_read_serial==0) rw_read_serial=1;',
+     'test_read_cache.Fat16ReadCacheTests.test_serial_wrap_disables_retention_without_recycling_old_cursors'),
+    ('disable directory cache hits','FAT32.C','if (cache[i].lba==lba) return cache[i].bytes;',
+     'if (cache==fat_cache && cache[i].lba==lba) return cache[i].bytes;',
+     'test_read_cache.Fat16ReadCacheTests.test_two_directory_sectors_survive_interleaved_file_reads'),
+    ('omit directory store invalidation','FAT32.C','if (directory_cache[i].lba==lba) directory_cache[i].lba=0xffffffffUL;',
+     'if (0) directory_cache[i].lba=0xffffffffUL;',
+     'test_read_cache.Fat16ReadCacheTests.test_selective_directory_invalidation_preserves_other_cached_sector'),
+    ('shrink FAT cache to one sector','FAT32.C','cached_sector(lba,fat_cache,3,&fat_next)',
+     'cached_sector(lba,fat_cache,0,&fat_next)',
+     'test_read_cache.Fat16ReadCacheTests.test_four_fat_sectors_survive_interleaved_lookups'),
+
+    ('hide fast mount policy','REDIR.C','if (rw_skip_fat_check) info.flags|=16;',
+     'if (0) info.flags|=16;', 'test_skipfatcheck_policy_is_reported_and_persists_across_remount'),
+    ('forget fast policy on remount','REDIR.C','U16 media_mount(void) {',
+     'U16 media_mount(void) { rw_skip_fat_check=0;',
+     'test_skipfatcheck_policy_is_reported_and_persists_across_remount'),
+    ('forget lost dirty session', 'REDIR.C',
+     'if (rw_dirty_session()) unload_blocked=1;',
+     'if (0) unload_blocked=1;', 'test_unload_discovery_cannot_hide_dirty_card_removal'),
+    ('unload with open files', 'REDIR.C',
+     'if (open_count()) return error(E_ACCESS);',
+     'if (0) return error(E_ACCESS);', 'test_unload_refuses_open_handles_and_later_vector_without_writes'),
+    ('unload beneath a later hook', 'REDIR.C',
+     'get16(vector+2)!=unload_state[2]',
+     '0', 'test_unload_refuses_open_handles_and_later_vector_without_writes'),
+    ('skip unload commit', 'REDIR.C',
+     'if (sd_write_enabled && media_online && rw_flush())\n                    return error(fs_error);',
+     'if (0) return error(fs_error);', 'test_unload_commits_closed_file_and_restores_entire_cds'),
+    ('ignore unload poison', 'REDIR.C',
+     'if (unload_blocked || (sd_write_enabled && sd_diag.poisoned))\n                    return error(E_NOTREADY);',
+     'if (0) return error(E_NOTREADY);', 'test_unload_failed_commit_keeps_drive_installed_and_retry_refuses_poison'),
+    ('truncate DOS 4 CDS restoration', 'REDIR.C',
+     'i<(dos_major==3?0x51:0x58)',
+     'i<0x51', 'test_unload_commits_closed_file_and_restores_entire_cds'),
+    ('leave logical total unscaled', 'REDIR.C', 'total>>=1; free>>=1; unit<<=1;',
+     'total>>=0; free>>=1; unit<<=1;', 'test_disk_space_scaling_boundaries'),
+    ('leave logical free count unscaled', 'REDIR.C', 'total>>=1; free>>=1; unit<<=1;',
+     'total>>=1; free>>=0; unit<<=1;', 'test_disk_space_scaling_boundaries'),
+    ('round logical free count upward', 'REDIR.C', 'total>>=1; free>>=1; unit<<=1;',
+     'total>>=1; free=(free+1)>>1; unit<<=1;', 'test_disk_space_scaling_boundaries'),
     ('scan FATs on every close', 'RWOPS.C', '!code && !closing && rw_flush()',
      '!code && rw_flush()', 'test_twenty_closes_do_not_rescan_fats'),
     ('skip explicit commit verification', 'RWOPS.C', '!code && !closing && rw_flush()',
@@ -62,8 +110,8 @@ def main():
             for relative in ('OTTER.H', 'RWSD.H', 'RWFS.H', 'SDRW.C', 'RWFS.C',
                              'REDIR.C', 'RWOPS.C', 'FAT32.C', 'tests/HOSTRD.C',
                              'tests/HOSTRWD.C', 'tests/HOSTRW.C',
-                             'emulation/slot_model.c', 'emulation/slot_model.h',
-                             'write/build.py', 'hardware/build.py', 'tests/fixture.py'):
+                             'tests/emulation/slot_model.c', 'tests/emulation/slot_model.h',
+                             'tests/kit_fixture.py', 'tests/fixture.py'):
                 target = work/relative; target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(ROOT/relative, target)
             target = work/filename; original = target.read_text()
@@ -72,7 +120,7 @@ def main():
             env = dict(os.environ, OTTER_TEST_SOURCE_ROOT=str(work))
             env.pop('OTTER_TEST_COVERAGE', None)
             result = subprocess.run([sys.executable, '-m', 'unittest', '-v',
-                'test_rw_redirector.WritableRedirectorTests.'+test], cwd=ROOT/'tests',
+                test if '.' in test else 'test_rw_redirector.WritableRedirectorTests.'+test], cwd=ROOT/'tests',
                 env=env, capture_output=True, text=True)
             if result.returncode==0 or 'FAILED (failures=' not in result.stderr:
                 print(result.stdout+result.stderr)

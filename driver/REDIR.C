@@ -19,6 +19,9 @@ U8 media_online;
 #ifdef RW_DRIVER
 static U16 rw_error_function,rw_error_code;
 U16 resident_bytes, mount_sd_ticks, mount_fs_ticks;
+U16 unload_state[5];
+U8 saved_cds[0x58];
+static U8 unload_blocked;
 #endif
 static U32 media_epoch=1;
 #define MAX_OPEN 16
@@ -30,6 +33,9 @@ typedef struct {
     union { FileCursor cursor; RwFile disk; } state;
     U16 owner;
     U8 created_ro;
+    /* Shared writes invalidate by serial, independently of DOS positions. */
+    FileCursor read_cursor;
+    U32 read_serial;
 #else
     FileCursor cursor;
 #endif
@@ -60,6 +66,23 @@ static U8 FAR *far_at(U16 seg, U16 off) {
     return (U8 far *)MK_FP(seg,off);
 #endif
 }
+
+static void disk_space(U32 free) {
+    U32 total=volume.clusters;
+    U16 unit=volume.spc;
+    /* INT 2F/110Ch has WORD counts and a BYTE sector/unit field. Present
+     * larger logical units until both counts fit; FAT addressing must keep
+     * the physical BPB geometry. Round down so free bytes are never invented.
+     * Keep synthesized units at most 32 KiB for older DOS applications.
+     * Larger volumes saturate at the legacy limit, without WORD overflow. */
+    if (free>total) free=total;
+    while (total>65535UL && unit<64U) {
+        total>>=1; free>>=1; unit<<=1;
+    }
+    regs.ax=0xf800|unit; regs.cx=512;
+    regs.bx=total>65535UL?65535U:(U16)total;
+    regs.dx=free>regs.bx?regs.bx:(U16)free;
+}
 static U8 FAR *pointer_at(U8 FAR *p) { return far_at(get16(p+2), get16(p)); }
 static int success(void) { regs.ax=0; regs.flags &= ~1; return 1; }
 static int error(U16 code) {
@@ -76,6 +99,9 @@ static U16 open_count(void) {
 static void offline(void) {
     media_online=0; ++media_epoch;
 #ifdef RW_DRIVER
+    /* Remember a lost dirty session before invalidating it. Discovery may
+     * notice a removed card before /UNLOAD reaches the commit phase. */
+    if (rw_dirty_session()) unload_blocked=1;
     rw_invalidate();
 #endif
     fs_invalidate(); memset(&volume,0,sizeof(volume)); sd_release();
@@ -218,7 +244,14 @@ static int read_file(U8 FAR *sft) {
 #ifdef RW_DRIVER
     if (sd_write_enabled) {
         if (locked(file,position,count)) { regs.cx=0; return error(E_LOCK); }
-        result=rw_read(&FILE_DISK(file),position,pointer_at(dos_sda+12),count,&done);
+        if (!rw_read_serial || file->read_serial!=rw_read_serial ||
+            file->read_cursor.first!=FILE_DISK(file).first) {
+            file->read_cursor.first=FILE_DISK(file).first;
+            file->read_cursor.cluster=FILE_DISK(file).first;
+            file->read_cursor.index=0;
+            file->read_serial=rw_read_serial;
+        }
+        result=fs_read(&file->read_cursor,position,pointer_at(dos_sda+12),count,&done);
     } else
 #endif
     result=fs_read(&FILE_CURSOR(file), position, pointer_at(dos_sda+12), count, &done);
@@ -301,6 +334,31 @@ int dispatch(void) {
                 return code ? error(code) : success();
             }
 #ifdef RW_DRIVER
+            /* Query first; the transient caller validates DOS ownership and
+             * the topmost vector before requesting the destructive phase.
+             * Never free the TSR from its own code or private stack. */
+            if (regs.si==9) {
+                success(); regs.ax=unload_state[0]; regs.bx=unload_state[1];
+                regs.cx=unload_state[2]; regs.dx=unload_state[3];
+                regs.di=unload_state[4]; regs.si=OTTER_VERSION; return 1;
+            }
+            if (regs.si==10) {
+                U16 i;
+                U8 FAR *vector=far_at(0,0x2f*4);
+                if (get16(vector)!=unload_state[1] ||
+                    get16(vector+2)!=unload_state[2]) return error(E_ACCESS);
+                if (open_count()) return error(E_ACCESS);
+                /* A failed commit must leave the driver and CDS installed.
+                 * Do not turn a poisoned session into an apparent success. */
+                if (unload_blocked || (sd_write_enabled && sd_diag.poisoned))
+                    return error(E_NOTREADY);
+                if (sd_write_enabled && media_online && rw_flush())
+                    return error(fs_error);
+                offline();
+                for (i=0;i<(dos_major==3?0x51:0x58);++i)
+                    drive_cds[i]=saved_cds[i];
+                return success();
+            }
             if (regs.si==8) {
                 DriverInfo info;
                 U16 i;
@@ -308,7 +366,14 @@ int dispatch(void) {
                 if (regs.cx<sizeof(info) || regs.di>65535U-sizeof(info)) return error(1);
                 info.flags=(U16)sd_card_info(info.cid,&info.last_lba);
                 if (sd_write_enabled) info.flags|=2;
-                if (media_online) info.flags|=4;
+                if (media_online) {
+                    info.flags|=4;
+                    if (volume.fat_bits==16) info.flags|=32;
+                }
+                if (fs_required==16) info.flags|=64;
+                if (fs_required==32) info.flags|=128;
+                if (!sd_verify_writes) info.flags|=8;
+                if (rw_skip_fat_check) info.flags|=16;
                 info.version=OTTER_VERSION; info.resident=resident_bytes;
                 info.sd_ticks=mount_sd_ticks; info.fs_ticks=mount_fs_ticks; info.abi=1;
                 for (i=0;i<sizeof(info);++i) out[i]=((U8 *)&info)[i];
@@ -335,7 +400,7 @@ int dispatch(void) {
             }
             if (regs.si==5) {
                 success(); regs.bx=sd_write_enabled; regs.dx=media_online;
-                regs.cx=3; return 1; /* maximum sector attempts */
+                regs.cx=3; regs.di=sd_verify_writes; return 1; /* policy */
             }
 #endif
             return error(1);
@@ -418,18 +483,15 @@ int dispatch(void) {
         }
     }
     if (fn==0x0c) {
+        U32 free=0;
         if (!our_cds(sft)) return 0;
         if (!ready()) return error(E_NOTREADY);
-        success(); regs.ax=0xf800|volume.spc; regs.cx=512;
-        regs.bx=volume.clusters>65535UL?65535U:(U16)volume.clusters;
-        regs.dx=0;
 #ifdef RW_DRIVER
         if (sd_write_enabled) {
-            U32 free;
             if (rw_free_space(&free)) return filesystem_error();
-            regs.dx=free>regs.bx?regs.bx:(U16)free;
         }
 #endif
+        success(); disk_space(free);
         return 1;
     }
 #ifdef RW_DRIVER

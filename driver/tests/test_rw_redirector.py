@@ -24,9 +24,9 @@ class WritableRedirectorTests(unittest.TestCase):
     def setUpClass(cls):
         cls.tmp = tempfile.TemporaryDirectory(prefix='otter-rw-redirector-')
         cls.work = pathlib.Path(cls.tmp.name)
-        cls.lib = C.CDLL(str(library(cls.work, 'rwredir', [
-            'FAT32.C', 'RWFS.C', 'SDRW.C', 'tests/HOSTRW.C',
-            'tests/HOSTRWD.C', 'emulation/slot_model.c'], ['-std=c99'])))
+        cls.lib = C.CDLL(str(library(cls.work, getattr(cls,'library_name','rwredir'), [
+            getattr(cls,'reader_source','FAT32.C'), 'RWFS.C', 'SDRW.C', 'tests/HOSTRW.C',
+            'tests/HOSTRWD.C', 'tests/emulation/slot_model.c'], ['-std=c99'])))
         cls.lib.rw_host_open.argtypes = [C.c_char_p, C.c_uint]
         cls.lib.test_far_at.argtypes = [C.c_uint16, C.c_uint16]
         cls.lib.test_far_at.restype = C.POINTER(C.c_ubyte)
@@ -41,6 +41,7 @@ class WritableRedirectorTests(unittest.TestCase):
         self.layout = fs.builder.prepare(self.image)
         self.lib.test_reset()
         C.c_int.in_dll(self.lib, 'sd_write_enabled').value = 1
+        C.c_int.in_dll(self.lib, 'sd_verify_writes').value = 1
         self.assertEqual(self.lib.rw_host_open(str(self.image).encode(), 3), 0)
         self.sda, self.cds, self.sfts, self.data = [self.memory(n) for n in range(1, 5)]
         self.put(self.sda, 0x10, 0x1234)
@@ -371,6 +372,97 @@ class WritableRedirectorTests(unittest.TestCase):
         r = self.call(0x0c, es=2)
         self.assertGreater(r.dx, 0)
 
+    def test_disk_space_scaling_boundaries(self):
+        self.lib.test_disk_space.argtypes=[C.c_uint32,C.c_uint16,C.c_uint32]
+        self.lib.test_disk_space.restype=None
+        cases=[
+            (65535,1,65535,1,65535,65535),
+            (65536,1,65536,2,32768,32768),
+            (65537,1,65535,2,32768,32767),
+            (127744,8,127684,16,63872,63842),
+            (131070,8,0,16,65535,0),
+            (131071,8,1,16,65535,0),
+            (131072,8,131071,32,32768,32767),
+            (524280,8,524279,64,65535,65534),
+            (524288,8,524288,64,65535,65535),
+            (0x0fffffee,1,1,64,65535,0),
+            (70000,8,90000,16,35000,35000),
+            (70000,128,70000,128,65535,65535)]
+        for total,spc,free,unit,count,available in cases:
+            with self.subTest(total=total,spc=spc,free=free):
+                self.lib.test_disk_space(total,spc,free)
+                self.assertEqual((self.regs.ax,self.regs.bx,self.regs.cx,self.regs.dx),
+                                 (0xf800|unit,count,512,available))
+
+    def test_disk_space_never_overstates_bytes_or_changes_physical_geometry(self):
+        import random
+        self.lib.test_disk_space.argtypes=[C.c_uint32,C.c_uint16,C.c_uint32]
+        randomizer=random.Random(0x110c)
+        for i in range(1000):
+            total=randomizer.randrange(65525,0x0fffffef)
+            spc=randomizer.choice((1,2,4,8,16,32,64,128))
+            free=randomizer.choice((0,1,total-1,total,randomizer.randrange(total+1)))
+            self.lib.test_disk_space(total,spc,free)
+            unit=self.regs.ax&255
+            self.assertEqual(self.regs.ax>>8,0xf8)
+            self.assertGreaterEqual(unit,spc)
+            self.assertEqual(unit&(unit-1),0)
+            self.assertLessEqual(unit,max(64,spc))
+            self.assertEqual(self.regs.cx,512)
+            self.assertLessEqual(self.regs.dx,self.regs.bx)
+            self.assertLessEqual(self.regs.bx*unit,total*spc)
+            self.assertLessEqual(self.regs.dx*unit,free*spc)
+            if total*spc<=65535*max(64,spc):
+                self.assertLess(total*spc-self.regs.bx*unit,unit)
+                self.assertLess(free*spc-self.regs.dx*unit,unit)
+        # The mounted 512-byte-cluster fixture must still allocate its real
+        # clusters after DOS receives a synthetic 1024-byte allocation unit.
+        for i in range(3):
+            physical=C.c_uint32()
+            self.assertEqual(self.lib.rw_free_space(C.byref(physical)),0)
+            r=self.call(0x0c,es=2)
+            self.assertEqual((r.ax,r.bx,r.cx,r.dx),(0xf802,35000,512,physical.value//2))
+            off=self.created('S:\\SPACE%u.BIN'%i)
+            self.write(off,b'capacity query preserves FAT addressing')
+            self.call(6,di=off)
+            self.assertEqual(self.content('SPACE%u.BIN'%i),b'capacity query preserves FAT addressing')
+        self.clean()
+
+    def test_skipfatcheck_policy_is_reported_and_persists_across_remount(self):
+        C.c_ubyte.in_dll(self.lib,'rw_skip_fat_check').value=1
+        for noverify,flags in ((False,23),(True,31)):
+            C.c_int.in_dll(self.lib,'sd_verify_writes').value=not noverify
+            for i in range(2):
+                self.assertEqual(self.lib.media_unmount(),0)
+                reads=C.c_uint.in_dll(self.lib,'rw_host_reads')
+                start=reads.value
+                self.assertEqual(self.lib.media_mount(),0)
+                self.assertLess(reads.value-start,30)
+                self.call(0,ax=0xd74f,bx=0x4f54,dx=0x524f,si=8,cx=32,es=4,di=4096)
+                self.assertEqual(self.get(self.data,4096+28),flags)
+                policy=self.call(0,ax=0xd74f,bx=0x4f54,dx=0x524f,si=5)
+                self.assertEqual(policy.di,not noverify)
+
+    def test_skipfatcheck_unload_still_refuses_untouched_mirror_corruption(self):
+        C.c_ubyte.in_dll(self.lib,'rw_skip_fat_check').value=1
+        self.assertEqual(self.lib.media_unmount(),0)
+        self.corrupt_unused_mirror_byte()
+        self.assertEqual(self.lib.media_mount(),0)
+        off=self.created(); self.write(off,b'PAYLOAD'); self.call(6,di=off)
+        cds=bytes(self.cds[:88]); self.unload_call(error=13)
+        self.assertEqual(bytes(self.cds[:88]),cds)
+
+    def test_noverify_policy_queries_identify_unverified_session(self):
+        C.c_int.in_dll(self.lib, 'sd_verify_writes').value = 0
+        r = self.call(0, ax=0xd74f, bx=0x4f54, dx=0x524f, si=5)
+        self.assertEqual((r.cx, r.di), (3, 0))
+        self.call(0, ax=0xd74f, bx=0x4f54, dx=0x524f, si=8, cx=32, es=4, di=4096)
+        self.assertEqual(self.get(self.data,4096+28),15)
+        self.assertEqual(self.lib.media_unmount(),0)
+        self.assertEqual(self.lib.media_mount(),0)
+        r = self.call(0, ax=0xd74f, bx=0x4f54, dx=0x524f, si=5)
+        self.assertEqual(r.di,0, 'remount must preserve installed policy')
+
     def test_versioned_card_info_query_is_cached_and_bounds_checked(self):
         before=self.image.read_bytes()
         reads=C.c_uint.in_dll(self.lib,'rw_host_reads').value
@@ -378,7 +470,9 @@ class WritableRedirectorTests(unittest.TestCase):
         C.c_uint16.in_dll(self.lib,'resident_bytes').value=36000
         r=self.call(0,ax=0xd74f,bx=0x4f54,dx=0x524f,si=8,cx=32,es=4,di=4096)
         self.assertEqual(r.cx,32)
-        self.assertEqual(self.get(self.data,4096+20),4)
+        self.assertEqual(self.get(self.data,4096+20),0x0100)
+        policy=self.call(0,ax=0xd74f,bx=0x4f54,dx=0x524f,si=5)
+        self.assertEqual(policy.di,1)
         self.assertEqual(self.get(self.data,4096+22),36000)
         self.assertEqual(self.get(self.data,4096+28),7)
         self.assertEqual(self.get(self.data,4096+30),1)
@@ -392,6 +486,74 @@ class WritableRedirectorTests(unittest.TestCase):
         self.call(0,ax=0xd74f,bx=0x4f54,dx=0x524f,si=8,cx=32,es=4)
         self.assertEqual(self.get(self.data,28),2)
         self.assertEqual(bytes(self.data[4:20]),bytes(16))
+
+    def unload_call(self, selector=10, error=None):
+        return self.call(0,ax=0xd74f,bx=0x4f54,dx=0x524f,si=selector,error=error)
+
+    def test_unload_descriptor_is_cached_and_versioned(self):
+        before=self.image.read_bytes()
+        cds=bytes(self.cds[:88])
+        r=self.unload_call(9)
+        self.assertEqual((r.ax,r.bx,r.cx,r.dx,r.di,r.si),(1,256,3,512,2,0x0100))
+        self.assertEqual(bytes(self.cds[:88]),cds)
+        self.assertEqual(self.image.read_bytes(),before)
+
+    def test_unload_refuses_open_handles_and_later_vector_without_writes(self):
+        off=self.opened()
+        before=self.image.read_bytes(); cds=bytes(self.cds[:88])
+        self.unload_call(error=5)
+        self.assertEqual(bytes(self.cds[:88]),cds)
+        self.assertEqual(self.image.read_bytes(),before)
+        self.call(6,di=off)
+        ivt=self.memory(0)
+        for field in (0,2):
+            old=self.get(ivt,0x2f*4+field)
+            self.put(ivt,0x2f*4+field,old+1)
+            self.unload_call(error=5)
+            self.assertEqual(bytes(self.cds[:88]),cds)
+            self.assertEqual(self.image.read_bytes(),before)
+            self.put(ivt,0x2f*4+field,old)
+
+    def test_unload_commits_closed_file_and_restores_entire_cds(self):
+        off=self.created('S:\\UNLOAD.BIN'); self.write(off,b'UNLOAD DATA'); self.call(6,di=off)
+        self.unload_call()
+        self.assertEqual(bytes(self.cds[:88]),bytes((i*7+1)&255 for i in range(88)))
+        self.assertEqual(C.c_ubyte.in_dll(self.lib,'media_online').value,0)
+        self.assertEqual(self.content('UNLOAD.BIN'),b'UNLOAD DATA')
+        self.assertTrue(self.clean_flag(),'unload must publish a clean committed volume')
+        self.clean()
+
+    def test_unload_failed_commit_keeps_drive_installed_and_retry_refuses_poison(self):
+        off=self.created(); self.write(off,b'DIRTY'); self.call(6,di=off)
+        self.corrupt_unused_mirror_byte()
+        cds=bytes(self.cds[:88])
+        self.unload_call(error=13)
+        self.assertEqual(bytes(self.cds[:88]),cds)
+        self.assertEqual(C.c_ubyte.in_dll(self.lib,'media_online').value,1)
+        C.c_ubyte.in_dll(self.lib,'media_online').value=0
+        self.unload_call(error=21)
+        self.assertEqual(bytes(self.cds[:88]),cds)
+
+    def test_unload_discovery_cannot_hide_dirty_card_removal(self):
+        off=self.created(); self.write(off,b'DIRTY'); self.call(6,di=off)
+        self.lib.rw_host_replace.argtypes=[C.c_char_p]
+        self.assertEqual(self.lib.rw_host_replace(None),0)
+        self.call(0,ax=0xd74f)
+        self.assertEqual(C.c_ubyte.in_dll(self.lib,'media_online').value,0)
+        cds=bytes(self.cds[:88])
+        self.unload_call(error=21)
+        self.assertEqual(bytes(self.cds[:88]),cds)
+
+    def test_unload_readonly_offline_and_dos3_cds_boundary(self):
+        self.assertEqual(self.lib.media_unmount(),0)
+        C.c_int.in_dll(self.lib,'sd_write_enabled').value=0
+        C.c_ubyte.in_dll(self.lib,'dos_major').value=3
+        before=self.image.read_bytes()
+        self.cds[81:90]=b'\xa5'*9
+        self.unload_call()
+        self.assertEqual(bytes(self.cds[:81]),bytes((i*7+1)&255 for i in range(81)))
+        self.assertEqual(bytes(self.cds[81:90]),b'\xa5'*9)
+        self.assertEqual(self.image.read_bytes(),before)
 
     def test_wildcard_delete_across_grown_directory_preserves_other_files(self):
         for i in range(25):

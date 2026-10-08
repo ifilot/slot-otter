@@ -93,7 +93,7 @@ int main(void) {
     struct SREGS s;
     struct ffblk a, b;
     union REGS r;
-    puts("OTTERFS real DOS integration probe"); fflush(stdout);
+    puts("OTTERSD real DOS integration probe"); fflush(stdout);
     f=fopen("S:\\README.TXT","rb");
     check(f!=0,"open read-only file");
     if (f) {
