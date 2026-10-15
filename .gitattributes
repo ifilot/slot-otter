@@ -33,3 +33,7 @@ driver/hardware/*.C text eol=crlf
 driver/hardware/*.BAT text eol=crlf
 driver/write/*.C text eol=crlf
 driver/write/*.H text eol=crlf
+
+# WinCUPL sources and Windows build scripts use DOS line endings.
+pcb/cpld/logic/*.pld text eol=crlf
+pcb/cpld/logic/*.cmd text eol=crlf

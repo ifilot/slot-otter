@@ -1,0 +1,164 @@
+Name     slototter;
+PartNo   SLOTOTTER-CPLD;
+Date     10/15/2026;
+Revision 01;
+Designer Ivo Filot;
+Company  Slot-otter;
+Assembly CPLD;
+Location U1;
+Device   f1504ispplcc44;
+
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+
+/* First hardware draft, ATF1504AS in PLCC44, pcb/cpld pinout.
+ * SPI mode 0, MSB first, eight 8 MHz clocks from the 16 MHz oscillator.
+ * See README.txt for timing assumptions, build and bring-up instructions.
+ * JTAG pins 7/13/32/38 are reserved; do not assign application signals.
+ */
+PROPERTY ATMEL {JTAG=ON};
+
+PIN 43 = osc;
+PIN 44 = nsel;                 /* U4 comparator output; includes ISA AEN */
+PIN 16 = nrd;
+PIN 17 = nwr;
+PIN 18 = a0;
+PIN 19 = a1;
+PIN 25 = miso;
+PIN 24 = mosi;
+PIN 26 = pull_high;            /* Drives MISO weakly through R1, 10k */
+PIN 27 = ncs;
+PIN 28 = sck;
+PIN [40,39,37,36,34,33,31,29] = [db7..db0];
+
+PINNODE = [hold7..hold0];       /* ISA write data, captured at /IOW release */
+PINNODE = load_tx;
+PINNODE = w_toggle;
+PINNODE = r_toggle;
+PINNODE = selected;
+PINNODE = w_meta;
+PINNODE = w_sync;
+PINNODE = w_seen;
+PINNODE = r_meta;
+PINNODE = r_sync;
+PINNODE = r_seen;
+PINNODE = [tx7..tx0];
+PINNODE = [rx7..rx0];
+PINNODE = [result7..result0];
+PINNODE = [bit2..bit0];
+PINNODE = busy;
+
+FIELD bus = [db7..db0];
+FIELD held = [hold7..hold0];
+FIELD tx = [tx7..tx0];
+FIELD rx = [rx7..rx0];
+FIELD result = [result7..result0];
+FIELD count = [bit2..bit0];
+
+/* Register control expressions below are combinational intermediate terms;
+ * leave them unpinned so the fitter can optimize them into product terms.
+ */
+write_byte = !nsel & !a1 & !a0;
+write_clock = !nsel & !a1;
+read_clock = !nsel & !a1 & a0;
+control = !nsel & a1;
+w_pending = w_sync $ w_seen;
+r_pending = r_sync $ r_seen;
+start = !busy & (w_pending # r_pending);
+load = start & w_pending & load_tx;
+fall = busy & sck;
+last = fall & (count:'b'111);
+rise = busy & !sck;
+
+/* External bus strobes are used ONLY as register clocks, without gating.
+ * Address, comparator and DB must meet setup/hold at the rising edge of
+ * /IOW (or /IOR). Register clocks in this domain use local product terms.
+ * .io explicitly selects the physical DB pad, not output feedback.
+ * Captured data/mode stay stable across request synchronization; there
+ * must be no new transfer request until the previous byte has completed.
+ */
+held.ck = nwr;
+held.d = (write_byte & bus.io) # (!write_byte & held);
+load_tx.ck = nwr;
+load_tx.d = (write_clock & !a0) # (!write_clock & load_tx);
+w_toggle.ck = nwr;
+w_toggle.d = w_toggle $ write_clock;
+r_toggle.ck = nrd;
+r_toggle.d = r_toggle $ read_clock;
+
+/* Control writes act on /IOW release; control reads on /IOR release.
+ * Reading offsets 2/3 affects the MISO pull, NOT chip select.
+ * Internal selected powers up zero, so the physical /CS powers up high.
+ */
+selected.ck = nwr;
+selected.d = (control & a0) # (!control & selected);
+ncs = !selected;
+pull_high.ck = nrd;
+pull_high.d = (control & a0) # (!control & pull_high);
+
+/* Two-flop synchronizers plus history detect each toggle exactly once.
+ * These registers must remain distinct in the fitted equations.
+ * Read+clock launches after /IOR release to preserve the byte being read.
+ */
+[w_meta,w_sync,w_seen,r_meta,r_sync,r_seen].ck = osc;
+w_meta.d = w_toggle;
+w_sync.d = w_meta;
+w_seen.d = w_sync;
+r_meta.d = r_toggle;
+r_sync.d = r_meta;
+r_seen.d = r_sync;
+
+/* No queue or ISA wait-state output. Requests received while busy are
+ * discarded. A normal byte request needs about 1.2 us after strobe release;
+ * use >=1.5 us between transfer requests and before consuming the result.
+ */
+busy.ck = osc;
+busy.d = start # (busy & !last);
+sck.ck = osc;
+sck.d = busy & !sck;
+count.ck = osc;
+bit0.d = !start & (bit0 $ fall);
+bit1.d = !start & (bit1 $ (fall & bit0));
+bit2.d = !start & (bit2 $ (fall & bit0 & bit1));
+
+/* Shift MOSI on falling SCK, sample MISO on rising SCK. All internal
+ * registers use osc, not a fabric-generated clock. MOSI is preloaded one
+ * osc tick before the first rising SCK. Serial fill is one, matching U6.
+ * A clock-only request therefore sends FF after any complete transfer.
+ */
+tx.ck = osc;
+tx0.d = (load & hold0) # (!load & fall & 'b'1)
+        # (!load & !fall & tx0);
+tx1.d = (load & hold1) # (!load & fall & tx0)
+        # (!load & !fall & tx1);
+tx2.d = (load & hold2) # (!load & fall & tx1)
+        # (!load & !fall & tx2);
+tx3.d = (load & hold3) # (!load & fall & tx2)
+        # (!load & !fall & tx3);
+tx4.d = (load & hold4) # (!load & fall & tx3)
+        # (!load & !fall & tx4);
+tx5.d = (load & hold5) # (!load & fall & tx4)
+        # (!load & !fall & tx5);
+tx6.d = (load & hold6) # (!load & fall & tx5)
+        # (!load & !fall & tx6);
+tx7.d = (load & hold7) # (!load & fall & tx6)
+        # (!load & !fall & tx7);
+
+mosi = tx7;
+rx.ck = osc;
+rx0.d = (rise & miso) # (!rise & rx0);
+rx1.d = (rise & rx0) # (!rise & rx1);
+rx2.d = (rise & rx1) # (!rise & rx2);
+rx3.d = (rise & rx2) # (!rise & rx3);
+rx4.d = (rise & rx3) # (!rise & rx4);
+rx5.d = (rise & rx4) # (!rise & rx5);
+rx6.d = (rise & rx5) # (!rise & rx6);
+rx7.d = (rise & rx6) # (!rise & rx7);
+
+/* Publish only a completed byte, on the eighth falling SCK. The last MISO
+ * bit was sampled on the preceding rising SCK. Reads never clock this
+ * holding register; IN base+0 has no side effects.
+ */
+result.ck = osc;
+result.d = (last & rx) # (!last & result);
+bus = result;
+bus.oe = !nsel & !nrd & nwr & !a1;
