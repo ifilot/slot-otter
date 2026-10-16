@@ -40,11 +40,44 @@ Do not program hardware from a failed build or an old JEDEC image.
 
 PINOUT (PLCC44)
 
-43 oscillator; 44 /PORTSEL; 16 /IOR; 17 /IOW; 18 A0; 19 A1.
-DB0..DB7: 29,31,33,34,36,37,39,40.
-24 MOSI; 25 MISO; 26 MISO weak-pull control via R1; 27 /CS; 28 SCK.
+2 oscillator (GCLK2); 9 /PORTSEL; 18 /IOR; 20 /IOW; 17 A0; 19 A1.
+DB0..DB7: 21,25,26,27,28,29,31,33.
+6 MOSI; 12 MISO; 24 MISO weak-pull control via R1; 40 /CS; 4 SCK.
 JTAG: 7 TDI, 13 TMS, 32 TCK, 38 TDO. Supply pins remain as drawn.
 /PORTSEL comes from the external comparator, including AEN qualification.
+
+PCB PIN REASSIGNMENT -- 2026-10-15, revision 02
+
+This pinout requires the revised PCB. Do not program this image into the
+previously routed board: its physical signal connections are different.
+
+The component positions and all non-U1 functional connections are retained.
+The R1 control net now has the explicit schematic name /MISO_PULL.
+The 19 application signals were assigned jointly using minimum-cost
+bipartite matching over legal PLCC44 pins. Each assignment's cost is the
+Euclidean minimum spanning tree joining the U1 pad and all other pads on
+that net, including test points. This gives an estimated straight-line
+connection length of 854.47 mm versus 1004.42 mm previously (14.9% less).
+These are geometric estimates, not actual routed lengths; obstacles,
+clearances, crossings and layer changes are not modeled. The result is
+optimal for that cost model, not a claim of globally optimal PCB routing.
+Power and JTAG pins remain fixed; osc uses a dedicated global clock input.
+
+Existing tracks/vias on all U1 application and JTAG nets were removed,
+including their test-point branches. Local VCC/GND trace branches from U1
+were removed up to the next pad or junction. In total, 217 track segments
+and 32 vias were removed. Other-net routing is retained; copper zones were refilled.
+Rerun DRC after completing the new routing.
+
+Revision 02 was fitted with JTAG ON and passed the existing 31,879-vector,
+258-transfer functional simulation. A subsequent plain build regenerated
+the programming image without test vectors. No new bench test was performed.
+KiCad netlist comparison confirmed all non-U1 connections and all PCB pad
+nets. Component pad positions are unchanged. After refilling zones, DRC
+reports the same four pre-existing violations (two silkscreen clearances
+and two library footprint mismatches) and the same J1 pin-9 schematic
+parity warning as the original board. There are 29 intentionally unrouted
+connections. ERC reports only four existing symbol-library warnings.
 
 PORT BEHAVIOUR
 
@@ -105,9 +138,9 @@ VALIDATION PERFORMED
 
 Installed CUPL 5.0 toolchain and ATF1504AS fitter 1.8.7.8:
     Device-dependent compilation and fitting passed, JTAG ON.
-    52/64 logic cells; 48/64 flip-flops; 12/64 foldback terms.
-    The report's combined nodes-plus-foldbacks count is 64/64, so the fit
-    does not imply substantial room for additional functionality.
+    52/64 logic cells; 48/64 flip-flops; 14/64 foldback terms.
+    The successful fit does not imply substantial room for additional
+    functionality; inspect the current fitter report before extending it.
     31,879 functional vectors passed, comprising 258 byte transfers.
     All 256 transmitted values and all 256 received values were exercised.
     Vectors check MSB order, eight-clock bursts, idle polarity, captured

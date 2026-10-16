@@ -1,7 +1,7 @@
 Name     slototter;
 PartNo   SLOTOTTER-CPLD;
 Date     10/15/2026;
-Revision 01;
+Revision 02;
 Designer Ivo Filot;
 Company  Slot-otter;
 Assembly CPLD;
@@ -17,18 +17,18 @@ Device   f1504ispplcc44;
  */
 PROPERTY ATMEL {JTAG=ON};
 
-PIN 43 = osc;
-PIN 44 = nsel;                 /* U4 comparator output; includes ISA AEN */
-PIN 16 = nrd;
-PIN 17 = nwr;
-PIN 18 = a0;
+PIN 2 = osc;
+PIN 9 = nsel;                 /* U4 comparator output; includes ISA AEN */
+PIN 18 = nrd;
+PIN 20 = nwr;
+PIN 17 = a0;
 PIN 19 = a1;
-PIN 25 = miso;
-PIN 24 = mosi;
-PIN 26 = pull_high;            /* Drives MISO weakly through R1, 10k */
-PIN 27 = ncs;
-PIN 28 = sck;
-PIN [40,39,37,36,34,33,31,29] = [db7..db0];
+PIN 12 = miso;
+PIN 6 = mosi;
+PIN 24 = pull_high;            /* Drives MISO weakly through R1, 10k */
+PIN 40 = ncs;
+PIN 4 = sck;
+PIN [33,31,29,28,27,26,25,21] = [db7..db0];
 
 PINNODE = [hold7..hold0];       /* ISA write data, captured at /IOW release */
 PINNODE = load_tx;
