@@ -1,4 +1,6 @@
 (sym_lib_table
-	(version 7)
-	(lib (name "logo") (type "KiCad") (uri "${KIPRJMOD}/components/logo.kicad_sym") (options "") (descr ""))
+ (version 7)
+ (lib (name "logo") (type "KiCad") (uri "${KIPRJMOD}/components/logo.kicad_sym") (options "") (descr ""))
+ (lib (name "atf1504as-plcc44") (type "KiCad") (uri "${KIPRJMOD}/components/atf1504as-plcc44.kicad_sym") (options "") (descr ""))
+ (lib (name "slototter-connectors") (type "KiCad") (uri "${KIPRJMOD}/components/slototter-connectors.kicad_sym") (options "") (descr ""))
 )

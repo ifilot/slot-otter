@@ -5,9 +5,10 @@
 	(uuid "075aea89-321c-44ba-b0b1-8b82a6b1f518")
 	(paper "A4")
 	(title_block
-		(title "ISA-TO-SDCARD")
-		(date "2025-08-17")
-		(rev "rev0")
+		(title "Slot-otter CPLD")
+		(date "2026-10-16")
+		(rev "1.0")
+		(comment 1 "Hardware: CERN-OHL-S-2.0; source: github.com/ifilot/slot-otter")
 	)
 	(lib_symbols
 		(symbol "74xx:74HCT688"
@@ -887,7 +888,7 @@
 			)
 			(embedded_fonts no)
 		)
-		(symbol "Connector:Bus_ISA_8bit_AB_Rev0"
+		(symbol "slototter-connectors:Bus_ISA_8bit_AB_Rev0"
 			(exclude_from_sim no)
 			(in_bom yes)
 			(on_board yes)
@@ -2079,7 +2080,7 @@
 			)
 			(embedded_fonts no)
 		)
-		(symbol "Connector:Micro_SD_Card_Det1"
+		(symbol "slototter-connectors:Micro_SD_Card_Det1"
 			(exclude_from_sim no)
 			(in_bom yes)
 			(on_board yes)
@@ -4331,7 +4332,7 @@
 					)
 				)
 			)
-			(property "Datasheet" "http://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-0995-CPLD-ATF1502AS(L)-Datasheet.pdf"
+			(property "Datasheet" "https://ww1.microchip.com/downloads/en/DeviceDoc/ATF1504AS(L)-5V-64-Macrocell-CPLD-Data-Sheet-20006580A.pdf"
 				(at 0 36.83 0)
 				(show_name no)
 				(do_not_autoplace no)
@@ -8755,9 +8756,9 @@
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
-		(in_bom yes)
+		(in_bom no)
 		(on_board yes)
-		(in_pos_files yes)
+		(in_pos_files no)
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "0d68c969-8181-4e6a-ba85-e6d58b7be9d7")
@@ -9531,7 +9532,7 @@
 		)
 	)
 	(symbol
-		(lib_id "Connector:Micro_SD_Card_Det1")
+		(lib_id "slototter-connectors:Micro_SD_Card_Det1")
 		(at 252.73 143.51 0)
 		(unit 1)
 		(body_style 1)
@@ -13335,7 +13336,7 @@
 				)
 			)
 		)
-		(property "Datasheet" "http://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-0995-CPLD-ATF1502AS(L)-Datasheet.pdf"
+		(property "Datasheet" "https://ww1.microchip.com/downloads/en/DeviceDoc/ATF1504AS(L)-5V-64-Macrocell-CPLD-Data-Sheet-20006580A.pdf"
 			(at 40.64 12.7 0)
 			(hide yes)
 			(show_name no)
@@ -14671,7 +14672,7 @@
 		)
 	)
 	(symbol
-		(lib_id "Connector:Bus_ISA_8bit_AB_Rev0")
+		(lib_id "slototter-connectors:Bus_ISA_8bit_AB_Rev0")
 		(at 247.65 62.23 0)
 		(unit 1)
 		(body_style 1)
@@ -16080,9 +16081,9 @@
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
-		(in_bom yes)
+		(in_bom no)
 		(on_board yes)
-		(in_pos_files yes)
+		(in_pos_files no)
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "fc420bfb-dfba-4f85-ab54-08fe2404a39c")

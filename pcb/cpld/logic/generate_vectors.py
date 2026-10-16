@@ -108,8 +108,8 @@ class Vectors:
     def save(self, destination):
         header = '''Name slototter;
 PartNo SLOTOTTER-CPLD;
-Date 10/15/2026;
-Revision 01;
+Date 10/16/2026;
+Revision 1.0;
 Designer Ivo Filot;
 Company Slot-otter;
 Assembly CPLD;

@@ -1,10 +1,11 @@
-Slot-otter ATF1504AS draft -- 2026-10-15
+Slot-otter CPLD revision 1.0 -- 2026-10-16
 
 Source: slototter.pld. Target: 5 V ATF1504AS, 44-pin PLCC, with JTAG ON.
 Pin assignments match U1 in ../cpld.kicad_sch and ../cpld.kicad_pcb.
 Keep the external 74HCT688, 74LVC125, regulator and 16 MHz oscillator.
 No schematic, PCB, driver or installed WinCUPL files are changed by the build.
-This is a functional hardware draft, not a bench-validated release image.
+Revision 1.0 uses the reassigned PCB pinout. See ../README.md for release
+status and LICENSE.md at the repository root for licensing.
 
 BUILD ON WINDOWS
 
@@ -44,6 +45,8 @@ PINOUT (PLCC44)
 DB0..DB7: 21,25,26,27,28,29,31,33.
 6 MOSI; 12 MISO; 24 MISO weak-pull control via R1; 40 /CS; 4 SCK.
 JTAG: 7 TDI, 13 TMS, 32 TCK, 38 TDO. Supply pins remain as drawn.
+Revision 1.0 leaves JTAG unconnected on the PCB; use an external PLCC44
+programming adapter before installing U1. There is no on-board JTAG header.
 /PORTSEL comes from the external comparator, including AEN qualification.
 
 PCB PIN REASSIGNMENT -- 2026-10-15, revision 02
@@ -69,7 +72,7 @@ were removed up to the next pad or junction. In total, 217 track segments
 and 32 vias were removed. Other-net routing is retained; copper zones were refilled.
 Rerun DRC after completing the new routing.
 
-Revision 02 was fitted with JTAG ON and passed the existing 31,879-vector,
+The revision 02 pin map, retained for hardware revision 1.0, was fitted with JTAG ON and passed the existing 31,879-vector,
 258-transfer functional simulation. A subsequent plain build regenerated
 the programming image without test vectors. No new bench test was performed.
 KiCad netlist comparison confirmed all non-U1 connections and all PCB pad
@@ -77,7 +80,8 @@ nets. Component pad positions are unchanged. After refilling zones, DRC
 reports the same four pre-existing violations (two silkscreen clearances
 and two library footprint mismatches) and the same J1 pin-9 schematic
 parity warning as the original board. There are 29 intentionally unrouted
-connections. ERC reports only four existing symbol-library warnings.
+connections at that stage. Current revision 1.0 routing and library status
+are recorded in ../production/drc.json and ../production/erc.json.
 
 PORT BEHAVIOUR
 

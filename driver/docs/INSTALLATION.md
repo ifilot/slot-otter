@@ -103,4 +103,6 @@ DOS/SD error, stage, LBA, R1, token and poison fields. Do not keep retrying
 writes after a failed or poisoned session.
 
 Source and releases: https://github.com/ifilot/slot-otter
-License: GNU GPL version 3 or later; see LICENSE.TXT.
+Software license: GNU GPL version 3 or later; see LICENSE.TXT.
+Documentation license: CC-BY-SA-4.0; see
+https://creativecommons.org/licenses/by-sa/4.0/ .

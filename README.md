@@ -2,9 +2,17 @@
 
 [![Build and Release](https://github.com/ifilot/slot-otter/actions/workflows/build.yml/badge.svg)](https://github.com/ifilot/slot-otter/actions/workflows/build.yml)
 ![Version](https://img.shields.io/github/v/tag/ifilot/slot-otter?label=version)
-[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+[![Hardware license](https://img.shields.io/badge/Hardware-CERN--OHL--S--2.0-blue.svg)](LICENSE.md)
+[![Software license](https://img.shields.io/badge/Software-GPL--3.0--or--later-blue.svg)](LICENSE.md)
 
 An 8-bit ISA card for accessing FAT16- or FAT32-formatted SD cards under MS-DOS.
+
+The current hardware is [CPLD revision 1.0](pcb/cpld/README.md), the target
+for OSHWA certification preparation. Certification has not been granted.
+The [discrete-logic release](pcb/release/README.md) and
+[prototype](pcb/prototype/README.md) are historical designs. The operating
+instructions below describe the established card/driver interface; revision 1.0
+hardware status and its CPLD timing limits are documented separately.
 
 ![Slot-otter ISA card rendered](img/slot-otter-isa-card-rendered.png)
 
@@ -240,11 +248,14 @@ and the disk being copied to or from.
 
 ## Hardware
 
-The KiCad design files for the card are in [pcb/release](pcb/release),
-including the schematic as a [PDF](pcb/release/isa-sdcard.pdf) and the BOM
-and placement files for assembly. The card is built from standard 74-series
-logic. A 74HCT688 compares address lines A2 to A9 with the DIP-switch setting
-described in [Set the port address](#1-set-the-port-address).
+Use [CPLD revision 1.0](pcb/cpld/README.md) for current hardware sources,
+BOM, assembly positions, fabrication exports and CPLD build instructions.
+An ATF1504AS implements the interface logic, with an external 74HCT688
+comparing address lines A2 to A9 against the DIP-switch setting.
+
+The earlier card built from discrete 74-series logic remains in
+[pcb/release](pcb/release/README.md) for historical reference. Its files and
+pinout are not interchangeable with the CPLD board.
 
 ## Legacy Navigator
 
@@ -267,5 +278,7 @@ Actions; they are not stored in the source repository.
 
 ## License
 
-Slot-otter is released under the
-[GNU General Public License v3.0](https://www.gnu.org/licenses/gpl-3.0).
+Project-authored hardware and mechanical designs use CERN-OHL-S-2.0;
+software and CPLD logic use GPL-3.0-or-later; documentation uses CC-BY-SA-4.0.
+See [licensing scope and full texts](LICENSE.md) for details and third-party
+exceptions. Bundled Borland tools retain their proprietary terms.

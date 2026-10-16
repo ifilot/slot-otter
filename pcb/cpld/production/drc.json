@@ -1,0 +1,141 @@
+{
+    "$schema": "https://schemas.kicad.org/drc.v1.json",
+    "coordinate_units": "mm",
+    "date": "2026-10-16T10:48:57",
+    "ignored_checks": [
+        {
+            "description": "Thermal relief connection to zone incomplete",
+            "key": "starved_thermal"
+        },
+        {
+            "description": "Footprint has no courtyard defined",
+            "key": "missing_courtyard"
+        },
+        {
+            "description": "Solder mask aperture bridges items with different nets",
+            "key": "solder_mask_bridge"
+        },
+        {
+            "description": "Track endpoint not centered on via",
+            "key": "track_not_centered_on_via"
+        },
+        {
+            "description": "Tuning profile track geometries",
+            "key": "tuning_profile_track_geometries"
+        },
+        {
+            "description": "Footprint doesn't match symbol's footprint filters",
+            "key": "footprint_filters_mismatch"
+        },
+        {
+            "description": "PTH inside courtyard",
+            "key": "pth_inside_courtyard"
+        },
+        {
+            "description": "NPTH inside courtyard",
+            "key": "npth_inside_courtyard"
+        }
+    ],
+    "included_severities": [
+        "error",
+        "warning"
+    ],
+    "kicad_version": "10.0.3",
+    "schematic_parity": [
+        {
+            "description": "No pad found for pin 9 in schematic",
+            "items": [
+                {
+                    "description": "Footprint J1",
+                    "pos": {
+                        "x": 175.441304,
+                        "y": 58.279098
+                    },
+                    "uuid": "cf18e2bf-c9ca-4b7f-9b71-9c64fc29db4b"
+                }
+            ],
+            "severity": "warning",
+            "type": "net_conflict"
+        }
+    ],
+    "source": "cpld.kicad_pcb",
+    "unconnected_items": [],
+    "violations": [
+        {
+            "description": "Silkscreen clipped by board edge",
+            "items": [
+                {
+                    "description": "Segment on Edge.Cuts",
+                    "pos": {
+                        "x": 181.083,
+                        "y": 111.508
+                    },
+                    "uuid": "0485dd78-a8ad-449b-9743-30c4bb5bdde8"
+                },
+                {
+                    "description": "Segment of J1 on F.Silkscreen",
+                    "pos": {
+                        "x": 179.955798,
+                        "y": 50.722598
+                    },
+                    "uuid": "df52dd8f-e134-412f-b2cd-6f537843f7b1"
+                }
+            ],
+            "severity": "warning",
+            "type": "silk_edge_clearance"
+        },
+        {
+            "description": "Silkscreen clipped by board edge",
+            "items": [
+                {
+                    "description": "Segment on Edge.Cuts",
+                    "pos": {
+                        "x": 181.083,
+                        "y": 111.508
+                    },
+                    "uuid": "0485dd78-a8ad-449b-9743-30c4bb5bdde8"
+                },
+                {
+                    "description": "Segment of J1 on F.Silkscreen",
+                    "pos": {
+                        "x": 182.820007,
+                        "y": 65.835598
+                    },
+                    "uuid": "b4cf5b41-296a-42f0-90d4-6f6e902fc1b7"
+                }
+            ],
+            "severity": "warning",
+            "type": "silk_edge_clearance"
+        },
+        {
+            "description": "Footprint 'C_0805_2012Metric' does not match copy in library 'Capacitor_SMD'",
+            "items": [
+                {
+                    "description": "Footprint C1",
+                    "pos": {
+                        "x": 97.39,
+                        "y": 90.645
+                    },
+                    "uuid": "0482aca9-982c-42cd-bca3-3cadfce4ef4a"
+                }
+            ],
+            "severity": "warning",
+            "type": "lib_footprint_mismatch"
+        },
+        {
+            "description": "Footprint 'R_0805_2012Metric' does not match copy in library 'Resistor_SMD'",
+            "items": [
+                {
+                    "description": "Footprint R1",
+                    "pos": {
+                        "x": 152.9925,
+                        "y": 100.57
+                    },
+                    "uuid": "34c9fe67-5abe-4c5a-8d54-41e6ffaf9351"
+                }
+            ],
+            "severity": "warning",
+            "type": "lib_footprint_mismatch"
+        }
+    ]
+}

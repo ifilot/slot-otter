@@ -22,3 +22,9 @@ pcb/release/production
 *.[iI][mM][gG]
 *.[iI][mM][aA]
 *.[iI][sS][oO]
+
+# Publish the current CPLD fabrication package.
+!pcb/cpld/GERBERS/
+!pcb/cpld/GERBERS/*
+# Python cache for the KiCad export helper.
+pcb/cpld/__pycache__/
