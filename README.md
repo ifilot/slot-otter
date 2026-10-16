@@ -225,6 +225,8 @@ For browsing and copying files, we recommend
 [Nightwatch](https://github.com/ifilot/nightwatch) together with OTTERSD.
 Nightwatch is a separate project and is not bundled in these downloads.
 
+[![Nightwatch file browser in VGA mode](img/nightwatch-vga.png)](https://github.com/ifilot/nightwatch)
+
 ## Performance
 
 File-copy tests on an **80286 running at 20 MHz** gave these results:
