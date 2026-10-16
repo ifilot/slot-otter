@@ -1,0 +1,18 @@
+{
+  "hardware": "Slot-otter CPLD",
+  "revision": "1.0",
+  "kicad_version": "10.0.3",
+  "source_sha256": {
+    "cpld.kicad_pcb": "61922bfa9a590107379e6881e7f5f4604a75c9dea0580f7be1c3485fc895b844",
+    "cpld.kicad_sch": "807928cd915884af378f4eaffbfcc1732fbd1197f0134bc7816e95d638fbca04",
+    "slototter.pld": "a8215f7772e193e234a03903cd59a10ff190d3a22c65451af6b9eb401d046885"
+  },
+  "drc_errors": 0,
+  "schematic_parity_errors": 0,
+  "erc_errors": 0,
+  "drc_warnings": 4,
+  "schematic_parity_warnings": 1,
+  "erc_warnings": 0,
+  "unconnected_items": 0,
+  "manufacturing_ready": true
+}

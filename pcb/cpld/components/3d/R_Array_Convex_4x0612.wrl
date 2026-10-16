@@ -1,0 +1,12 @@
+#VRML V2.0 utf8
+# SPDX-License-Identifier: CERN-OHL-S-2.0
+# Simplified visualization model; dimensions in 0.1 inch.
+Transform { translation 0.000000 0.000000 0.118110 children [ Shape { appearance Appearance { material Material { diffuseColor 0.055 0.055 0.06 specularColor 0.25 0.25 0.25 shininess 0.25 } } geometry Box { size 0.629921 1.259843 0.236220 } } ] }
+Transform { translation -0.275591 -0.500000 0.118110 children [ Shape { appearance Appearance { material Material { diffuseColor 0.65 0.67 0.7 specularColor 0.25 0.25 0.25 shininess 0.25 } } geometry Box { size 0.118110 0.165354 0.244094 } } ] }
+Transform { translation 0.275591 -0.500000 0.118110 children [ Shape { appearance Appearance { material Material { diffuseColor 0.65 0.67 0.7 specularColor 0.25 0.25 0.25 shininess 0.25 } } geometry Box { size 0.118110 0.165354 0.244094 } } ] }
+Transform { translation -0.275591 -0.157480 0.118110 children [ Shape { appearance Appearance { material Material { diffuseColor 0.65 0.67 0.7 specularColor 0.25 0.25 0.25 shininess 0.25 } } geometry Box { size 0.118110 0.165354 0.244094 } } ] }
+Transform { translation 0.275591 -0.157480 0.118110 children [ Shape { appearance Appearance { material Material { diffuseColor 0.65 0.67 0.7 specularColor 0.25 0.25 0.25 shininess 0.25 } } geometry Box { size 0.118110 0.165354 0.244094 } } ] }
+Transform { translation -0.275591 0.157480 0.118110 children [ Shape { appearance Appearance { material Material { diffuseColor 0.65 0.67 0.7 specularColor 0.25 0.25 0.25 shininess 0.25 } } geometry Box { size 0.118110 0.165354 0.244094 } } ] }
+Transform { translation 0.275591 0.157480 0.118110 children [ Shape { appearance Appearance { material Material { diffuseColor 0.65 0.67 0.7 specularColor 0.25 0.25 0.25 shininess 0.25 } } geometry Box { size 0.118110 0.165354 0.244094 } } ] }
+Transform { translation -0.275591 0.500000 0.118110 children [ Shape { appearance Appearance { material Material { diffuseColor 0.65 0.67 0.7 specularColor 0.25 0.25 0.25 shininess 0.25 } } geometry Box { size 0.118110 0.165354 0.244094 } } ] }
+Transform { translation 0.275591 0.500000 0.118110 children [ Shape { appearance Appearance { material Material { diffuseColor 0.65 0.67 0.7 specularColor 0.25 0.25 0.25 shininess 0.25 } } geometry Box { size 0.118110 0.165354 0.244094 } } ] }
