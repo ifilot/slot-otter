@@ -11,13 +11,9 @@ Slot-otter lets a DOS PC use an SD card as an ordinary drive. Fill the card
 with files on a modern computer, insert it into your vintage PC, and copy or
 run them from DOS.
 
-![Slot-otter CPLD revision 1.0](img/slot-otter-cpld-rev1-blender.png)
-
-*[CPLD revision 1.0](pcb/cpld/README.md).*
-
-![Slot-otter rear panel and SD card slot](img/slot-otter-cpld-rev1-socket.png)
-
-*Rear panel and SD card slot.*
+| [CPLD revision 1.0](pcb/cpld/README.md) | Rear panel and SD card slot |
+| :---: | :---: |
+| ![Slot-otter CPLD revision 1.0](img/slot-otter-cpld-rev1-blender.png) | ![Slot-otter rear panel and SD card slot](img/slot-otter-cpld-rev1-socket.png) |
 
 A working setup has three parts:
 
