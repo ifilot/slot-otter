@@ -1,7 +1,7 @@
 # Slot-otter historical prototype
 
 This directory preserves the earlier prototype hardware. The current design
-and OSHWA certification preparation target is [CPLD revision 1.0](../cpld/README.md).
+is [CPLD revision 1.0](../cpld/README.md).
 These historical sources are retained for existing cards and are not the
 revision 1.0 fabrication package. Use the matching source revision when
 repairing or reproducing an older card.

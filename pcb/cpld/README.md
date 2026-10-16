@@ -1,7 +1,6 @@
 # Slot-otter CPLD revision 1.0
 
-This is the current hardware design and the target for OSHWA certification
-preparation. It has not been OSHWA-certified. Revision 1.0 uses an ATF1504AS
+This is the current hardware design. Revision 1.0 uses an ATF1504AS
 in a PLCC44 socket and the reassigned pinout in [logic/README.txt](logic/README.txt).
 Do not use this programming image with an earlier PCB pinout.
 
@@ -68,12 +67,3 @@ the programmer's verify operation. Programmer-specific commands depend on
 the selected programmer. Disconnect power before inserting or removing U1.
 Follow the bring-up checks and timing limits in the logic
 README before using the [DOS driver](../../driver/README.md) on this revision.
-
-## Certification scope
-
-The proposed submission covers the CPLD revision 1.0 PCB design, its
-project-authored libraries, CPLD source, supporting build scripts, driver and
-documentation. Historical board designs remain openly published but are not
-the target of this submission. Off-the-shelf ICs and bundled proprietary build
-tools retain their suppliers' terms. No certification mark or registration ID
-is claimed here.

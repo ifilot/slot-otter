@@ -3,7 +3,7 @@
   "revision": "1.0",
   "kicad_version": "10.0.3",
   "source_sha256": {
-    "cpld.kicad_pcb": "f00c5ec5464f734f02ec2b8ea954bcc5a65cf893476a1c539f08dd63034e46fa",
+    "cpld.kicad_pcb": "61922bfa9a590107379e6881e7f5f4604a75c9dea0580f7be1c3485fc895b844",
     "cpld.kicad_sch": "807928cd915884af378f4eaffbfcc1732fbd1197f0134bc7816e95d638fbca04",
     "slototter.pld": "a8215f7772e193e234a03903cd59a10ff190d3a22c65451af6b9eb401d046885"
   },
@@ -14,6 +14,5 @@
   "schematic_parity_warnings": 1,
   "erc_warnings": 0,
   "unconnected_items": 0,
-  "manufacturing_ready": true,
-  "oshwa_certified": false
+  "manufacturing_ready": true
 }

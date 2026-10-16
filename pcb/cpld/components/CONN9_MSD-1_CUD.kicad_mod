@@ -478,4 +478,6 @@
 		(uuid "1c65a9b5-007d-4133-ae69-72ab9f9527af")
 	)
 	(embedded_fonts no)
+(model "${KIPRJMOD}/components/3d/MicroSD_Socket.step"
+ (offset (xyz 0 0 0)) (scale (xyz 1 1 1)) (rotate (xyz -90 0 0)))
 )

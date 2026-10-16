@@ -94,7 +94,6 @@ def main():
                                 for x in sheet['violations']),
             'unconnected_items': unconnected,
             'manufacturing_ready': error_count == parity_errors == erc_errors == unconnected == 0,
-            'oshwa_certified': False,
         }
         (production / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
         for directory in [production, gerbers]:
