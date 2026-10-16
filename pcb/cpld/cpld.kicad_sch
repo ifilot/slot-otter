@@ -13313,7 +13313,7 @@
 				(justify left)
 			)
 		)
-		(property "Value" "ATF1504AS-xJx44"
+		(property "Value" "ATF1504AS"
 			(at 46.5933 24.13 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -16069,6 +16069,81 @@
 			(project "cpld"
 				(path "/075aea89-321c-44ba-b0b1-8b82a6b1f518"
 					(reference "#PWR029")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "logo:LOGO")
+		(at 191.77 162.56 0)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "fc420bfb-dfba-4f85-ab54-08fe2404a39c")
+		(property "Reference" "SYM2"
+			(at 194.31 162.5599 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" ""
+			(at 191.77 162.56 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Symbol:OSHW-Logo_11.4x12mm_SilkScreen"
+			(at 191.77 162.56 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 191.77 162.56 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" ""
+			(at 191.77 162.56 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(instances
+			(project "cpld"
+				(path "/075aea89-321c-44ba-b0b1-8b82a6b1f518"
+					(reference "SYM2")
 					(unit 1)
 				)
 			)
