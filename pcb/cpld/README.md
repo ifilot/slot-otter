@@ -24,7 +24,7 @@ references, manufacturing files and pinouts are not interchangeable with this bo
 - [Schematic PDF](cpld.pdf) and [SVG](cpld.svg).
 - [Bill of materials](production/bom.csv), including schematic supplier fields and datasheet links.
 - [Placement positions](production/positions.csv), in millimetres, and [assembly references](production/designators.csv).
-- [Gerbers and drill files](GERBERS/).
+- [Gerbers and drill files](GERBERS/), also available as a [fabrication ZIP](GERBERS/cpld.zip).
 - [Generation manifest](production/manifest.json), [DRC](production/drc.json) and [ERC](production/erc.json).
 
 Check `manufacturing_ready` and the reports before ordering. A generated export
@@ -43,8 +43,8 @@ python3 pcb/cpld/export.py
 
 Use `--kicad-cli /path/to/kicad-cli` when the executable is not on PATH.
 The exporter refills and saves PCB copper zones, runs DRC/ERC, exports the
-current schematic and board, and records source hashes. It exports both board
-sides in the placement CSV; configure your assembler's origin and rotation
+current schematic and board, rebuilds the fabrication ZIP, and records source
+hashes. It exports both board sides in the placement CSV; configure your assembler's origin and rotation
 conventions before submitting it. The `.dsn` and `.ses` files are historical
 routing snapshots, not revision 1.0 manufacturing inputs.
 

@@ -10,8 +10,18 @@ from pathlib import Path
 import shutil
 import subprocess
 import tempfile
+import zipfile
 
 ROOT = Path(__file__).resolve().parent
+
+
+def package_gerbers(directory):
+    """Replace the fabrication archive with the current Gerber/drill outputs."""
+    files = sorted(path for path in directory.iterdir()
+                   if path.is_file() and path.suffix.lower() in {'.gbr', '.gbrjob', '.drl'})
+    with zipfile.ZipFile(directory / 'cpld.zip', 'w', zipfile.ZIP_DEFLATED) as archive:
+        for path in files:
+            archive.write(path, arcname=path.name)
 
 
 def main():
@@ -65,6 +75,7 @@ def main():
             'F.Cu,B.Cu,F.Paste,B.Paste,F.Silkscreen,B.Silkscreen,F.Mask,B.Mask,Edge.Cuts',
             '--no-protel-ext', '-o', gerbers, board)
         run('pcb', 'export', 'drill', '--excellon-separate-th', '-o', gerbers, board)
+        package_gerbers(gerbers)
         # Keep a compact assembly reference alongside the machine placement CSV.
         with (production / 'positions.csv').open(newline='', encoding='utf-8-sig') as stream:
             positions = list(csv.DictReader(stream))
