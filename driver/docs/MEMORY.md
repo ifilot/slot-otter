@@ -1,6 +1,6 @@
 # Resident memory
 
-The current **OTTERSD 1.0.0** allocation is **42,896 bytes (41.9 KiB)** including
+The current **OTTERSD 1.1.0** allocation is **42,896 bytes (41.9 KiB)** including
 the PSP, in both `/RO` and `/RW`. The increase over 0.14 is 3,408 bytes for read
 caches, per-handle cursor state and their code. The private stack remains
 2,048 bytes, with 16 open handles and 32 directory searches. `/UNLOAD` reclaims

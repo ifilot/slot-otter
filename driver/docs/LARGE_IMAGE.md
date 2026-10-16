@@ -22,7 +22,7 @@ this larger volume. Measure copying separately from mount/unmount.
 Eight KiB clusters would put a 500 MiB volume below the FAT32 minimum of
 65525 data clusters. Four KiB keeps this image unambiguously FAT32. Changing
 the sector size is a different operation and is not supported by this driver.
-OTTERSD 1.0.0 reports 8 KiB logical allocation units to DOS on this volume,
+OTTERSD 1.1.0 reports 8 KiB logical allocation units to DOS on this volume,
 scaling total/free counts to fit the legacy 16-bit interface. The physical
 clusters stay 4 KiB. DIR should report about 499 MiB free initially, allowing
 for the FAT/reserved area and supplied files. Reported free space rounds down

@@ -69,19 +69,28 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           name: ottersd-release
           path: release/ottersd
-      - name: Publish OTTERSD release
+      - name: Publish Slot-otter release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          name: OTTERSD ${{ github.ref_name }}
+          name: Slot-otter ${{ github.ref_name }}
           fail_on_unmatched_files: true
           body: |
-            OTTERSD is the primary DOS software for Slot-otter.
-            Version 1.0.0 is the first stable release.
+            Slot-otter releases include hardware designs and DOS software.
+            The release tag matches the OTTERSD and HWRT software versions;
+            the current CPLD board is hardware revision 1.0.
+
+            Hardware: cpld.zip contains Gerbers and drill files for CPLD
+            revision 1.0; cpld.pdf is the schematic. Editable KiCad and CPLD
+            logic sources, build instructions and timing requirements are
+            included in the source archives for this tag.
+
+            See CHANGELOG.md in the tagged sources for the release history.
 
             Download OTTERSD-DOS.zip or a 360 KiB / 720 KiB / 1.44 MiB
             installation floppy. Floppies contain the driver and user
@@ -107,6 +116,8 @@ jobs:
             release/ottersd/README.TXT
             release/ottersd/RELEASE.JSON
             release/ottersd/SHA256.TXT
+            pcb/cpld/GERBERS/cpld.zip
+            pcb/cpld/cpld.pdf
       - name: Download optional legacy executable
         if: needs.legacy.result == 'success'
         uses: actions/download-artifact@v4

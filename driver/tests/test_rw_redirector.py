@@ -470,7 +470,7 @@ class WritableRedirectorTests(unittest.TestCase):
         C.c_uint16.in_dll(self.lib,'resident_bytes').value=36000
         r=self.call(0,ax=0xd74f,bx=0x4f54,dx=0x524f,si=8,cx=32,es=4,di=4096)
         self.assertEqual(r.cx,32)
-        self.assertEqual(self.get(self.data,4096+20),0x0100)
+        self.assertEqual(self.get(self.data,4096+20),0x0110)
         policy=self.call(0,ax=0xd74f,bx=0x4f54,dx=0x524f,si=5)
         self.assertEqual(policy.di,1)
         self.assertEqual(self.get(self.data,4096+22),36000)
@@ -494,7 +494,7 @@ class WritableRedirectorTests(unittest.TestCase):
         before=self.image.read_bytes()
         cds=bytes(self.cds[:88])
         r=self.unload_call(9)
-        self.assertEqual((r.ax,r.bx,r.cx,r.dx,r.di,r.si),(1,256,3,512,2,0x0100))
+        self.assertEqual((r.ax,r.bx,r.cx,r.dx,r.di,r.si),(1,256,3,512,2,0x0110))
         self.assertEqual(bytes(self.cds[:88]),cds)
         self.assertEqual(self.image.read_bytes(),before)
 

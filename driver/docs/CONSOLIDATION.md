@@ -1,6 +1,6 @@
 # Current driver consolidation
 
-The active programs are **OTTERSD.EXE 1.0.0** and developer **HWRT.EXE 1.0.0**. One
+The active programs are **OTTERSD.EXE 1.1.0** and developer **HWRT.EXE 1.1.0**. One
 standalone `build.sh` builds both; neither depends on Navigator or `src`.
 The driver supports FAT16 and FAT32, read-only and verified read/write modes,
 optional write-readback suppression, optional mount-time FAT comparison
@@ -23,7 +23,7 @@ There are no active `hardware/`, `write/`, `rwhardware/` or top-level
 The reference code is test input, not a second public program. Benchmark and
 internal DOS probes remain useful tools and are not included in the DOS KIT.
 
-## Public release 1.0.0
+## Public release 1.1.0
 
 OTTERSD is the primary software product. Public packages in `dist/RELEASE`
 contain only the driver and end-user instructions; SD images are empty.

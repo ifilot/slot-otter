@@ -273,6 +273,8 @@ instructions and regression tests. The driver is built with Turbo C 2.0 and
 TASM 2. [DOSBox-VirtIsa](https://github.com/ifilot/dosbox-virtisa) provides an
 emulated ISA interface for development and testing.
 
+See the [release history](CHANGELOG.md) for changes between versions.
+
 ## License
 
 Project-authored hardware and mechanical designs use CERN-OHL-S-2.0;

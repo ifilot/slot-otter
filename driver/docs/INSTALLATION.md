@@ -1,4 +1,4 @@
-# OTTERSD 1.0.0
+# OTTERSD 1.1.0
 
 OTTERSD exposes the Slot-otter SD card as an ordinary DOS drive letter for
 COPY, XCOPY, games and file managers. For browsing and copying files, we

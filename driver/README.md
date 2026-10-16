@@ -256,7 +256,10 @@ backup boot sector, FSInfo and fsck results. Local output can be placed in
 
 GitHub Actions runs the host and mutation tests, builds the binaries and
 uploads only `release.py`'s output. A tagged release requires the tag to be
-`v` followed by the version in RWSD.H. OTTERNAV is built separately and
+`v` followed by the version in RWSD.H. Slot-otter uses this release version
+for the hardware/software bundle; PCB revisions are recorded separately in
+the hardware design files. Releases also attach the CPLD fabrication ZIP and
+schematic PDF. OTTERNAV is built separately and
 attached as an optional legacy download.
 
 RWSD.H defines the displayed version and a 16-bit resident version ID: the
