@@ -1,7 +1,7 @@
 # Resident memory
 
-The current **OTTERSD 1.1.0** allocation is **42,896 bytes (41.9 KiB)** including
-the PSP, in both `/RO` and `/RW`. The increase over 0.14 is 3,408 bytes for read
+The current **OTTERSD 1.1.2** allocation is **43,536 bytes (42.5 KiB)** including
+the PSP, in both `/RO` and `/RW`. The increase over 0.14 is 4,048 bytes for read
 caches, per-handle cursor state and their code. The private stack remains
 2,048 bytes, with 16 open handles and 32 directory searches. `/UNLOAD` reclaims
 the complete resident allocation when its existing safety conditions are met.
@@ -134,7 +134,7 @@ visible. No additional cache, buffer or retained allocation proof is added.
 
 ## Read caches in 0.15
 
-Resident allocation is 42,896 bytes including PSP: 3,408 bytes above 0.14.
+Resident allocation is 43,536 bytes including PSP: 4,048 bytes above 0.14.
 The FAT cache grows from one sector to four; two directory sectors are added
 separately from the existing payload buffer. The sixteen open-file slots gain
 read cursors and generation stamps. The remaining increase is cache and cursor

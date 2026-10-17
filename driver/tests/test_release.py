@@ -23,18 +23,18 @@ class PublicReleaseTests(unittest.TestCase):
         self.driver = self.work / 'OTTERSD.EXE'
         # Packaging copies opaque bytes; actual executable behavior is tested
         # by the native DOS gates, not by a fabricated program here.
-        self.payload = b'MZ' + bytes(26) + b'OTTERSD 1.1.0\0package test payload'
+        self.payload = b'MZ' + bytes(26) + b'OTTERSD 1.1.2\0package test payload'
         self.driver.write_bytes(self.payload)
 
     def test_semantic_version_and_tag_agree(self):
-        self.assertEqual(release.version(), '1.1.0')
-        release.check_tag('v1.1.0')
-        for tag in ('v0.15', 'v1.0.0', '1.1.0', 'v1.1', 'v1.1.1'):
+        self.assertEqual(release.version(), '1.1.2')
+        release.check_tag('v1.1.2')
+        for tag in ('v0.15', 'v1.0.0', 'v1.1.0', 'v1.1.1', '1.1.2', 'v1.1'):
             with self.subTest(tag=tag), self.assertRaises(ValueError):
                 release.check_tag(tag)
 
     def test_mismatched_resident_version_is_refused(self):
-        (self.work / 'RWSD.H').write_text('#define OTTER_VERSION 0x000f\n#define OTTER_VERSION_TEXT "1.1.0"\n')
+        (self.work / 'RWSD.H').write_text('#define OTTER_VERSION 0x000f\n#define OTTER_VERSION_TEXT "1.1.2"\n')
         with patch.object(release, 'ROOT', self.work), self.assertRaises(ValueError):
             release.version()
 

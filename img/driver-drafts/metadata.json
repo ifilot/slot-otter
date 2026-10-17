@@ -1,7 +1,7 @@
 {
   "kind": "illustrative drafts, not emulator or hardware captures",
   "message_source": "driver/INSTALL.C",
-  "version": "1.1.0",
+  "version": "1.1.2",
   "progress": "Final comparison frame; unmount/unload examples have pending changes",
   "scenario": "Successful FAT16 mount, 16 KiB clusters, S:, port 330h, verified read/write",
   "sample_values": {
