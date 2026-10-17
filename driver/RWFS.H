@@ -24,6 +24,9 @@ extern U32 rw_read_serial;
  * Paths and names use DOS short aliases; this module does not create LFNs. */
 /* Installed policy persists across invalidate/remount; only mount scans skip. */
 extern U8 rw_skip_fat_check;
+/* Explicit foreground controls only. Zero always closes and disables feedback.
+ * BIOS console output never calls DOS and is never armed by file callbacks. */
+void rw_feedback(U16 enabled);
 int rw_mount(void);
 /* Invalidate disarms without committing. Flush verifies mirrors and marks
  * the volume clean; callers must explicitly flush before safe removal. */

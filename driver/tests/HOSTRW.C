@@ -102,3 +102,4 @@ void rw_reg_write(U16 offset,U8 value) {
 U8 rw_reg_read(U16 offset) { advance(); return slot_model_read(card,offset); }
 /* Synthetic ticks count byte exchanges; they are not hardware speed evidence. */
 U16 rw_ticks(void) { return (U16)(clocks/2048UL); }
+void rw_host_advance_ticks(U16 ticks) { clocks+=(U32)ticks*2048UL; }

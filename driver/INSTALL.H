@@ -9,6 +9,7 @@ void FAR i_segread(struct SREGS *s);
 void interrupt FAR (* FAR i_getvect(int n))(void);
 void FAR i_setvect(int n,void interrupt FAR (*handler)(void));
 U16 FAR i_mount(void);
+void FAR i_feedback(U16 enabled);
 void FAR i_bridge(void interrupt FAR (*previous)(void));
 void FAR i_keep(int code,U16 paragraphs);
 U16 FAR i_get16(const U8 FAR *p);
@@ -21,6 +22,7 @@ void FAR i_put32(U8 FAR *p,U32 value);
 #define getvect i_getvect
 #define setvect i_setvect
 #define media_mount i_mount
+#define rw_feedback i_feedback
 #define bridge_init i_bridge
 #define keep i_keep
 #define get16 i_get16

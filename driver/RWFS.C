@@ -8,6 +8,54 @@
 #include <string.h>
 U32 rw_start, rw_end, rw_fatsz, rw_allocated, rw_freed;
 U8 rw_skip_fat_check;
+static U16 feedback_enabled, feedback_line, feedback_tick, feedback_percent;
+#ifdef HOST_TEST
+/* Test-only capture of the same bytes sent to BIOS on DOS. */
+U8 rw_feedback_output[4096];
+U16 rw_feedback_length;
+#endif
+static void feedback_char(U8 c) {
+#ifdef HOST_TEST
+  if (rw_feedback_length<sizeof(rw_feedback_output))
+    rw_feedback_output[rw_feedback_length++]=c;
+#else
+  union REGS r;
+  /* Query the active page; do not assume page zero or a color adapter. */
+  r.h.ah=0x0f; int86(0x10,&r,&r);
+  r.h.ah=0x0e; r.h.al=c; r.h.bl=7; int86(0x10,&r,&r);
+#endif
+}
+void rw_feedback(U16 enabled) {
+  if (feedback_line) { feedback_char(13); feedback_char(10); }
+  feedback_line=0; feedback_enabled=enabled;
+#ifdef HOST_TEST
+  if (enabled) rw_feedback_length=0;
+#endif
+}
+static void feedback_update(U32 done,U32 total) {
+  U16 tick, percent, finished;
+  const char *p;
+  if (!feedback_enabled) return;
+  tick=sd_ticks();
+  if (done && done!=total && (U16)(tick-feedback_tick)<4) return;
+  finished=done==total;
+  /* Reduce before multiplying, even for a padded/hostile FAT geometry. */
+  while (total>0x00ffffffUL) { total>>=1; done>>=1; }
+  percent=total?(U16)(done*100UL/total):100;
+  if (!finished && percent>=100) percent=99;
+  if (feedback_line && percent==feedback_percent) return;
+  feedback_tick=tick; feedback_percent=percent; feedback_line=1;
+  for (p="\rComparing FAT copies: ";*p;++p) feedback_char((U8)*p);
+  feedback_char((U8)(percent==100?'1':' '));
+  feedback_char((U8)(percent>=10?'0'+percent/10%10:' '));
+  feedback_char((U8)('0'+percent%10)); feedback_char('%');
+  if (percent==100) {
+    feedback_char(13); feedback_char(10); feedback_line=0;
+  }
+}
+#ifdef HOST_TEST
+void rw_test_feedback_update(U32 done,U32 total) { feedback_update(done,total); }
+#endif
 /* Fixed scratch keeps the resident code heap-free and non-reentrant.
  * ENTRY's busy guard serializes dispatch. begun means mounted and armed;
  * dirty means mutations have begun, not that a sector awaits transmission. */
@@ -387,12 +435,14 @@ static int mirrors(void) {
   U32 i;
   unsigned f;
   if (!mirrored || fat_count<2) return 0;
+  feedback_update(0,rw_fatsz);
   for (i=0;i<rw_fatsz;++i) {
     if (read_sector(first_fat+i,block)) return -1;
     for (f=1;f<fat_count;++f) {
       if (read_sector(first_fat+(U32)f*rw_fatsz+i,other)) return -1;
       if (memcmp(block,other,512)) return inconsistent();
     }
+    feedback_update(i+1,rw_fatsz);
   }
   return 0;
 }

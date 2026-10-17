@@ -58,6 +58,17 @@ Existing supported MBR volumes can also be used without imaging them.
 
 ## Removal, replacement and memory
 
+Loading and control commands print the OTTERSD version and a message before
+lengthy work. On the console, FAT-copy comparison displays a percentage,
+updated at most about five times per second. This measures the comparison
+phase, not the whole mount or unmount. Wait for the final success message
+before using or removing the card. A clean, read-only or skipped comparison
+can finish without displaying a percentage.
+
+Redirecting output to a file or NUL keeps the version, phase and result
+messages but disables the animated percentage. `/STATUS` also reports the
+resident driver's version, which may differ from the executable on disk.
+
 Close files and applications using the SD drive. Switch to the local disk
 and unmount before removing the card:
 

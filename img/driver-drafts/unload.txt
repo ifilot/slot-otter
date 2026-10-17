@@ -1,0 +1,7 @@
+C:\OTTERSD>OTTERSD /UNLOAD
+OTTERSD 1.1.0 - Slot-otter FAT16/FAT32 driver
+Unloading OTTERSD; checking pending changes. Please wait...
+Comparing FAT copies: 100%
+OTTERSD unloaded; resident memory released: 43536 bytes. SD drive is no longer available.
+
+C:\OTTERSD>

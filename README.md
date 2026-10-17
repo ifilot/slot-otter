@@ -175,6 +175,15 @@ SD card and load:
 C:\OTTERSD\OTTERSD /DRIVE:S /PORT:330 /RW
 ```
 
+![Example DOS screen when loading OTTERSD](img/driver-drafts/load.png)
+
+The DOS screenshots on this page are illustrative drafts using the driver's
+messages. Timing and resident-memory figures are examples, not hardware measurements.
+The driver prints its version and a message before lengthy work. Console
+commands also show percentage progress while comparing FAT copies; wait for
+the final success message before using or removing the card. Redirected
+output keeps plain status messages without the animated percentage.
+
 `/PORT:330` must match the DIP-switch setting from
 [step 1](#1-set-the-port-address). `/RW` enables writing with read-back checks.
 Omit it or use `/RO` for read-only access. Once the driver reports that the
@@ -212,12 +221,18 @@ Follow these steps even when reinserting the same card, especially after
 changing its contents on another computer. Unmounting leaves the driver
 loaded, so you do not need to reboot to change cards.
 
+| Unmount before removing the card | Mount after inserting the card |
+| :---: | :---: |
+| ![Example DOS screen when unmounting the SD card](img/driver-drafts/unmount.png) | ![Example DOS screen when mounting the SD card](img/driver-drafts/mount.png) |
+
 ### Freeing memory for games
 
 Some games need every kilobyte of conventional memory. The driver can be
 removed from memory without rebooting: close programs using the SD card,
 switch to your hard drive and run `C:\OTTERSD\OTTERSD /UNLOAD`. Run the
 loading command again to bring the SD drive back.
+
+![Example DOS screen when unloading OTTERSD](img/driver-drafts/unload.png)
 
 ### Write checks and read-only mode
 

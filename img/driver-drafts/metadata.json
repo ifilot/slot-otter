@@ -1,0 +1,13 @@
+{
+  "kind": "illustrative drafts, not emulator or hardware captures",
+  "message_source": "driver/INSTALL.C",
+  "version": "1.1.0",
+  "progress": "Final comparison frame; unmount/unload examples have pending changes",
+  "scenario": "Successful FAT16 mount, 16 KiB clusters, S:, port 330h, verified read/write",
+  "sample_values": {
+    "resident_bytes": 43536,
+    "sd_ticks": 9,
+    "filesystem_ticks": 36
+  },
+  "text_mode": "80x25 with empty lower rows cropped to 12; 8x16 VGA glyphs; 2x output"
+}

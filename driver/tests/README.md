@@ -7,6 +7,13 @@ read-only/CLI/EXEC/swap, write fault profiles, tester guards and final-image
 stress/memory/reboot checks. All images are private copies. Physical testing
 follows [the manual](../docs/MANUAL.md); the source tree is standalone from src.
 
+`python3 driver/tests/feedback.py --dosbox PATH --boot-image DOS622 --driver
+OTTERSD.EXE --tester HWRT.EXE` boots real DOS and captures the active text page
+after loading, mounting, unmounting and unloading. It checks console percentage
+completion, file/NUL redirection, version reporting, committed file contents
+and an independent filesystem check. The host tests also cover failure-line
+cleanup, silent ordinary callbacks, update throttling and counter wrap.
+
 - `kit_fixture.py`: one shared FAT32 image builder used by host/native/release
   tests; preserves known patterns, backup BPB and FSInfo. `fixture.py` supplies
   the basic fragmented read fixture. No old utility builder is imported.

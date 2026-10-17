@@ -38,6 +38,7 @@ extern U8 resident_end;
 
 /* Installer/control output only. Avoid pulling stdio formatting, streams and
  * buffering into the TSR. DOS handle 1 preserves command-line redirection. */
+static U16 control_error;
 static void far text(const char *value) {
     union REGS r;
     r.x.ax=0x4000; r.x.bx=1; r.x.cx=i_strlen(value); r.x.dx=(U16)value;
@@ -84,6 +85,29 @@ static void far resident_sd_report(void) {
     if (!r.x.cflag && r.x.cx==sizeof(d)) sd_report(&d);
     else line("SD diagnostic query unavailable.");
 }
+/* Detect the console once, before entering resident code. Files, pipes, NUL
+ * and other devices receive plain phase/completion lines, never animation. */
+static U16 far console_output(void) {
+    union REGS r;
+    r.x.ax=0x4400; r.x.bx=1; int86(0x21,&r,&r);
+    return !r.x.cflag && (r.x.dx&0x82)==0x82;
+}
+static void far version(U16 value) {
+    number(value>>8,10,0); text(".");
+    number((value>>4)&15,10,0); text("."); number(value&15,10,0);
+}
+static void far control_call(U16 command,U16 console) {
+    union REGS r;
+    U16 feedback;
+    i_zero(&r,sizeof(r)); r.x.ax=0xd74f; r.x.bx=0x4f54;
+    r.x.dx=0x524f; r.x.si=12; int86(0x2f,&r,&r);
+    feedback=!r.x.cflag && r.x.cx==1;
+    i_zero(&r,sizeof(r)); r.x.ax=0xd74f; r.x.bx=0x4f54; r.x.dx=0x524f;
+    r.x.si=feedback?11:command; r.x.cx=command; r.x.di=console;
+    int86(0x2f,&r,&r);
+    /* Keep the result in transient storage, outside resident driver state. */
+    control_error=r.x.cflag?r.x.ax:0;
+}
 static int far usage(void) {
     line("OTTERSD " OTTER_VERSION_TEXT " - Slot-otter verified FAT16/FAT32 drive");
     line("Usage: OTTERSD /DRIVE:S [/PORT:330] [/RW | /RO] [/NOVERIFY] [/SKIPFATCHECK] [/FAT16 | /FAT32]");
@@ -96,7 +120,7 @@ static int far usage(void) {
  * detach INT 2F, then release its PSP block using DOS. No resident instruction
  * or pointer may be used after AH=49. Refuse a later TSR in the vector chain:
  * DOS cannot safely splice an arbitrary third-party interrupt handler. */
-static int far unload_driver(U16 drive) {
+static int far unload_driver(U16 drive,U16 console) {
     union REGS r;
     struct SREGS s;
     U16 psp, own_off, own_seg, old_off, old_seg, released;
@@ -123,10 +147,10 @@ static int far unload_driver(U16 drive) {
         line("Cannot unload: resident DOS memory ownership is invalid."); return 1;
     }
     released=get16(mcb+3)*16;
-    i_zero(&r,sizeof(r)); r.x.ax=0xd74f; r.x.bx=0x4f54;
-    r.x.dx=0x524f; r.x.si=10; int86(0x2f,&r,&r);
-    if (r.x.cflag) {
-        if (r.x.ax==E_ACCESS) line("Cannot unload: close all SD files; remove any later INT 2F TSR.");
+    line("Unloading OTTERSD; checking pending changes. Please wait...");
+    control_call(10,console);
+    if (control_error) {
+        if (control_error==E_ACCESS) line("Cannot unload: close all SD files; remove any later INT 2F TSR.");
         else { line("Cannot unload: card commit failed. Driver remains resident; save diagnostics before reboot.");
                resident_sd_report(); }
         return 1;
@@ -146,7 +170,7 @@ int far installer(int argc, char **argv) {
     struct SREGS s;
     U8 far *lol, far *cds;
     void interrupt far (*previous)(void);
-    U16 cds_size, paragraphs, env, mounted;
+    U16 cds_size, paragraphs, env, mounted, console;
     U16 port;
     int i, have_drive, command, have_port, have_access, have_noverify, have_skipfat, have_format;
     have_drive=command=have_port=have_access=have_noverify=have_skipfat=have_format=0;
@@ -182,12 +206,14 @@ int far installer(int argc, char **argv) {
     if (command && (have_access || have_format)) return usage();
     if (have_noverify && (command || !sd_write_enabled)) return usage();
     if (have_skipfat && (command || !sd_write_enabled)) return usage();
+    line("OTTERSD " OTTER_VERSION_TEXT " - Slot-otter FAT16/FAT32 driver");
+    console=console_output();
     i_zero(&r,sizeof(r)); r.x.ax=0xd74f; int86(0x2f,&r,&r);
     if (command) {
         if (r.x.ax!=0x4f54 || r.x.bx!=0x524f) {
             line("OTTERSD is not resident."); return 1;
         }
-        if (command==4) return unload_driver(r.x.cx);
+        if (command==4) return unload_driver(r.x.cx,console);
         if (command==3) {
             DriverInfo info;
             text("OTTERSD "); letter(r.x.cx); text(r.x.dx?": mounted, ":": offline, ");
@@ -196,6 +222,7 @@ int far installer(int argc, char **argv) {
             r.x.dx=0x524f; r.x.si=8; r.x.cx=sizeof(info); r.x.di=(U16)&info;
             segread(&s); s.es=s.ds; int86x(0x2f,&r,&r,&s);
             if (!r.x.cflag && r.x.cx==sizeof(info) && info.abi==1) {
+                text("Resident driver version: "); version(info.version); line("");
                 line(!(info.flags&4)?"Filesystem: offline":
                     (info.flags&32)?"Filesystem: FAT16":"Filesystem: FAT32");
                 line((info.flags&64)?"Format restriction: FAT16":
@@ -211,11 +238,13 @@ int far installer(int argc, char **argv) {
             resident_sd_report();
             return 0;
         }
-        i_zero(&r,sizeof(r)); r.x.ax=0xd74f; r.x.bx=0x4f54;
-        r.x.dx=0x524f; r.x.si=command; int86(0x2f,&r,&r);
-        if (r.x.cflag) {
-            if (r.x.ax==5) line("Close all files on the drive before mounting or unmounting.");
-            else mount_error(r.x.ax);
+        line(command==1?
+            "Unmounting card; checking pending changes. Please wait...":
+            "Mounting card; initializing SD and checking filesystem. Please wait...");
+        control_call((U16)command,console);
+        if (control_error) {
+            if (control_error==5) line("Close all files on the drive before mounting or unmounting.");
+            else mount_error(control_error);
             resident_sd_report();
             return 1;
         }
@@ -251,7 +280,9 @@ int far installer(int argc, char **argv) {
     line(rw_skip_fat_check?
         "Initializing SD card; full mount FAT comparison is SKIPPED.":
         "Initializing SD card and checking filesystem; FAT comparison may take time.");
+    rw_feedback(console);
     mounted=media_mount();
+    rw_feedback(0);
     text("Mount timing: SD "); number(mount_sd_ticks,10,0);
     text(", filesystem "); number(mount_fs_ticks,10,0);
     line(" BIOS ticks (about 18.2 ticks/second).");

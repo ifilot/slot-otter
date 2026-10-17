@@ -57,6 +57,18 @@ in AX; otherwise AX is zero except for selectors with explicit AX results:
 | 5 | installed mode | BX=write enabled, CX=3 total sector attempts, DX=online, DI=post-write readback enabled |
 | 6 | last callback failure | AX=11xx function, BX=DOS error before kernel mapping |
 | 7 | observed private stack use | AX=used, BX=untouched prefix, CX=2048 |
+| 11 | foreground media control with optional console feedback | CX=1 (unmount), 2 (mount), or 10 (prepare unload); DI=0 (silent) or 1 (BIOS console percentage); other values fail with AX=1 |
+| 12 | foreground feedback capability query | CX=1 identifies feedback ABI 1; older residents reject this selector |
+
+Selector 11 uses the same validation and commit paths as the legacy controls,
+and always disables feedback before returning, including failures. Percentage
+output is confined to FAT comparison and uses BIOS INT 10h, never DOS INT 21h.
+The transient caller checks stdout with DOS IOCTL before requesting console
+updates; redirected output uses DI=0. Normal filesystem callbacks never enable
+feedback. The installer uses a far gate to enable feedback only around its
+initial mount and disables it before staying resident. Failed comparisons end
+the progress line without reporting 100 percent. A completed comparison does
+not imply successful completion of the surrounding operation.
 
 Selector 4 rejects a buffer crossing the 16-bit offset boundary. Its fixed
 40-byte layout and stage/counter meanings are in RWSD.H. Unmount preserves

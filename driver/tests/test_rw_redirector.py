@@ -490,6 +490,117 @@ class WritableRedirectorTests(unittest.TestCase):
     def unload_call(self, selector=10, error=None):
         return self.call(0,ax=0xd74f,bx=0x4f54,dx=0x524f,si=selector,error=error)
 
+    def feedback_bytes(self):
+        size=C.c_uint16.in_dll(self.lib,'rw_feedback_length').value
+        return bytes((C.c_ubyte*4096).in_dll(self.lib,'rw_feedback_output')[:size])
+
+    def feedback_call(self, command, console=1, error=None):
+        return self.call(0,ax=0xd74f,bx=0x4f54,dx=0x524f,si=11,
+                         cx=command,di=console,error=error)
+
+    def test_feedback_capability_and_redirected_controls_remain_silent(self):
+        before=self.image.read_bytes()
+        r=self.call(0,ax=0xd74f,bx=0x4f54,dx=0x524f,si=12)
+        self.assertEqual(r.cx,1)
+        self.assertEqual(self.image.read_bytes(),before)
+        self.lib.rw_feedback(1); self.lib.rw_feedback(0)
+        self.feedback_call(2,console=0)
+        self.assertEqual(self.feedback_bytes(),b'')
+        for command,console in ((0,1),(3,1),(9,1),(10,2)):
+            self.feedback_call(command,console,error=1)
+        self.assertEqual(self.image.read_bytes(),before)
+
+    def test_feedback_mount_is_scoped_and_reports_only_comparison_completion(self):
+        before=self.image.read_bytes()
+        self.feedback_call(2)
+        output=self.feedback_bytes()
+        self.assertTrue(output.startswith(b'\rComparing FAT copies:   0%'))
+        self.assertTrue(output.endswith(b'100%\r\n'))
+        self.assertEqual(self.image.read_bytes(),before)
+        self.assertEqual(self.lib.media_mount(),0)
+        self.assertEqual(self.feedback_bytes(),output,'ordinary calls must stay silent')
+        C.c_ubyte.in_dll(self.lib,'rw_skip_fat_check').value=1
+        self.feedback_call(2)
+        self.assertEqual(self.feedback_bytes(),b'','skipped scans must not claim progress')
+        C.c_int.in_dll(self.lib,'sd_write_enabled').value=0
+        self.feedback_call(2)
+        self.assertEqual(self.feedback_bytes(),b'','read-only mounts do not compare mirrors')
+
+    def test_feedback_failure_ends_line_without_claiming_completion(self):
+        self.assertEqual(self.lib.media_unmount(),0)
+        self.corrupt_unused_mirror_byte()
+        self.feedback_call(2,error=13)
+        output=self.feedback_bytes()
+        self.assertIn(b'Comparing FAT copies:',output)
+        self.assertNotIn(b'100%',output)
+        self.assertTrue(output.endswith(b'\r\n'))
+        self.assertEqual(self.lib.media_mount(),13)
+        self.assertEqual(self.feedback_bytes(),output)
+
+    def test_feedback_unload_failure_preserves_dirty_installed_driver(self):
+        off=self.created(); self.write(off,b'DIRTY'); self.call(6,di=off)
+        self.corrupt_unused_mirror_byte()
+        cds=bytes(self.cds[:88])
+        self.feedback_call(10,error=13)
+        output=self.feedback_bytes()
+        self.assertTrue(output.endswith(b'\r\n'))
+        self.assertNotIn(b'100%',output)
+        self.assertEqual(bytes(self.cds[:88]),cds)
+        self.assertEqual(C.c_ubyte.in_dll(self.lib,'media_online').value,1)
+        self.assertFalse(self.clean_flag())
+        self.assertTrue(self.lib.rw_dirty_session())
+        self.assertEqual(self.content('NEW.BIN'),b'DIRTY')
+        self.feedback_call(10,error=21)
+        self.assertEqual(self.feedback_bytes(),b'')
+
+    def test_feedback_unmount_and_unload_preserve_commit_safety(self):
+        for command in (1,10):
+            self.lib.test_reset()
+            self.assertEqual(self.lib.media_mount(),0)
+            off=self.created(); self.write(off,b'feedback preserves data')
+            self.feedback_call(command,error=5)
+            self.assertEqual(self.feedback_bytes(),b'')
+            self.call(6,di=off)
+            self.feedback_call(command)
+            self.assertTrue(self.feedback_bytes().endswith(b'100%\r\n'))
+            self.assertEqual(self.content('NEW.BIN'),b'feedback preserves data')
+            self.assertTrue(self.clean_flag())
+            self.assertEqual(self.lib.media_mount(),0)
+            f=fs.File(); self.assertEqual(self.lib.rw_lookup(b'NEW.BIN',C.byref(f)),0)
+            self.assertEqual(self.lib.rw_delete(C.byref(f)),0)
+            self.assertEqual(self.lib.rw_flush(),0)
+
+    def test_feedback_percentage_throttles_and_handles_tick_and_counter_wrap(self):
+        step=self.lib.rw_test_feedback_update
+        step.argtypes=[C.c_uint32,C.c_uint32]
+        self.lib.rw_feedback(1)
+        step(0,100)
+        first=self.feedback_bytes()
+        step(50,100)
+        self.assertEqual(self.feedback_bytes(),first)
+        self.lib.rw_host_advance_ticks(4)
+        step(50,100)
+        self.assertTrue(self.feedback_bytes().endswith(b' 50%'))
+        self.lib.rw_host_advance_ticks((65534-self.lib.sd_ticks())&65535)
+        step(75,100)
+        self.assertTrue(self.feedback_bytes().endswith(b' 75%'))
+        unchanged=self.feedback_bytes()
+        self.lib.rw_host_advance_ticks(1)
+        step(90,100)
+        self.assertEqual(self.feedback_bytes(),unchanged)
+        self.lib.rw_host_advance_ticks(3)
+        step(90,100)
+        self.assertTrue(self.feedback_bytes().endswith(b' 90%'),'four ticks across wrap')
+        self.lib.rw_host_advance_ticks(4)
+        step(0xfffffffe,0xffffffff)
+        self.assertTrue(self.feedback_bytes().endswith(b' 99%'))
+        step(0xffffffff,0xffffffff)
+        self.assertTrue(self.feedback_bytes().endswith(b'100%\r\n'))
+        self.lib.rw_feedback(0)
+        done=self.feedback_bytes()
+        step(0,100)
+        self.assertEqual(self.feedback_bytes(),done)
+
     def test_unload_descriptor_is_cached_and_versioned(self):
         before=self.image.read_bytes()
         cds=bytes(self.cds[:88])

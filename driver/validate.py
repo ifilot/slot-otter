@@ -82,6 +82,10 @@ def main():
             queue('dos%d-readonly'%i,[py,str(ROOT/'tests/integration.py'),*native,
                                   '--swap','--max-resident','45000'])
         for i,boot in enumerate(a.boot_image):
+            for filesystem in ('FAT16','FAT32'):
+                queue('feedback-dos%d-%s'%(i,filesystem),[py,str(ROOT/'tests/feedback.py'),
+                    '--dosbox',a.dosbox,'--boot-image',str(boot.resolve()),
+                    '--driver',str(driver),'--tester',str(tester),'--filesystem',filesystem])
             for mode in ('readonly','verified','noverify'):
                 queue('unload-dos%d-%s'%(i,mode),[py,str(ROOT/'tests/unload.py'),
                     '--dosbox',a.dosbox,'--boot-image',str(boot.resolve()),

@@ -321,6 +321,30 @@ static int find_first(U8 FAR *dta) {
     return find_next(dta);
 }
 
+#ifdef RW_DRIVER
+/* Share validation and commit paths between legacy and feedback controls. */
+static U16 control_media(U16 command) {
+    U16 i;
+    U8 FAR *vector;
+    if (command==1) return media_unmount();
+    if (command==2) return media_mount();
+    vector=far_at(0,0x2f*4);
+    if (get16(vector)!=unload_state[1] ||
+        get16(vector+2)!=unload_state[2]) return E_ACCESS;
+    if (open_count()) return E_ACCESS;
+    /* A failed commit must leave the driver and CDS installed.
+     * Do not turn a poisoned session into an apparent success. */
+    if (unload_blocked || (sd_write_enabled && sd_diag.poisoned))
+        return E_NOTREADY;
+    if (sd_write_enabled && media_online && rw_flush())
+        return fs_error;
+    offline();
+    for (i=0;i<(dos_major==3?0x51:0x58);++i)
+        drive_cds[i]=saved_cds[i];
+    return 0;
+}
+#endif
+
 int dispatch(void) {
     U8 fn;
     U8 FAR *sft, FAR *dta;
@@ -329,10 +353,28 @@ int dispatch(void) {
     OpenFile *file;
     if (regs.ax==0xd74f) {
         if (regs.bx==0x4f54 && regs.dx==0x524f) {
+#ifdef RW_DRIVER
+            /* ABI 1 foreground feedback. Never enabled by DOS file callbacks.
+             * Caller checks stdout before asking for BIOS console updates. */
+            if (regs.si==12) { success(); regs.cx=1; return 1; }
+            if (regs.si==1 || regs.si==2 || regs.si==10 || regs.si==11) {
+                U16 command=regs.si, code, feedback=0;
+                if (command==11) {
+                    command=regs.cx; feedback=regs.di;
+                    if ((command!=1 && command!=2 && command!=10) || feedback>1)
+                        return error(1);
+                }
+                rw_feedback(feedback);
+                code=control_media(command);
+                rw_feedback(0);
+                return code ? error(code) : success();
+            }
+#else
             if (regs.si==1 || regs.si==2) {
                 U16 code=regs.si==1 ? media_unmount() : media_mount();
                 return code ? error(code) : success();
             }
+#endif
 #ifdef RW_DRIVER
             /* Query first; the transient caller validates DOS ownership and
              * the topmost vector before requesting the destructive phase.
@@ -341,23 +383,6 @@ int dispatch(void) {
                 success(); regs.ax=unload_state[0]; regs.bx=unload_state[1];
                 regs.cx=unload_state[2]; regs.dx=unload_state[3];
                 regs.di=unload_state[4]; regs.si=OTTER_VERSION; return 1;
-            }
-            if (regs.si==10) {
-                U16 i;
-                U8 FAR *vector=far_at(0,0x2f*4);
-                if (get16(vector)!=unload_state[1] ||
-                    get16(vector+2)!=unload_state[2]) return error(E_ACCESS);
-                if (open_count()) return error(E_ACCESS);
-                /* A failed commit must leave the driver and CDS installed.
-                 * Do not turn a poisoned session into an apparent success. */
-                if (unload_blocked || (sd_write_enabled && sd_diag.poisoned))
-                    return error(E_NOTREADY);
-                if (sd_write_enabled && media_online && rw_flush())
-                    return error(fs_error);
-                offline();
-                for (i=0;i<(dos_major==3?0x51:0x58);++i)
-                    drive_cds[i]=saved_cds[i];
-                return success();
             }
             if (regs.si==8) {
                 DriverInfo info;
