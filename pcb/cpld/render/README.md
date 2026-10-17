@@ -1,7 +1,7 @@
-# Blender studio render
+# Slot-otter Forge Blender studio render
 
-`slot-otter-cpld-rev1.blend` is an editable studio scene containing the current
-PCB and component geometry, printed bracket, mounting screws, surface materials,
+`slot-otter-cpld-rev1.blend` is an editable studio scene containing the Forge
+revision 1.0 PCB and component geometry, printed bracket, mounting screws, surface materials,
 camera and area lights. It is
 self-contained; the copper textures are packed into the scene, and rendering
 does not require external textures or HDR images.
@@ -9,12 +9,17 @@ The default orthographic camera looks straight down, with the ISA edge horizonta
 A second camera, `SD socket rear camera`, looks toward the socket from outside
 the bracket and above the board.
 The PNG background is transparent; the scene has no floor plane.
+The DIP switch is posed at the default address **330h**: switches 1, 2, 5
+and 6 are ON; 3, 4, 7 and 8 are OFF. `set_dip_switches.py` applies this pose
+when rebuilding the scene, including the matching actuator recess surfaces.
 
 The scene uses the actual KiCad VRML export. The simplified CPLD/socket and
 resistor-array models are described in [the model sources](../components/3d/README.md).
 The assembled-board reference photo guides the yellow-brown FR4, cream bracket,
 red DIP switch, tan ceramic capacitors, dark packages and silver terminals.
 Materials and lighting are illustrative and do not specify a manufacturing finish.
+The PLCC44 socket molding has a dark brown finish, with a separate material
+from the black CPLD package and resistor arrays.
 
 KiCad VRML omits soldermask-covered copper. `render_copper.py` exports complete
 native front/back copper plots from KiCad, including filled zones, clearances,
@@ -46,6 +51,14 @@ blender --background pcb/cpld/render/slot-otter-cpld-rev1.blend \
 
 This view uses the release bracket and shows the SD socket from the external
 connector side. Both PNGs have transparent backgrounds.
+
+The main README also includes a 2000 × 700 letterbox front view, facing the
+SD-card slot from slightly above. Generate it without changing the saved scene:
+
+```sh
+blender --background pcb/cpld/render/slot-otter-cpld-rev1.blend \
+  --python pcb/cpld/render_front.py -- --output img/slot-otter-cpld-rev1-front.png
+```
 
 To rebuild the scene after updating the PCB, export and import its geometry:
 

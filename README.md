@@ -11,9 +11,16 @@ Slot-otter lets a DOS PC use an SD card as an ordinary drive. Fill the card
 with files on a modern computer, insert it into your vintage PC, and copy or
 run them from DOS.
 
-| [CPLD revision 1.0](pcb/cpld/README.md) | Rear panel and SD card slot |
+Both boards are **fully supported and functionally equivalent**: **Slot-otter
+Classic** (the original discrete-logic board) and **Slot-otter Forge** (the CPLD
+board) use the same OTTERSD driver and
+provide the same DOS drive functionality. Owners of the original board can
+use the current driver and follow the setup instructions below.
+
+| [Slot-otter Classic](pcb/release/README.md) | [Slot-otter Forge](pcb/cpld/README.md) |
 | :---: | :---: |
-| ![Slot-otter CPLD revision 1.0](img/slot-otter-cpld-rev1-blender.png) | ![Slot-otter rear panel and SD card slot](img/slot-otter-cpld-rev1-socket.png) |
+| ![Slot-otter Classic board and bracket](img/slot-otter-discrete-blender.png) | ![Slot-otter Forge board and bracket](img/slot-otter-cpld-rev1-blender.png) |
+| ![Front view of Slot-otter Classic and its SD-card slot](img/slot-otter-discrete-front.png) | ![Front view of Slot-otter Forge and its SD-card slot](img/slot-otter-cpld-rev1-front.png) |
 
 A working setup has three parts:
 
@@ -243,8 +250,13 @@ and the disk being copied to or from.
 
 ## Hardware
 
-The current design is [CPLD revision 1.0](pcb/cpld/README.md).
-An ATF1504AS implements the interface logic, with an external 74HCT688
+Slot-otter has two supported, functionally equivalent board designs:
+the [Slot-otter Classic](pcb/release/README.md) discrete-logic board and
+[Slot-otter Forge](pcb/cpld/README.md) CPLD board. Both use the same OTTERSD driver,
+I/O port settings and SD card formats, including read and write support.
+
+Classic implements the interface with discrete logic chips.
+On Forge, an ATF1504AS implements the interface logic, with an external 74HCT688
 comparing address lines A2 to A9 against the DIP-switch setting.
 
 The hardware documentation includes KiCad sources, the bill of materials,
@@ -252,9 +264,11 @@ assembly positions, fabrication files and CPLD programming instructions.
 Review the manufacturing reports, bring-up checks and timing limits before
 building or using this revision.
 
-The earlier [discrete-logic card](pcb/release/README.md) and
-[prototype](pcb/prototype/README.md) remain available for owners of those boards.
-Their fabrication files and pinouts are not interchangeable with the CPLD board.
+Use the hardware files for your board: Classic and Forge have
+different fabrication files and pinouts. The earlier
+[prototype sources](pcb/prototype/README.md) are also retained.
+
+![Slot-otter Forge rear panel and SD card slot](img/slot-otter-cpld-rev1-socket.png)
 
 ## Legacy Navigator
 

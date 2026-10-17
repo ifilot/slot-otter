@@ -27,6 +27,27 @@ def bounds(objects):
             Vector(tuple(max(p[i] for p in points) for i in range(3))))
 
 
+def style_plcc_socket():
+    """Give the large socket molding a warm brown finish of its own."""
+    material = None
+    for obj in bpy.context.scene.objects:
+        if obj.type != 'MESH':
+            continue
+        low, high = bounds([obj])
+        for slot in obj.material_slots:
+            if (slot.material and slot.material.name == 'PCB material (0.055, 0.055, 0.06)'
+                    and max(high.x - low.x, high.y - low.y) > .018):
+                if material is None:
+                    material = slot.material.copy()
+                    material.name = 'Brown PLCC44 socket molding'
+                    color = (.055, .032, .021, 1)
+                    material.diffuse_color = color
+                    shader = material.node_tree.nodes.get('Principled BSDF')
+                    shader.inputs['Base Color'].default_value = color
+                    shader.inputs['Roughness'].default_value = .53
+                slot.material = material
+
+
 def add_socket_camera(scene, assembly):
     """Frame the assembly from outside the bracket, with the socket visible."""
     data = bpy.data.cameras.new('SD socket rear camera')
@@ -243,6 +264,8 @@ def main():
     parser.add_argument('--samples', type=int, default=96)
     parser.add_argument('--prepare-only', action='store_true', help='Save the scene without rendering')
     args = parser.parse_args(sys.argv[sys.argv.index('--') + 1:])
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from set_dip_switches import set_default_address
     if args.prepare_only and not args.scene:
         parser.error('--prepare-only requires --scene')
     bpy.context.preferences.filepaths.save_version = 0
@@ -341,6 +364,7 @@ def main():
                 materials[key] = mat
             slot.material = materials[key]
 
+    style_plcc_socket()
     scene = bpy.context.scene
     scene.render.engine = 'CYCLES'
     scene.cycles.samples = args.samples
@@ -385,6 +409,7 @@ def main():
     # All units are metres, as requested from KiCad's exporter.
     scene.unit_settings.system = 'METRIC'
     scene.render.filepath = str(args.output.resolve())
+    set_default_address()
     if args.prepare_only:
         scene.render.filepath = '//' + os.path.relpath(args.output.resolve(), args.scene.parent.resolve())
         bpy.ops.wm.save_as_mainfile(filepath=str(args.scene.resolve()), compress=True)

@@ -1,6 +1,6 @@
-# Slot-otter CPLD revision 1.0
+# Slot-otter Forge
 
-This is the current hardware design. Revision 1.0 uses an ATF1504AS
+Forge is the CPLD-based Slot-otter board. Revision 1.0 uses an ATF1504AS
 in a PLCC44 socket and the reassigned pinout in [logic/README.txt](logic/README.txt).
 Do not use this programming image with an earlier PCB pinout.
 
@@ -15,9 +15,11 @@ GPL-3.0-or-later, and documentation uses CC-BY-SA-4.0. See the repository
 [licensing statement](../../LICENSE.md) and [full license texts](../../LICENSES/).
 The source location is https://github.com/ifilot/slot-otter .
 
-The older [discrete-logic release](../release/README.md) and
-[prototype](../prototype/README.md) are historical designs. Their component
-references, manufacturing files and pinouts are not interchangeable with this board.
+The original discrete-logic board, [Slot-otter Classic](../release/README.md), remains fully supported
+and is functionally equivalent to this board, using the same OTTERSD driver
+and setup instructions. Its component references, manufacturing files and
+pinouts differ from this board's. The earlier
+[prototype sources](../prototype/README.md) are also retained.
 
 ## Manufacturing and assembly
 

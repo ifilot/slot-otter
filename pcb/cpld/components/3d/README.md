@@ -1,4 +1,4 @@
-# CPLD component models
+# Slot-otter Forge component models
 
 `MicroSD_Socket.step` is the microSD socket model previously included in the
 repository, now attached to J1. Its KiCad model rotation is X=-90, Y=0, Z=0.
