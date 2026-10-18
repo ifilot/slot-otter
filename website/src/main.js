@@ -15,13 +15,17 @@ let viewer;
 let starting = false;
 let active = false;
 let sizes = {};
+let versions = {};
 const retries = { forge: 0, classic: 0 };
 
 function updateSize() {
   const bytes = sizes[selected];
   $('download-size').textContent = bytes ? `${(bytes / 1e6).toFixed(1)} MB model · loads on request` : 'Loads only the selected card';
 }
-fetch(new URL('models/sizes.json', base)).then((r) => r.ok ? r.json() : {}).then((data) => { sizes = data; updateSize(); }).catch(() => {});
+const metadataReady = fetch(new URL('models/sizes.json', base), { cache: 'no-cache' })
+  .then((r) => r.ok ? r.json() : {})
+  .then((data) => { sizes = data; versions = data.versions ?? {}; updateSize(); })
+  .catch(() => {});
 
 function selectCard(id) {
   selected = id;
@@ -52,6 +56,7 @@ function loadSelectedModel() {
   $('reset-view').disabled = true;
   viewer.alt = `Interactive ${cards[selected].title} card and bracket. Drag or use arrow keys to rotate; scroll or pinch to zoom.`;
   const url = new URL(`models/${selected}.glb`, base);
+  if (versions[selected]) url.searchParams.set('v', versions[selected]);
   // Model-viewer caches failed URLs too; a retry must use a fresh cache key.
   if (retries[selected]) url.searchParams.set('retry', retries[selected]);
   viewer.dataset.cardModel = selected;
@@ -68,7 +73,7 @@ async function startViewer() {
     globalThis.ModelViewerElement ??= {};
     globalThis.ModelViewerElement.dracoDecoderLocation = new URL('draco/', base).href;
     // Load the viewer library only after the visitor requests interactive 3D.
-    await import('@google/model-viewer');
+    await Promise.all([import('@google/model-viewer'), metadataReady]);
     const ModelViewer = customElements.get('model-viewer');
     ModelViewer.dracoDecoderLocation = new URL('draco/', base).href;
     viewer ??= document.createElement('model-viewer');

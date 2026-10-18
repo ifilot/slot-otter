@@ -1,12 +1,15 @@
 # Slot-otter Classic Blender render
 
 `slot-otter-discrete.blend` contains the Slot-otter Classic board, its populated
-components, printed bracket, illustrative mounting screws, studio lights and
+components, printed bracket, illustrative mounting screws and nuts, studio lights and
 cameras. It uses the same materials and rendering setup as the
 [Forge scene](../../cpld/render/README.md). Copper textures are packed into the
 scene. The output is a transparent 2000 × 1600 PNG with 128 Cycles samples.
 The DIP switch shows **330h**, with switches 1, 2, 5 and 6 ON and the others
 OFF, matching the default setup in the main README.
+Both mounting screws enter from the bottom/solder side and have full threaded
+shanks with rounded Nyloc-style nuts and nylon inserts on the top/component
+side, as in the Forge scene.
 
 Render the saved scene from the repository root with Blender 4 or later:
 

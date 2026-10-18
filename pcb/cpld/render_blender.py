@@ -68,27 +68,21 @@ def add_socket_camera(scene, assembly):
 
 
 def add_mounting_screws(bracket, holes):
-    """Illustrative silver M3 countersunk flat-head screws at the PCB holes."""
+    """M3 x 14 screws from below, with full threads and rounded Nyloc nuts."""
     material = bpy.data.materials.new('Brushed stainless mounting hardware')
     material.use_nodes = True
     shader = material.node_tree.nodes.get('Principled BSDF')
     shader.inputs['Base Color'].default_value = (.57, .60, .64, 1)
     shader.inputs['Metallic'].default_value = .95
-    shader.inputs['Roughness'].default_value = .24
+    shader.inputs['Roughness'].default_value = .42
+    nylon = bpy.data.materials.new('Nylon locking inserts')
+    nylon.use_nodes = True
+    nylon_shader = nylon.node_tree.nodes.get('Principled BSDF')
+    nylon_shader.inputs['Base Color'].default_value = (.75, .72, .60, 1)
+    nylon_shader.inputs['Roughness'].default_value = .75
     hardware = []
 
-    def revolved(name, profile, origin):
-        vertices, faces = [], []
-        sides = 96
-        for radius, height in profile:
-            for i in range(sides):
-                angle = 2 * math.pi * i / sides
-                vertices.append((radius * math.cos(angle), radius * math.sin(angle), height))
-        for ring in range(len(profile)):
-            next_ring = (ring + 1) % len(profile)
-            for i in range(sides):
-                j = (i + 1) % sides
-                faces.append((ring*sides+i, ring*sides+j, next_ring*sides+j, next_ring*sides+i))
+    def mesh_object(name, vertices, faces, origin, smooth=False):
         mesh = bpy.data.meshes.new(name)
         mesh.from_pydata(vertices, [], faces)
         mesh.update()
@@ -103,47 +97,143 @@ def add_mounting_screws(bracket, holes):
         obj.location = origin
         mesh.materials.append(material)
         for face in mesh.polygons:
-            face.use_smooth = abs(face.normal.z) < .999
+            face.use_smooth = smooth and abs(face.normal.z) < .999
         hardware.append(obj)
         return obj
 
+    def revolved(name, profile, origin):
+        vertices, faces = [], []
+        sides = 96
+        for radius, height in profile:
+            for i in range(sides):
+                angle = math.tau * i / sides
+                vertices.append((radius * math.cos(angle), radius * math.sin(angle), height))
+        for ring in range(len(profile)):
+            next_ring = (ring + 1) % len(profile)
+            for i in range(sides):
+                j = (i + 1) % sides
+                faces.append((ring*sides+i, ring*sides+j, next_ring*sides+j, next_ring*sides+i))
+        return mesh_object(name, vertices, faces, origin, smooth=True)
+
+    def threaded_shank(name, origin, bottom, top):
+        # A closed helical surface, rather than a thread drawn in a texture.
+        pitch, root, crest = .0005, .00123, .0015
+        sides = 48
+        rows = math.ceil((top-bottom)/pitch*12)
+        vertices, faces = [], []
+        for row in range(rows+1):
+            z = bottom + (top-bottom)*row/rows
+            # Small lead-in and tip chamfers keep the ends from looking cut off.
+            fade = min(1, (z-bottom)/.0002, (top-z)/.00035)
+            for col in range(sides):
+                angle = math.tau*col/sides
+                phase = ((z-bottom)/pitch-col/sides) % 1
+                tooth = max(0, min(1, (phase-.1)/.35, (.9-phase)/.35))
+                radius = root + (crest-root)*tooth*fade
+                vertices.append((radius*math.cos(angle), radius*math.sin(angle), z))
+        for row in range(rows):
+            for col in range(sides):
+                next_col = (col+1) % sides
+                faces.append((row*sides+col, row*sides+next_col,
+                              (row+1)*sides+next_col, (row+1)*sides+col))
+        faces.extend([tuple(reversed(range(sides))), tuple(rows*sides+i for i in range(sides))])
+        obj = mesh_object(name, vertices, faces, origin, smooth=True)
+        obj['thread_pitch_mm'] = .5
+        obj['nominal_diameter_mm'] = 3
+        return obj
+
+    def hex_nut(name, origin):
+        # Nyloc proportions: 5.5 mm across flats, 2.4 mm hex base, 4 mm total.
+        sides, apothem, height, bore = 96, .00275, .0024, .00155
+        vertices, faces = [], []
+        for z, inset in ((0, .00018), (.0002, 0), (height-.0002, 0), (height, .00018)):
+            for i in range(sides):
+                angle = math.tau*i/sides
+                face_angle = (angle+math.pi/6) % (math.pi/3)-math.pi/6
+                radius = (apothem-inset)/math.cos(face_angle)
+                vertices.append((radius*math.cos(angle), radius*math.sin(angle), z))
+        for z in (0, height):
+            for i in range(sides):
+                angle = math.tau*i/sides
+                vertices.append((bore*math.cos(angle), bore*math.sin(angle), z))
+        for ring in range(3):
+            for i in range(sides):
+                j = (i+1) % sides
+                faces.append((ring*sides+i, ring*sides+j, (ring+1)*sides+j, (ring+1)*sides+i))
+        for i in range(sides):
+            j = (i+1) % sides
+            faces.extend(((i, 4*sides+i, 4*sides+j, j),
+                          (3*sides+i, 3*sides+j, 5*sides+j, 5*sides+i),
+                          (4*sides+i, 5*sides+i, 5*sides+j, 4*sides+j)))
+        obj = mesh_object(name, vertices, faces, origin)
+        obj['across_flats_mm'], obj['height_mm'] = 5.5, 2.4
+        obj['overall_height_mm'] = 4
+        return obj
+
     inverse = bracket.matrix_world.inverted()
-    direction = (inverse.to_3x3() @ Vector((0, 0, -1))).normalized()
+
+    def surface(x, y, radius, angle, upward=False):
+        origin = Vector((x+radius*math.cos(angle), y+radius*math.sin(angle), -.03 if upward else .03))
+        direction = (inverse.to_3x3() @ Vector((0, 0, 1 if upward else -1))).normalized()
+        hit, point, normal, index = bracket.ray_cast(inverse @ origin, direction)
+        return (bracket.matrix_world @ point).z if hit else None
+
     for number, (x, y) in enumerate(holes, 1):
-        # Probe the flat ear surface outside its tapered screw seat. The
-        # lowest hit avoids the taller bracket wall beside the mounting ear.
-        heights = []
-        for i in range(16):
-            angle = i * math.tau / 16
-            origin = Vector((x+.0036*math.cos(angle), y+.0036*math.sin(angle), .03))
-            hit, point, normal, index = bracket.ray_cast(inverse @ origin, direction)
-            if hit:
-                heights.append((bracket.matrix_world @ point).z)
-        if not heights:
-            raise RuntimeError('Cannot locate bracket ear for mounting screw')
-        head_top = min(heights) + .00001
+        # The lowest upper hit is the ear, excluding the taller bracket wall.
+        upper = [surface(x, y, .0036, i*math.tau/16) for i in range(16)]
+        upper = [z for z in upper if z is not None]
+        if not upper:
+            raise RuntimeError('Cannot locate bracket ear for mounting nut')
+        nut_bottom = min(upper)+.00001
+        # Fit the upward-facing 90-degree head cone beneath the existing
+        # underside seat. PCB and bracket meshes remain untouched.
+        head_radius, head_rim, head_height = .003, .0002, .0017
+        limits = []
+        for radius in (.0017, .0019, .0021, .0023, .0025, .0027, .0029):
+            for i in range(16):
+                lower = surface(x, y, radius, i*math.tau/16, upward=True)
+                if lower is not None:
+                    limits.append(lower-head_rim-(head_radius-radius))
+        if not limits:
+            raise RuntimeError('Cannot locate underside screw seat')
+        head_bottom = min(limits)-.00001
         head = revolved(f'H{number} M3 countersunk flat-head Phillips screw',
-                        [(0,-.0019),(.00145,-.0019),(.00315,-.0002),
-                         (.00315,0),(0,0)], (x,y,head_top))
-        # Cut an actual cross recess so it catches highlights and shadows.
-        for angle in (math.radians(15 + number*17), math.radians(105 + number*17)):
-            bpy.ops.mesh.primitive_cube_add(size=1, location=(x,y,head_top-.0003))
+                        [(0, 0), (head_radius, 0), (head_radius, head_rim),
+                         (.0015, head_height), (0, head_height)], (x, y, head_bottom))
+        head['head_side'] = 'PCB bottom / solder side'
+        head['overall_length_mm'] = 14
+        # The drive opens on the bottom face, away from the PCB.
+        for angle in (math.radians(15+number*17), math.radians(105+number*17)):
+            bpy.ops.mesh.primitive_cube_add(size=1, location=(x, y, head_bottom+.00025))
             cutter = bpy.context.object
-            cutter.dimensions = (.0035,.00065,.0012)
+            cutter.dimensions = (.0035, .00065, .0012)
             cutter.rotation_euler.z = angle
-            bpy.context.view_layer.objects.active = cutter
-            bpy.ops.object.transform_apply(location=False,rotation=False,scale=True)
-            modifier = head.modifiers.new('Phillips drive recess', 'BOOLEAN')
-            modifier.operation = 'DIFFERENCE'
-            modifier.object = cutter
+            bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+            modifier = head.modifiers.new('Underside Phillips drive recess', 'BOOLEAN')
+            modifier.operation, modifier.object = 'DIFFERENCE', cutter
             bpy.context.view_layer.objects.active = head
             bpy.ops.object.modifier_apply(modifier=modifier.name)
-            bpy.data.objects.remove(cutter,do_unlink=True)
-        bevel = head.modifiers.new('Soft machined edges','BEVEL')
-        bevel.width, bevel.segments = .000035, 3
-        revolved(f'H{number} M3 screw shank',
-                 [(0,-.006),(.00145,-.006),(.00145,-.0018),(0,-.0018)], (x,y,head_top))
-        print('Flush screw top (metres):',number,x,y,head_top)
+            bpy.data.objects.remove(cutter, do_unlink=True)
+        bevel = head.modifiers.new('Soft machined edges', 'BEVEL')
+        bevel.width, bevel.segments = .000035, 2
+        shank = threaded_shank(f'H{number} M3 threaded screw shank', (x, y, 0),
+                               head_bottom+head_height-.0001, head_bottom+.014)
+        nut = hex_nut(f'H{number} M3 top hex nut', (x, y, nut_bottom))
+        nut['nut_side'] = 'PCB top / component side'
+        # Rounded metal collar surrounding a distinct, recessed nylon ring.
+        revolved(f'H{number} M3 rounded Nyloc collar',
+                 [(.00155, .0022), (.00265, .0022), (.00265, .0025),
+                  (.00263, .0028), (.00255, .00315), (.0024, .0035),
+                  (.0022, .00378), (.00195, .00395), (.00172, .004),
+                  (.00172, .00365), (.00155, .00365)], (x, y, nut_bottom))
+        insert = revolved(f'H{number} M3 nylon locking insert',
+                          [(.00148, .0033), (.00174, .0033), (.00174, .0038),
+                           (.0017, .00394), (.00148, .00394)], (x, y, nut_bottom))
+        insert.data.materials[0] = nylon
+        if head_bottom+.014 < nut_bottom+.004+.0005:
+            raise RuntimeError('Screw must pass through the entire mounting stack and nut')
+        print('M3 mounting stack (mm):', number, 'head', head_bottom*1000,
+              'nut', nut_bottom*1000, 'threaded tip', (head_bottom+.014)*1000)
     return hardware
 
 

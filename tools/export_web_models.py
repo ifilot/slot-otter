@@ -68,6 +68,11 @@ def main():
     bpy.ops.object.select_all(action='DESELECT')
     for obj in meshes:
         obj.select_set(True)
+        # Joining otherwise discards modifiers on non-active objects, including
+        # the small bevels on the underside screw heads.
+        bpy.context.view_layer.objects.active = obj
+        for modifier in list(obj.modifiers):
+            bpy.ops.object.modifier_apply(modifier=modifier.name)
     bpy.context.view_layer.objects.active = meshes[0]
     # Joining preserves placements/materials while avoiding thousands of DOM-side nodes.
     bpy.ops.object.join()

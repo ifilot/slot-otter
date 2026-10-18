@@ -89,7 +89,24 @@ the PCB's vertical hole spacing by about 0.067 mm; this render is not a
 mechanical fit qualification. Use `--no-bracket` to render the board alone, or `--bracket /path/to/model.stl` for a replacement
 mesh using the same coordinate frame. The original STL files are unchanged.
 
-Two illustrative silver M3 Phillips countersunk flat-head screws are generated
-at PCB mounting holes H1/H2, flush with the bracket ears in the existing tapered
-seats, without washers. These screws are render geometry and do not add parts
-to the manufacturing BOM.
+Two illustrative silver M3 × 14 Phillips countersunk screws enter H1/H2 from
+the bottom/solder side, with their drive recesses facing down. Continuous
+threaded shanks (0.5 mm pitch) run through the bracket and PCB to chamfered
+M3 Nyloc-style nuts on the top/component side. The nuts have metal hex bases,
+rounded collars and visible off-white nylon locking inserts. Their illustrative
+dimensions are 5.5 mm across flats and 4 mm overall height, following the
+[M3 Type T Nyloc dimensions](https://www.westfieldfasteners.co.uk/Datasheets/Nut_HexNy_M.pdf).
+The screw tips extend through the inserts and beyond the nuts. The heads
+are positioned against the bracket's existing underside seats. No washers are
+added. These parts are render geometry and do not add parts to the manufacturing
+BOM or qualify the mechanical fit.
+
+To refresh just the fasteners in either saved card scene:
+
+```sh
+blender --background pcb/cpld/render/slot-otter-cpld-rev1.blend \
+  --python-exit-code 1 --python pcb/cpld/update_mounting_hardware.py
+```
+
+For Classic, use `pcb/release/render/slot-otter-discrete.blend` as the input.
+This saves the scene in place, retaining the PCB, bracket, textures and cameras.

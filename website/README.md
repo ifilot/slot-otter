@@ -28,7 +28,9 @@ npm test
 
 The build copies the existing README thumbnails as posters and the dependency's
 Draco decoder into ignored `public/` folders. It generates model download sizes
-and third-party notices. `dist/`, dependencies, and test outputs are ignored.
+and third-party notices. Model URLs include content fingerprints so updated
+hardware geometry replaces cached models after deployment. `dist/`, dependencies,
+and test outputs are ignored.
 The browser tests check on-demand loading, card switching, drag rotation, zoom,
 reset, download failure/retry, local decoder requests, and a narrow mobile layout.
 
@@ -41,7 +43,7 @@ Pages publishing source must be **GitHub Actions**.
 
 The versioned GLBs are small web assets, not full Blender scenes. They contain
 Draco-compressed geometry and two 1024-pixel copper color textures per card.
-The model files are approximately 1.1 MB (Forge) and 1.5 MB (Classic).
+The model files are approximately 1.3 MB (Forge) and 1.7 MB (Classic).
 Run these commands from the repository root with Blender 4.5+ and its Draco
 export support:
 
@@ -58,6 +60,10 @@ The exporter preserves the source hardware geometry, converts the copper color
 shaders to portable UV textures, stands the card upright, combines its meshes,
 and compresses the geometry. It reduces texture resolution and simplifies the
 surface shaders for browser use. It does not change the source Blender files.
+Both models include underside screw heads, continuous threaded shanks through
+the bracket and board, and rounded Nyloc-style nuts with visible nylon inserts
+on the component side. The threads are
+geometry, so they remain visible while rotating the cards.
 After regenerating, rebuild and run the browser checks before committing.
 
 ## Licenses

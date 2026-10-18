@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { copyFile, mkdir, readFile, writeFile, stat } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
+import { createHash } from 'node:crypto';
 const root = new URL('./', import.meta.url);
 for (const directory of ['posters', 'draco']) await mkdir(new URL(`public/${directory}/`, root), { recursive: true });
 const cards = { forge: 'slot-otter-cpld-rev1-blender', classic: 'slot-otter-discrete-blender' };
-const sizes = {};
+const sizes = { versions: {} };
 for (const [id, name] of Object.entries(cards)) {
   await copyFile(new URL(`../img/thumbnails/${name}.webp`, root), new URL(`public/posters/${id}.webp`, root));
   sizes[id] = (await stat(new URL(`public/models/${id}.glb`, root))).size;
+  sizes.versions[id] = createHash('sha256').update(await readFile(new URL(`public/models/${id}.glb`, root))).digest('hex').slice(0, 12);
 }
 await writeFile(new URL('public/models/sizes.json', root), JSON.stringify(sizes));
 for (const name of ['draco_decoder.js', 'draco_decoder.wasm', 'draco_wasm_wrapper.js']) {

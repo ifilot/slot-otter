@@ -6,7 +6,7 @@ test('card models load on request, rotate, zoom, reset and switch', async ({ pag
   const external = [];
   const errors = [];
   page.on('request', (request) => {
-    if (request.url().endsWith('.glb')) models.push(request.url());
+    if (new URL(request.url()).pathname.endsWith('.glb')) models.push(request.url());
     if (request.url().startsWith('http') && !request.url().startsWith('http://127.0.0.1:4173/')) external.push(request.url());
   });
   page.on('pageerror', (error) => errors.push(error.message));
@@ -19,7 +19,7 @@ test('card models load on request, rotate, zoom, reset and switch', async ({ pag
   await page.getByRole('button', { name: 'Forge CPLD' }).click();
   await page.getByRole('button', { name: 'Explore in 3D' }).click();
   await expect(page.getByRole('button', { name: 'Reset view' })).toBeEnabled({ timeout: 60_000 });
-  await expect.poll(() => page.locator('model-viewer').evaluate((element) => element.src)).toMatch(/forge.glb$/);
+  await expect.poll(() => page.locator('model-viewer').evaluate((element) => element.src)).toMatch(/forge\.glb\?v=[a-f0-9]{12}$/);
   expect(models).toHaveLength(1);
   const orbit = () => page.locator('model-viewer').evaluate((element) => {
     const { theta, phi, radius } = element.getCameraOrbit();
@@ -41,7 +41,7 @@ test('card models load on request, rotate, zoom, reset and switch', async ({ pag
   await page.screenshot({ path: 'test-results/forge-desktop.png', fullPage: true });
   await page.getByRole('button', { name: 'Classic DISCRETE' }).click();
   await expect(page.getByRole('button', { name: 'Reset view' })).toBeEnabled({ timeout: 60_000 });
-  await expect.poll(() => page.locator('model-viewer').evaluate((element) => element.src)).toMatch(/classic.glb$/);
+  await expect.poll(() => page.locator('model-viewer').evaluate((element) => element.src)).toMatch(/classic\.glb\?v=[a-f0-9]{12}$/);
   await expect(page.locator('#viewer-status')).toContainText('Classic ready');
   expect(models).toHaveLength(2);
   expect(external).toEqual([]);
@@ -60,13 +60,13 @@ test('mobile layout fits the viewport and retains card selection', async ({ page
 });
 
 test('a failed model download offers retry without hiding the card photo', async ({ page }) => {
-  await page.route('**/models/forge.glb', (route) => route.abort());
+  await page.route('**/models/forge.glb*', (route) => route.abort());
   await page.goto('./');
   await page.getByRole('button', { name: 'Explore in 3D' }).click();
   await expect(page.locator('#viewer-status')).toContainText('could not load', { timeout: 60_000 });
   await expect(page.locator('#poster')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Explore in 3D' })).toBeEnabled();
-  await page.unroute('**/models/forge.glb');
+  await page.unroute('**/models/forge.glb*');
   await page.getByRole('button', { name: 'Explore in 3D' }).click();
   await expect(page.getByRole('button', { name: 'Reset view' })).toBeEnabled({ timeout: 60_000 });
 });
