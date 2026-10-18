@@ -19,6 +19,8 @@ class Fat16RedirectorTests(unittest.TestCase):
     write=common.WritableRedirectorTests.write
     seek=common.WritableRedirectorTests.seek
     clean=common.WritableRedirectorTests.clean
+    test_set_directory_attributes_preserves_type_and_metadata = common.WritableRedirectorTests.test_set_directory_attributes_preserves_type_and_metadata
+    test_set_file_attributes_preserves_file_type = common.WritableRedirectorTests.test_set_file_attributes_preserves_file_type
     @classmethod
     def setUpClass(cls):
         common.WritableRedirectorTests.setUpClass.__func__(cls)

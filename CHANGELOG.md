@@ -1,6 +1,13 @@
 # Release history
 
-## 1.1.2 — Unreleased
+## 1.1.3 — Unreleased
+
+- Fix DOS set-attributes requests on FAT16 and FAT32 directories when the
+  caller omits the directory bit (issue #8). Preserve the entry type while
+  updating read-only, hidden, system and archive flags.
+- Add regression coverage for both formats and increment OTTERSD/HWRT to 1.1.3.
+
+## 1.1.2
 
 This release introduces CPLD revision 1.0 and versions the Slot-otter hardware
 and DOS software together. OTTERSD and HWRT identify themselves as 1.1.2;

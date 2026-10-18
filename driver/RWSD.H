@@ -33,8 +33,8 @@ extern int sd_verify_writes;
 extern U8 sd_scratch[512];
 /* Stable release ID: major in the high byte, minor/patch in two low nibbles.
  * Keep the 16-bit query field and ABI unchanged. Pre-1.0 IDs were sequential. */
-#define OTTER_VERSION 0x0112
-#define OTTER_VERSION_TEXT "1.1.2"
+#define OTTER_VERSION 0x0113
+#define OTTER_VERSION_TEXT "1.1.3"
 /* Private query 8, ABI 1: mounted identity is cached, not a fresh CID check.
  * Flags: bit 0 cached identity valid, bit 1 writable, bit 2 online,
  * bit 3 post-write readback disabled, bit 4 full mount FAT check skipped,
