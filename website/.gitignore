@@ -1,0 +1,8 @@
+node_modules/
+dist/
+playwright-report/
+test-results/
+public/posters/
+public/draco/
+public/models/sizes.json
+public/NOTICE.txt

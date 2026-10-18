@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#eeeae1">
+  <meta name="description" content="Explore Slot-otter Classic and Forge in 3D. Rotate, zoom, and inspect these open-hardware ISA SD-card interfaces for vintage DOS PCs.">
+  <title>Slot-otter — Explore the cards</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='9' y='8' width='46' height='44' rx='5' fill='%232b5141'/%3E%3Cpath d='M17 52v8m8-8v8m8-8v8m8-8v8m8-8v8' stroke='%23b18c48' stroke-width='4'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/src/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="wordmark" href="./" aria-label="Slot-otter home"><span class="board-mark" aria-hidden="true">S/O</span> slot-otter<span class="wordmark-dot">.</span></a>
+    <a class="repo-link" href="https://github.com/ifilot/slot-otter">View on GitHub <span aria-hidden="true">↗</span></a>
+  </header>
+  <main>
+    <section class="intro" aria-labelledby="page-title">
+      <p class="eyebrow"><span></span> OPEN HARDWARE / 8-BIT ISA</p>
+      <h1 id="page-title">Old-school interface.<br><em>A closer look.</em></h1>
+      <p class="lede">An SD card. An ISA slot. Your vintage PC.<br>Pick a Slot-otter and explore it from every angle.</p>
+    </section>
+    <section class="explorer" aria-label="Interactive card explorer">
+      <div class="viewer-panel">
+        <div class="stage-heading"><span id="stage-label">01 / FORGE</span><span class="stage-badge">3D EXPLORER</span></div>
+        <div class="stage" id="stage">
+          <img id="poster" class="poster" src="./posters/forge.webp" alt="Slot-otter Forge card and bracket" width="600" height="480">
+          <div class="launch" id="launch">
+            <button class="primary" id="load-model" type="button"><span aria-hidden="true">↻</span> Explore in 3D</button>
+            <p id="download-size">Loads only the selected card</p>
+          </div>
+          <p id="viewer-status" class="viewer-status" role="status" aria-live="polite"></p>
+        </div>
+        <div class="viewer-toolbar">
+          <span class="gesture-hint">Drag to rotate <span>·</span> Scroll or pinch to zoom</span>
+          <button id="reset-view" type="button" disabled><span aria-hidden="true">↺</span> Reset view</button>
+        </div>
+      </div>
+      <aside class="card-details">
+        <p class="eyebrow">CHOOSE YOUR CARD</p>
+        <div class="card-picker" role="group" aria-label="Choose a Slot-otter model">
+          <button type="button" data-model="forge" aria-pressed="true">Forge <span>CPLD</span></button>
+          <button type="button" data-model="classic" aria-pressed="false">Classic <span>DISCRETE</span></button>
+        </div>
+        <div class="detail-copy">
+          <p class="edition" id="edition">THE CPLD EDITION</p>
+          <h2 id="card-title">Slot-otter Forge</h2>
+          <p id="card-description">The interface logic, brought together in an ATF1504AS CPLD. A compact take on the same 8-bit ISA SD-card interface.</p>
+        </div>
+        <dl class="specs">
+          <div><dt>Interface</dt><dd>8-bit ISA</dd></div>
+          <div><dt>Storage</dt><dd>SD card · FAT16 / FAT32</dd></div>
+          <div><dt>Software</dt><dd>OTTERSD for MS-DOS</dd></div>
+          <div><dt>Logic</dt><dd id="card-logic">ATF1504AS CPLD</dd></div>
+        </dl>
+        <a id="hardware-link" class="text-link" href="https://github.com/ifilot/slot-otter/tree/master/pcb/cpld">Explore the hardware files <span aria-hidden="true">↗</span></a>
+        <p class="equivalent-note">Two designs. The same DOS drive functionality.<br>Both cards use the same OTTERSD driver.</p>
+      </aside>
+    </section>
+    <section class="about-strip" aria-label="About the project">
+      <div><p class="eyebrow">BUILT FOR THE MACHINES WE KEEP</p><h2>A new way into an old PC.</h2></div>
+      <p>Fill an SD card on a modern computer, insert it into Slot-otter, and access your files from DOS. Open hardware, documented designs, and software you can build yourself.</p>
+      <a class="text-link" href="https://github.com/ifilot/slot-otter#readme">Read the project guide <span aria-hidden="true">↗</span></a>
+    </section>
+  </main>
+  <footer><span>Slot-otter / Open hardware for vintage PCs</span><a href="./NOTICE.txt">Credits &amp; licenses</a><span>Models are illustrative; refer to the hardware files for dimensions.</span></footer>
+  <noscript><p class="noscript">JavaScript is required for the 3D viewer. Card photos and hardware files are available in the <a href="https://github.com/ifilot/slot-otter">repository</a>.</p></noscript>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

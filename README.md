@@ -25,6 +25,8 @@ use the current driver and follow the setup instructions below.
 
 Click a preview to view the full-resolution image.
 
+[Explore Classic and Forge in the interactive 3D viewer](https://ifilot.github.io/slot-otter/) — rotate and zoom each card in your browser.
+
 A working setup has three parts:
 
 - the **Slot-otter card** in a free 8-bit ISA slot;
