@@ -299,6 +299,39 @@ class WritableRedirectorTests(unittest.TestCase):
         self.call(0x0b, di=a, cx=0, dx=100, si=1, param=2)
         self.call(6, di=a)
 
+    def test_set_directory_attributes_preserves_type_and_metadata(self):
+        self.path('S:\\ATTRTEST'); self.call(3)
+        entry = fs.File()
+        self.assertEqual(self.lib.rw_lookup(b'S:\\ATTRTEST', C.byref(entry)), 0)
+        def disk_entry():
+            with self.image.open('rb') as disk:
+                disk.seek(entry.lba * 512 + entry.offset)
+                return disk.read(32)
+        original = disk_entry()
+        for attr in (0x00, 0x20, 0x01, 0x02, 0x04, 0x27, 0x10, 0x30, 0x00):
+            with self.subTest(attr=attr):
+                self.call(0x0e, param=attr)
+                self.assertEqual(self.call(0x0f).ax, attr | 0x10)
+                self.assertEqual(disk_entry(), original[:11] + bytes([attr | 0x10]) + original[12:])
+        for attr in (0x08, 0x40, 0x80):
+            with self.subTest(invalid_attr=attr):
+                self.call(0x0e, param=attr, error=5)
+                self.assertEqual(disk_entry(), original)
+        off = self.created('S:\\ATTRTEST\\CHILD.BIN')
+        self.write(off, b'CHILD'); self.call(6, di=off)
+        self.assertEqual(self.content('ATTRTEST/CHILD.BIN'), b'CHILD')
+        self.clean()
+
+    def test_set_file_attributes_preserves_file_type(self):
+        off = self.created(); self.write(off, b'FILE'); self.call(6, di=off)
+        self.path('S:\\NEW.BIN')
+        for attr in (0x00, 0x20, 0x01, 0x02, 0x04, 0x27, 0x10, 0x30, 0x00):
+            with self.subTest(attr=attr):
+                self.call(0x0e, param=attr)
+                self.assertEqual(self.call(0x0f).ax, attr & ~0x10)
+        self.assertEqual(self.content('NEW.BIN'), b'FILE')
+        self.clean()
+
     def test_directory_attributes_rename_delete_and_cwd_interlock(self):
         self.path('S:\\NEWDIR'); self.call(3)
         off = self.created('S:\\NEWDIR\\CHILD.BIN'); self.write(off, b'CHILD')
@@ -470,7 +503,7 @@ class WritableRedirectorTests(unittest.TestCase):
         C.c_uint16.in_dll(self.lib,'resident_bytes').value=36000
         r=self.call(0,ax=0xd74f,bx=0x4f54,dx=0x524f,si=8,cx=32,es=4,di=4096)
         self.assertEqual(r.cx,32)
-        self.assertEqual(self.get(self.data,4096+20),0x0112)
+        self.assertEqual(self.get(self.data,4096+20),0x0113)
         policy=self.call(0,ax=0xd74f,bx=0x4f54,dx=0x524f,si=5)
         self.assertEqual(policy.di,1)
         self.assertEqual(self.get(self.data,4096+22),36000)
@@ -605,7 +638,7 @@ class WritableRedirectorTests(unittest.TestCase):
         before=self.image.read_bytes()
         cds=bytes(self.cds[:88])
         r=self.unload_call(9)
-        self.assertEqual((r.ax,r.bx,r.cx,r.dx,r.di,r.si),(1,256,3,512,2,0x0112))
+        self.assertEqual((r.ax,r.bx,r.cx,r.dx,r.di,r.si),(1,256,3,512,2,0x0113))
         self.assertEqual(bytes(self.cds[:88]),cds)
         self.assertEqual(self.image.read_bytes(),before)
 

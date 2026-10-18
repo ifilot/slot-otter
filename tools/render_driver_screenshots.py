@@ -17,7 +17,7 @@ import re
 from PIL import Image, ImageDraw, ImageFont
 
 ROOT = Path(__file__).resolve().parents[1]
-MEMORY = 43536  # Example allocation; actual size depends on the build.
+MEMORY = 43552  # Example allocation; actual size depends on the build.
 PROMPT = 'C:\\OTTERSD>'
 VERSION = re.search(r'#define OTTER_VERSION_TEXT "([^"]+)"',
                     (ROOT / 'driver/RWSD.H').read_text())[1]

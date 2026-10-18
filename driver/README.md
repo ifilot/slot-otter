@@ -83,7 +83,7 @@ before that point cannot resume against a different card.
   tested; a 286 with 1 MiB is the current hardware target.
 - **Media:** SDHC/SDXC with 512-byte sectors; FAT16 or FAT32 in the first
   primary MBR partition, or as a superfloppy.
-- **Memory:** 42,896 bytes of conventional memory including the PSP, in either
+- **Memory:** 43,552 bytes of conventional memory including the PSP, in either
   access mode. Validation and packaging fail above 45,000 bytes. Resources include a
   2,048-byte private stack, 16 open-file slots and 32 search cursors. DOS
   FILES and process limits also apply.

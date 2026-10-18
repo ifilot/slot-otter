@@ -324,7 +324,10 @@ static int rw_path_operation(U8 fn,U8 FAR *sft) {
     }
     if (fn==0x13 && (strchr(path,'*') || strchr(path,'?'))) return delete_pattern();
     if (rw_lookup(path,&f)) return filesystem_error();
-    if (fn==0x0e) return rw_result(rw_metadata(&f,(U8)regs.param,f.time,f.date));
+    if (fn==0x0e) {
+        /* DOS supplies ordinary flags; the existing entry owns its type. */
+        return rw_result(rw_metadata(&f,((U8)regs.param&0xef)|(f.attr&0x10),f.time,f.date));
+    }
     if (file_busy(&f)) return error(E_SHARE);
     if (fn==1 || fn==2) {
         if (cwd_busy()) return error(16);
