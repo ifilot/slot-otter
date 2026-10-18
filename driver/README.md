@@ -259,8 +259,9 @@ uploads only `release.py`'s output. A tagged release requires the tag to be
 `v` followed by the version in RWSD.H. Slot-otter uses this release version
 for the hardware/software bundle; PCB revisions are recorded separately in
 the hardware design files. Releases also attach the CPLD fabrication ZIP and
-schematic PDF. OTTERNAV is built separately and
-attached as an optional legacy download.
+schematic PDF. For browsing and copying files, use
+[Nightwatch](https://github.com/ifilot/nightwatch) with OTTERSD; Nightwatch is
+downloaded separately. Legacy OTTERNAV binaries are no longer distributed.
 
 RWSD.H defines the displayed version and a 16-bit resident version ID: the
 major version in the high byte, and minor and patch in the two low nibbles.

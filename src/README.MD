@@ -1,7 +1,8 @@
 # Legacy OTTERNAV utility
 
-OTTERNAV is retained for legacy use. The primary software product is
-[OTTERSD 1.0.0](../driver/README.md), which exposes the card as a DOS drive.
+OTTERNAV source is retained for historical reference. Its binaries are no
+longer distributed in releases. The primary software product is
+[OTTERSD](../driver/README.md), which exposes the card as a DOS drive.
 For browsing and copying files on that drive, use
 [Nightwatch](https://github.com/ifilot/nightwatch). The original Navigator
 source and build instructions remain below.

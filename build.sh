@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Used to build OTTERNAV.EXE in Github Actions
+# Build the historical OTTERNAV.EXE locally; it is not published in releases.
 set -e
 
 # Folders relative to this script

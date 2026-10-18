@@ -49,7 +49,6 @@ A working setup has three parts:
   - [Browsing files with Nightwatch](#browsing-files-with-nightwatch)
 - [Performance](#performance)
 - [Hardware](#hardware)
-- [Legacy Navigator](#legacy-navigator)
 - [Development](#development)
 - [License](#license)
 
@@ -287,14 +286,6 @@ building or using this revision.
 Use the hardware files for your board: Classic and Forge have
 different fabrication files and pinouts. The earlier
 [prototype sources](pcb/prototype/README.md) are also retained.
-
-## Legacy Navigator
-
-OTTERNAV remains available for users of the older software. It accesses the
-card directly, without loading OTTERSD. Its source is under [src](src/README.MD), with a separate
-[OTTERNAV.EXE download](https://github.com/ifilot/slot-otter/releases/latest/download/OTTERNAV.EXE).
-It is not included on the OTTERSD floppies. Unmount OTTERSD before using Navigator
-on the same card.
 
 ## Development
 
