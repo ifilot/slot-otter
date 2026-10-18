@@ -19,8 +19,11 @@ use the current driver and follow the setup instructions below.
 
 | [Slot-otter Classic](pcb/release/README.md) | [Slot-otter Forge](pcb/cpld/README.md) |
 | :---: | :---: |
-| ![Slot-otter Classic board and bracket](img/slot-otter-discrete-blender.png) | ![Slot-otter Forge board and bracket](img/slot-otter-cpld-rev1-blender.png) |
-| ![Front view of Slot-otter Classic and its SD-card slot](img/slot-otter-discrete-front.png) | ![Front view of Slot-otter Forge and its SD-card slot](img/slot-otter-cpld-rev1-front.png) |
+| [![Slot-otter Classic board and bracket](img/thumbnails/slot-otter-discrete-blender.webp)](img/slot-otter-discrete-blender.png) | [![Slot-otter Forge board and bracket](img/thumbnails/slot-otter-cpld-rev1-blender.webp)](img/slot-otter-cpld-rev1-blender.png) |
+| [![Front view of Slot-otter Classic and its SD-card slot](img/thumbnails/slot-otter-discrete-front.webp)](img/slot-otter-discrete-front.png) | [![Front view of Slot-otter Forge and its SD-card slot](img/thumbnails/slot-otter-cpld-rev1-front.webp)](img/slot-otter-cpld-rev1-front.png) |
+| [![Slot-otter Classic installed in a central ISA slot on a mad5160 motherboard](img/thumbnails/slot-otter-classic-mad5160.webp)](img/slot-otter-classic-mad5160.png) | [![Slot-otter Forge installed in a central ISA slot on a mad5160 motherboard](img/thumbnails/slot-otter-mad5160.webp)](img/slot-otter-mad5160.png) |
+
+Click a preview to view the full-resolution image.
 
 A working setup has three parts:
 
@@ -282,8 +285,6 @@ building or using this revision.
 Use the hardware files for your board: Classic and Forge have
 different fabrication files and pinouts. The earlier
 [prototype sources](pcb/prototype/README.md) are also retained.
-
-![Slot-otter Forge rear panel and SD card slot](img/slot-otter-cpld-rev1-socket.png)
 
 ## Legacy Navigator
 

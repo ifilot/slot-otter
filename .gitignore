@@ -28,3 +28,7 @@ pcb/release/production
 !pcb/cpld/GERBERS/*
 # Python cache for the KiCad export helper.
 pcb/cpld/__pycache__/
+pcb/context/__pycache__/
+# Motherboard scenes are large, reproducible local build artifacts.
+pcb/context/*.blend
+pcb/context/*.blend[0-9]

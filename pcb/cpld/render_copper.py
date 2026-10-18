@@ -32,7 +32,7 @@ def main():
 
     # Use the same Edge.Cuts frame as the populated VRML's soldermask meshes.
     text = args.pcb.read_text()
-    edges = [b for b in re.findall(r'\n\t\(gr_(?:line|arc)\n.*?\n\t\)', text, re.S)
+    edges = [b for b in re.findall(r'\n\t\(gr_(?:line|arc|rect)\n.*?\n\t\)', text, re.S)
              if '(layer "Edge.Cuts")' in b]
     points = [tuple(map(float, p)) for b in edges
               for p in re.findall(r'\((?:start|end|mid) ([\d.-]+) ([\d.-]+)\)', b)]
