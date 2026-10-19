@@ -1,7 +1,7 @@
 # Historical recovery investigation: OTTERSD 0.7-0.8
 
-This is a historical diagnostic record. For current OTTERSD 1.1.3 / HWRT
-1.1.3 developer deployment and testing, use [MANUAL.md](MANUAL.md). The commands, old
+This is a historical diagnostic record. For current OTTERSD 1.1.4 / HWRT
+1.1.4 developer deployment and testing, use [MANUAL.md](MANUAL.md). The commands, old
 version numbers and pending conclusions below describe the investigation
 at that time; they are not current deployment instructions.
 

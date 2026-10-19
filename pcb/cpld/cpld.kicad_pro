@@ -267,7 +267,7 @@
       "internal_id": "",
       "mfg": "",
       "mpn": "",
-      "sch_revision": "rev0"
+      "sch_revision": "1.0"
     },
     "layer_pairs": [],
     "layer_presets": [],
@@ -711,7 +711,7 @@
         "uuid": "075aea89-321c-44ba-b0b1-8b82a6b1f518"
       }
     ],
-    "used_designators": "SYM1-2",
+    "used_designators": "SYM1-4,oshwlogo1,otterlogo1,owhwacert1",
     "variants": []
   },
   "sheets": [

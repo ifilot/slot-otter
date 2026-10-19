@@ -1,6 +1,14 @@
 # Release history
 
-## 1.1.3 — Unreleased
+## 1.1.4 — Unreleased
+
+- Revise the Slot-otter Forge layout: pour GND on both copper layers, stitch
+  them with vias and route +5 V as traces. Regenerate the fabrication outputs.
+- Add the OSHWA certification mark (UID NL000046) to the Forge silkscreen and
+  the README, with the Open Source Licenses facts label.
+- Ignore KiCad local history folders and increment OTTERSD/HWRT to 1.1.4.
+
+## 1.1.3
 
 - Fix DOS set-attributes requests on FAT16 and FAT32 directories when the
   caller omits the directory bit (issue #8). Preserve the entry type while

@@ -1,5 +1,5 @@
 C:\OTTERSD>OTTERSD /MOUNT
-OTTERSD 1.1.3 - Slot-otter FAT16/FAT32 driver
+OTTERSD 1.1.4 - Slot-otter FAT16/FAT32 driver
 Mounting card; initializing SD and checking filesystem. Please wait...
 Comparing FAT copies: 100%
 OTTERSD card mounted in its installed access mode.

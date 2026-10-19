@@ -1,5 +1,5 @@
 C:\OTTERSD>OTTERSD /DRIVE:S /PORT:330 /RW
-OTTERSD 1.1.3 - Slot-otter FAT16/FAT32 driver
+OTTERSD 1.1.4 - Slot-otter FAT16/FAT32 driver
 Initializing SD card and checking filesystem; FAT comparison may take time.
 Comparing FAT copies: 100%
 Mount timing: SD 9, filesystem 36 BIOS ticks (about 18.2 ticks/second).

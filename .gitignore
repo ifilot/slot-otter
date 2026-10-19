@@ -32,3 +32,5 @@ pcb/context/__pycache__/
 # Motherboard scenes are large, reproducible local build artifacts.
 pcb/context/*.blend
 pcb/context/*.blend[0-9]
+# KiCad 10 local history snapshots (own git repo per project folder).
+.history/

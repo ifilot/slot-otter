@@ -1,5 +1,5 @@
 C:\OTTERSD>OTTERSD /UNMOUNT
-OTTERSD 1.1.3 - Slot-otter FAT16/FAT32 driver
+OTTERSD 1.1.4 - Slot-otter FAT16/FAT32 driver
 Unmounting card; checking pending changes. Please wait...
 Comparing FAT copies: 100%
 OTTERSD drive is offline; card may be removed.

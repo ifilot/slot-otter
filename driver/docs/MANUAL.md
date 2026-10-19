@@ -60,13 +60,13 @@ Use the actual configured ISA base port instead of 330 if it differs; port
 values are hexadecimal. Installation must report verified read/write and a
 mounted card. Without /RW, OTTERSD installs read-only and write tests refuse
 to proceed. Use /RO to select read-only explicitly. Both modes use the same consolidated
-43,552-byte resident allocation. Use OTTERSD 1.1.3 and HWRT 1.1.3 from the SAME kit. Replace earlier executable
+43,552-byte resident allocation. Use OTTERSD 1.1.4 and HWRT 1.1.4 from the SAME kit. Replace earlier executable
 files in your local kit directory; update any old AUTOEXEC.BAT command names.
 
 Keep the complete local directory for each card, and copy its logs to a
 separate labelled directory before starting the next card. /INFO prints the
 cached mounted CID, manufacturer/product/serial, capacity, driver/test versions
-and mount phase timings. Compare those records when relaying logs. HWRT 1.1.3 also prints DOS SPACE:
+and mount phase timings. Compare those records when relaying logs. HWRT 1.1.4 also prints DOS SPACE:
 the logical allocation-unit size, total/free counts and byte capacities.
 The 500 MiB image uses 4 KiB physical clusters but reports 8 KiB logical
 units to DOS, with free space rounded down by less than one logical unit.
@@ -282,7 +282,7 @@ the filesystem improvements or /NOVERIFY.
 ## Reclaim memory before running a game
 
 The installer releases its temporary code, heap and startup stack automatically.
-OTTERSD 1.1.3 retains 43,552 bytes of conventional memory including its PSP.
+OTTERSD 1.1.4 retains 43,552 bytes of conventional memory including its PSP.
 `/UNMOUNT` makes the drive offline but does not reclaim that memory. `/UNLOAD`
 commits any closed-file changes, restores the drive's original DOS state and
 interrupt vector, and releases the entire resident memory block.

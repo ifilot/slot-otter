@@ -4,6 +4,7 @@
 ![Version](https://img.shields.io/github/v/tag/ifilot/slot-otter?label=version)
 [![Hardware license](https://img.shields.io/badge/Hardware-CERN--OHL--S--2.0-blue.svg)](LICENSE.md)
 [![Software license](https://img.shields.io/badge/Software-GPL--3.0--or--later-blue.svg)](LICENSE.md)
+[![OSHWA certified](https://img.shields.io/badge/OSHWA-NL000046-red.svg)](https://certification.oshwa.org/nl000046.html)
 
 An 8-bit ISA card for accessing FAT16- or FAT32-formatted SD cards under MS-DOS.
 
@@ -297,6 +298,13 @@ emulated ISA interface for development and testing.
 See the [release history](CHANGELOG.md) for changes between versions.
 
 ## License
+
+[![OSHWA certification mark NL000046](img/oshwa/oshw-certification-mark.svg)](https://certification.oshwa.org/nl000046.html)
+[![Open Source Licenses: hardware CERN-OHL-S-2.0, software GPL-3.0-or-later, documentation CC-BY-SA-4.0](img/oshwa/oshw-facts.svg)](LICENSE.md)
+
+Slot-otter is certified open source hardware by the
+[Open Source Hardware Association](https://certification.oshwa.org/nl000046.html)
+under UID NL000046.
 
 Project-authored hardware and mechanical designs use CERN-OHL-S-2.0;
 software and CPLD logic use GPL-3.0-or-later; documentation uses CC-BY-SA-4.0.
