@@ -24,6 +24,21 @@ extern U32 rw_read_serial;
  * Paths and names use DOS short aliases; this module does not create LFNs. */
 /* Installed policy persists across invalidate/remount; only mount scans skip. */
 extern U8 rw_skip_fat_check;
+/* Private query 13: retain the writable-mount rejection after offline() clears
+ * Volume. Independent of the fixed SD diagnostic ABI; no media I/O on query. */
+#define MOUNT_GEOMETRY 1
+#define MOUNT_CAPACITY 2
+#define MOUNT_RESERVED 3
+#define MOUNT_BACKUP_BOOT 4
+#define MOUNT_MIRRORS 5
+#define MOUNT_FLAGS 6
+#define MOUNT_FSINFO 7
+#define MOUNT_BACKUP_INFO 8
+typedef struct {
+    U32 lba, value;
+    U16 check, fat_bits;
+} MountDiagnostic;
+extern MountDiagnostic mount_diag;
 /* Explicit foreground controls only. Zero always closes and disables feedback.
  * BIOS console output never calls DOS and is never armed by file callbacks. */
 void rw_feedback(U16 enabled);

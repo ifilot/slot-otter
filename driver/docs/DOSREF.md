@@ -59,6 +59,7 @@ in AX; otherwise AX is zero except for selectors with explicit AX results:
 | 7 | observed private stack use | AX=used, BX=untouched prefix, CX=2048 |
 | 11 | foreground media control with optional console feedback | CX=1 (unmount), 2 (mount), or 10 (prepare unload); DI=0 (silent) or 1 (BIOS console percentage); other values fail with AX=1 |
 | 12 | foreground feedback capability query | CX=1 identifies feedback ABI 1; older residents reject this selector |
+| 13 | copy writable-mount rejection | ES:DI writable buffer, CX at least 12; CX=12; older residents reject this selector |
 
 Selector 11 uses the same validation and commit paths as the legacy controls,
 and always disables feedback before returning, including failures. Percentage
@@ -76,6 +77,18 @@ transport diagnostics; remount clears them even when its initialization fails.
 The last callback failure is sticky, so it can describe an earlier operation.
 Stack scanning measures observed use of the A5 pattern, including IRQs during
 callbacks; it does not prove the maximum possible stack demand.
+
+Selector 13 copies `MountDiagnostic` from RWFS.H: DWORD absolute LBA, DWORD
+observed value, WORD check and WORD FAT type (16/32, or zero before detection).
+Check zero means no recorded writable-mount rejection. Checks 1-8 identify
+geometry, capacity/FAT address, reserved metadata location, backup boot sector,
+FAT mirror comparison, clean/error flags, primary FSInfo and backup FSInfo.
+The value is the raw FAT entry 1 for check 6; other checks retain the relevant
+offset, signature or zero. Both queries reject short or wrapping buffers.
+Unmount/offline preserves this snapshot even though it clears Volume. A new
+mount clears it before SD initialization, including read-only mounts and failed
+initializations. Queries perform no card I/O. The installer, `/MOUNT` and
+`/STATUS` display the rejection without changing the 40-byte SD query ABI.
 
 Process/FCB termination callbacks 111Dh and 1122h currently chain. RBIL describes
 the sharing PSP at SDA 1Ah (DOS 3) or 1Ch (DOS 4-6), distinct from the current

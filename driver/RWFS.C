@@ -8,6 +8,7 @@
 #include <string.h>
 U32 rw_start, rw_end, rw_fatsz, rw_allocated, rw_freed;
 U8 rw_skip_fat_check;
+MountDiagnostic mount_diag;
 static U16 feedback_enabled, feedback_line, feedback_tick, feedback_percent;
 #ifdef HOST_TEST
 /* Test-only capture of the same bytes sent to BIOS on DOS. */
@@ -446,6 +447,10 @@ static int mirrors(void) {
   }
   return 0;
 }
+static int mount_rejected(U16 check,U32 lba,U32 value) {
+  mount_diag.check=check; mount_diag.lba=lba; mount_diag.value=value;
+  return fail(E_INVALID);
+}
 int rw_mount(void) {
   /* Read-only preflight precedes arming: geometry/capacity, backup BPB, enabled
    * FAT mirrors, clean/error flags and optional FSInfo signatures. This is
@@ -453,8 +458,13 @@ int rw_mount(void) {
   U32 start=0,total;
   U16 reserved,flags,info,backup;
   int result;
+  memset(&mount_diag,0,sizeof(mount_diag));
   rw_invalidate(); rw_allocated=rw_freed=0;
-  if (fs_mount()) return -1;
+  if (fs_mount()) {
+    if (fs_error==E_INVALID) return mount_rejected(MOUNT_GEOMETRY,sd_diag.lba,0);
+    return -1;
+  }
+  mount_diag.fat_bits=volume.fat_bits;
   start=volume.start;
   if (read_sector(start,block)) return -1;
   reserved=get16(block+14); fat_count=block[16];
@@ -463,16 +473,17 @@ int rw_mount(void) {
   rw_fatsz=volume.fat_sectors; total=volume.total;
   rw_start=start; rw_end=start+total; first_fat=start+reserved;
   if (rw_end-1>sd_last_lba || volume.fat!=first_fat+(U32)active_fat*rw_fatsz)
-    return fail(E_INVALID);
+    return mount_rejected(MOUNT_CAPACITY,start,rw_end-1);
   info=backup=0;
   if (volume.fat_bits==32) { info=get16(block+48); backup=get16(block+50); }
   fsinfo_lba=backup_info=backup_boot=0xffffffffUL;
   if (backup && backup!=65535U) {
-    if (backup>=reserved) return fail(E_INVALID);
+    if (backup>=reserved) return mount_rejected(MOUNT_RESERVED,start,backup);
     backup_boot=start+backup;
   }
   if (info && info!=65535U) {
-    if (info>=reserved || start+info==backup_boot) return fail(E_INVALID);
+    if (info>=reserved || start+info==backup_boot)
+      return mount_rejected(MOUNT_RESERVED,start,info);
     fsinfo_lba=start+info;
     if (backup_boot!=0xffffffffUL && (U32)backup+info<reserved)
       backup_info=backup_boot+info;
@@ -481,23 +492,32 @@ int rw_mount(void) {
     memcpy(other,block,512);
     if (read_sector(backup_boot,block)) return -1;
     if (get16(block+510)!=0xaa55 || memcmp(block+11,other+11,41))
-      return fail(E_INVALID);
+      return mount_rejected(MOUNT_BACKUP_BOOT,backup_boot,get16(block+510));
   }
-  if (!rw_skip_fat_check && mirrors()) return -1;
+  if (!rw_skip_fat_check && mirrors()) {
+    if (fs_error==E_INVALID) return mount_rejected(MOUNT_MIRRORS,sd_diag.lba,0);
+    return -1;
+  }
   if (read_sector(volume.fat,block)) return -1;
   if (volume.fat_bits==16) {
-    if ((get16(block+2)&0xc000U)!=0xc000U) return fail(E_INVALID);
-  } else if ((get32(block+4)&0x0c000000UL)!=0x0c000000UL) return fail(E_INVALID);
+    if ((get16(block+2)&0xc000U)!=0xc000U)
+      return mount_rejected(MOUNT_FLAGS,volume.fat,get16(block+2));
+  } else if ((get32(block+4)&0x0c000000UL)!=0x0c000000UL)
+    return mount_rejected(MOUNT_FLAGS,volume.fat,get32(block+4));
   /* The clean/error flags share FAT sector zero with allocation entries.
    * mark_clean copies that whole sector to each mirror. Even a fast mount
    * must compare it first, so the first write cannot hide a disagreement. */
-  if (rw_skip_fat_check && head_mirrors()) return -1;
+  if (rw_skip_fat_check && head_mirrors()) {
+    if (fs_error==E_INVALID) return mount_rejected(MOUNT_MIRRORS,sd_diag.lba,0);
+    return -1;
+  }
   if (fsinfo_lba!=0xffffffffUL) {
     if (read_sector(fsinfo_lba,block)) return -1;
-    if (!valid_fsinfo(block)) return fail(E_INVALID);
+    if (!valid_fsinfo(block)) return mount_rejected(MOUNT_FSINFO,fsinfo_lba,get32(block));
     if (backup_info!=0xffffffffUL) {
       if (read_sector(backup_info,block)) return -1;
-      if (!valid_fsinfo(block)) return fail(E_INVALID);
+      if (!valid_fsinfo(block))
+        return mount_rejected(MOUNT_BACKUP_INFO,backup_info,get32(block));
     }
   }
   result=sd_write_arm(start+1,rw_end);

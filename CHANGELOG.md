@@ -2,6 +2,8 @@
 
 ## 1.1.4 — Unreleased
 
+- Report the specific writable-mount rejection and preserve its filesystem
+  diagnostic for `/MOUNT` and `/STATUS`, including dirty/error flags and FSInfo.
 - Revise the Slot-otter Forge layout: pour GND on both copper layers, stitch
   them with vias and route +5 V as traces. Regenerate the fabrication outputs.
 - Add the OSHWA certification mark (UID NL000046) to the Forge silkscreen and

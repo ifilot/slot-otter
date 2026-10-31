@@ -223,6 +223,23 @@ writable mounting of unclean volumes and inconsistencies detected by mount
 preflight; it does not perform a global allocation/crosslink scan. Use a fresh expendable
 image for the next write qualification run.
 
+If `/RW` finishes "Comparing FAT copies: 100%" but reports DOS error 13 with
+SD error 0, the comparison succeeded and a later filesystem check refused the
+mount. The driver now prints `Writable mount refused: ...` and an `FS:` snapshot
+at installation and in `/MOUNT`/`/STATUS`. For a FAT16 superfloppy, LBA 1 with
+check 6 identifies the clean/error flags in FAT entry 1. A previous session
+that wrote files and ended without a successful commit/unmount can leave the
+clean flag clear even when the two FATs agree. Closing files alone deliberately
+does not mark the whole volume clean. FAT32 FSInfo rejection is reported
+separately (check 7 or 8); a successful sector CRC does not validate its format.
+
+Read-only mode skips the writable preflight and can still work on such a card.
+Use it to recover files, then check/repair the filesystem on a modern PC before
+retrying `/RW`. Do not manually set the clean flag or disable CRC/readback to
+force the mount. `/SKIPFATCHECK` retains these checks. Replacing OTTERSD.EXE does
+not update an already loaded TSR: unload the old driver with its matching
+executable, or reboot, before loading the diagnostic build.
+
 ## Supported scope
 
 DOS handle-based file operations and short aliases are the qualification target.

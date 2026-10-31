@@ -75,8 +75,33 @@ static void far sd_report(const SdDiagnostic *d) {
     text(" poison="); number(d->poisoned,10,0);
     text(" attempts="); number(d->attempts,10,0); line("");
 }
+static void far mount_report(const MountDiagnostic *d) {
+    const U16 *lba=(const U16 *)&d->lba, *value=(const U16 *)&d->value;
+    if (!d->check) return;
+    text("Writable mount refused: ");
+    switch (d->check) {
+    case MOUNT_GEOMETRY: line("unsupported or invalid filesystem geometry."); break;
+    case MOUNT_CAPACITY: line("volume exceeds card capacity or FAT address is inconsistent."); break;
+    case MOUNT_RESERVED: line("invalid reserved metadata location."); break;
+    case MOUNT_BACKUP_BOOT: line("backup boot sector differs or is invalid."); break;
+    case MOUNT_MIRRORS: line("FAT copies disagree."); break;
+    case MOUNT_FLAGS:
+        if (!(d->value&(d->fat_bits==16?0x8000UL:0x08000000UL)))
+            line("volume was not cleanly unmounted.");
+        else line("FAT reports a previous I/O error.");
+        break;
+    case MOUNT_FSINFO: line("invalid primary FAT32 FSInfo signatures."); break;
+    case MOUNT_BACKUP_INFO: line("invalid backup FAT32 FSInfo signatures."); break;
+    default: line("filesystem validation failed."); break;
+    }
+    text("FS: check="); number(d->check,10,0);
+    text(" FAT="); number(d->fat_bits,10,0);
+    text(" LBA_hex="); number(lba[1],16,4); number(lba[0],16,4);
+    text(" value_hex="); number(value[1],16,4); number(value[0],16,4); line("");
+}
 static void far resident_sd_report(void) {
     SdDiagnostic d;
+    MountDiagnostic m;
     union REGS r;
     struct SREGS s;
     i_zero(&r,sizeof(r)); i_zero(&d,sizeof(d)); segread(&s); s.es=s.ds;
@@ -84,6 +109,11 @@ static void far resident_sd_report(void) {
     r.x.cx=sizeof(d); r.x.di=(U16)&d; int86x(0x2f,&r,&r,&s);
     if (!r.x.cflag && r.x.cx==sizeof(d)) sd_report(&d);
     else line("SD diagnostic query unavailable.");
+    i_zero(&r,sizeof(r)); i_zero(&m,sizeof(m));
+    r.x.ax=0xd74f; r.x.bx=0x4f54; r.x.dx=0x524f; r.x.si=13;
+    r.x.cx=sizeof(m); r.x.di=(U16)&m; int86x(0x2f,&r,&r,&s);
+    /* Older resident versions have no filesystem query. Keep their SD report. */
+    if (!r.x.cflag && r.x.cx==sizeof(m)) mount_report(&m);
 }
 /* Detect the console once, before entering resident code. Files, pipes, NUL
  * and other devices receive plain phase/completion lines, never animation. */
@@ -304,8 +334,11 @@ int far installer(int argc, char **argv) {
         line("WARNING: /NOVERIFY can miss silent corruption. CRC/status checks remain.");
     if (mounted) {
         text("Drive offline (DOS error "); number(mounted,10,0);
-        line("). Insert a card and run OTTERSD /MOUNT.");
+        line(mounted==E_INVALID?
+            "). Filesystem validation failed; see diagnostics below.":
+            "). Insert a card and run OTTERSD /MOUNT.");
         sd_report(&sd_diag);
+        mount_report(&mount_diag);
     }
     else {
         text(volume.fat_bits==16?"Card mounted: FAT16, ":"Card mounted: FAT32, ");

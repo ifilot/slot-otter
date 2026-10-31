@@ -135,6 +135,9 @@ U16 media_mount(void) {
 #endif
     offline();
 #ifdef RW_DRIVER
+    /* A new RO mount or an SD initialization failure must not report an old
+     * writable-mount rejection. offline()/queries preserve the last evidence. */
+    memset(&mount_diag,0,sizeof(mount_diag));
     start=sd_ticks();
     result=(U16)sd_init();
     mount_sd_ticks=(U16)(sd_ticks()-start); mount_fs_ticks=0;
@@ -403,6 +406,14 @@ int dispatch(void) {
                 info.sd_ticks=mount_sd_ticks; info.fs_ticks=mount_fs_ticks; info.abi=1;
                 for (i=0;i<sizeof(info);++i) out[i]=((U8 *)&info)[i];
                 success(); regs.cx=sizeof(info); return 1;
+            }
+            if (regs.si==13) {
+                U16 i;
+                U8 FAR *out=far_at(regs.es,regs.di);
+                if (regs.cx<sizeof(mount_diag) || regs.di>65535U-sizeof(mount_diag))
+                    return error(1);
+                for (i=0;i<sizeof(mount_diag);++i) out[i]=((U8 *)&mount_diag)[i];
+                success(); regs.cx=sizeof(mount_diag); return 1;
             }
             if (regs.si==4) {
                 U16 i;
