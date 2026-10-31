@@ -1,6 +1,6 @@
 # Release history
 
-## 1.1.4 — Unreleased
+## 1.1.5
 
 - Report the specific writable-mount rejection and preserve its filesystem
   diagnostic for `/MOUNT` and `/STATUS`, including dirty/error flags and FSInfo.
@@ -8,7 +8,7 @@
   them with vias and route +5 V as traces. Regenerate the fabrication outputs.
 - Add the OSHWA certification mark (UID NL000046) to the Forge silkscreen and
   the README, with the Open Source Licenses facts label.
-- Ignore KiCad local history folders and increment OTTERSD/HWRT to 1.1.4.
+- Ignore KiCad local history folders and increment OTTERSD/HWRT to 1.1.5.
 
 ## 1.1.3
 
