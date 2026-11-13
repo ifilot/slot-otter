@@ -1,0 +1,9 @@
+# Voice-over environment (Python 3.12; PyTorch has no 3.14 wheels):
+#   uv venv --python 3.12 .venv-tts
+#   VIRTUAL_ENV=.venv-tts uv pip install -r requirements-tts.txt \
+#       --index-url https://pypi.org/simple --extra-index-url https://download.pytorch.org/whl/cu128
+kokoro==0.9.4
+misaki[en]
+soundfile
+torch==2.7.1
+en_core_web_sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl
