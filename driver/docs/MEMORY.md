@@ -1,27 +1,28 @@
 # Resident memory
 
-## optimize/driver branch
-
-Resident allocation is **42,064 bytes** including the PSP, 1,952 bytes below
-1.1.5. Code (`_TEXT`) shrinks by 2,062 bytes; capacities, caches, the 2,048-byte
+The current **OTTERSD 1.2.0** allocation is **42,064 bytes (41.1 KiB)** including
+the PSP, in both `/RO` and `/RW`: 1,952 bytes below 1.1.5. Code (`_TEXT`) shrinks by 2,062 bytes; capacities, caches, the 2,048-byte
 stack, 16 handles and 32 searches are unchanged. The savings come from shared
 failure/authentication/mirror helpers in RWFS.C, shared directory-entry and
 SFT/query fills, and pointer iteration over the redirector's file and lock
 tables, which removes 53 multiplications by the structure size. The inline
 payload transfer loops cost 96 bytes of this budget. The 45,000-byte
-qualification ceiling is unchanged.
-
-The current **OTTERSD 1.1.5** allocation is **44,016 bytes (43.0 KiB)** including
-the PSP, in both `/RO` and `/RW`. The increase over 0.14 is 4,528 bytes for read
-caches, per-handle cursor state, directory attribute handling, mount diagnostics
-and their code. The private stack remains
-2,048 bytes, with 16 open handles and 32 directory searches. `/UNLOAD` reclaims
-the complete resident allocation when its existing safety conditions are met.
+qualification ceiling is unchanged. `/UNLOAD` reclaims the complete resident
+allocation when its existing safety conditions are met.
 
 The current qualification ceiling is 45,000 bytes. Exact measured layout and
 native memory-pressure evidence are retained in `driver/dist/build` and
 `driver/dist/EVIDENCE`. The sections below record earlier releases; their
 sizes, ceilings and pending hardware statements apply to those versions.
+
+## Release 1.1.5
+
+OTTERSD 1.1.5 allocated 44,016 bytes (43.0 KiB) including
+the PSP, in both `/RO` and `/RW`. The increase over 0.14 is 4,528 bytes for read
+caches, per-handle cursor state, directory attribute handling, mount diagnostics
+and their code. The private stack remains
+2,048 bytes, with 16 open handles and 32 directory searches. `/UNLOAD` reclaims
+the complete resident allocation when its existing safety conditions are met.
 
 # Historical layout: OTTERSD 0.8
 

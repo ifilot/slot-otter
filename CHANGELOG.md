@@ -1,5 +1,17 @@
 # Release history
 
+## 1.2.0
+
+- Speed up SD transfers: 512-byte payloads use an inline transfer loop with
+  the port in a register and three settling reads per byte, and CRC16 uses
+  split byte tables without shifts. SPI commands are unchanged. A first
+  physical run on a 20 MHz 80286 wrote FAT16 at about 24 KiB/s and read at
+  about 60 KiB/s.
+- Reduce the resident allocation from 44,016 to 42,064 bytes by sharing
+  filesystem and redirector code paths. Capacities and caches are unchanged.
+- Make build error detection independent of ripgrep.
+- Increment OTTERSD/HWRT to 1.2.0.
+
 ## 1.1.5
 
 - Report the specific writable-mount rejection and preserve its filesystem
