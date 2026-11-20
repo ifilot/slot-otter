@@ -42,8 +42,16 @@ neither offset may wrap. The helper preserves BX/SI/DI/BP/DS/ES, clears DF and
 leaves interrupts enabled. Native tests check odd tails, source preservation,
 segments and register contracts with deliberately broken assembly variants.
 
-The SD transport in SDRW.C is the complete 0.6 C implementation restored after
-a physical regression in 0.7. Its OUT plus settling/sample reads must not be
-compressed into assembly without an elapsed-time contract and physical proof.
-An emulator that counts accesses cannot establish electrical settling time.
-The C CRC is tested against independent host and native bitwise oracles.
+The SD transport in SDRW.C is C. The CPLD has no wait-state output: a byte
+transfer completes about 1.2 us after the strobe, and the driver must leave
+at least 1.5 us between requests and before sampling the result (see
+`pcb/cpld/logic/slototter.pld`). Settling INs provide that spacing in ISA bus
+time, independent of CPU speed. Command framing and polling use `io()`: OUT,
+two settling INs, then the sample. The 512-byte payload loops (`receive()`,
+`send()`) inline the port access with the port in a register and use three
+settling INs, so OUT-to-sample is never shorter than `io()` on a fast CPU.
+`test_bulk_payload_bytes_have_three_settling_reads` and its mutation guard
+this count. Do not reduce settling reads or move them into assembly without
+physical proof; an emulator that counts accesses cannot establish electrical
+settling time. The C CRC uses split high/low byte tables and is tested against
+independent host and native bitwise oracles.

@@ -37,6 +37,35 @@ static void settle(void) { (void)rw_reg_read(0); (void)rw_reg_read(0); }
 static U8 io(U8 b) {
     rw_reg_write(0,b); settle(); return rw_reg_read(0);
 }
+/* Bulk 512-byte payloads only. The port stays in a register and the I/O is
+ * inline, so each byte is OUT, three settling INs and the sampling IN. The
+ * extra settling IN keeps OUT-to-sample at three full ISA bus cycles, never
+ * shorter than io()'s two INs plus call overhead on a fast CPU, and above
+ * the CPLD's 1.5 us request/result spacing on an 8088 bus. Command framing,
+ * busy and token polling keep io(). Order and CS state are unchanged. */
+#ifdef HOST_TEST
+#define DATA_PORT 0
+#define port_out(port,v) rw_reg_write((port),(v))
+#define port_in(port) rw_reg_read(port)
+#else
+#define DATA_PORT sd_port
+#define port_out(port,v) outportb((port),(v))
+#define port_in(port) inportb(port)
+#endif
+#define bulk_settle(port) \
+    { (void)port_in(port); (void)port_in(port); (void)port_in(port); }
+static void receive(register U8 *p, U16 count) {
+    register U16 port=DATA_PORT;
+    U8 *end=p+count;
+    while (p!=end) { port_out(port,255); bulk_settle(port); *p++=port_in(port); }
+}
+static void send(register const U8 *p, U16 count) {
+    register U16 port=DATA_PORT;
+    const U8 *end=p+count;
+    while (p!=end) {
+        port_out(port,*p++); bulk_settle(port); (void)port_in(port);
+    }
+}
 static void select_card(int selected) {
     rw_reg_write(selected?3:2,255); settle();
 }
@@ -206,7 +235,7 @@ static int command(U8 cmd, U32 arg) {
     finish(); return fail(SD_TIMEOUT);
 }
 static int packet(U8 *p, U16 count) {
-    U16 start=rw_ticks(),i,crc;
+    U16 start=rw_ticks(),crc;
     U32 polls;
     for (polls=0;polls<4000000UL;++polls) {
         sd_diag.token=io(255);
@@ -215,7 +244,7 @@ static int packet(U8 *p, U16 count) {
         if ((U16)(rw_ticks()-start)>=36) return fail(SD_TIMEOUT);
     }
     if (polls==4000000UL) return fail(SD_TIMEOUT);
-    for (i=0;i<count;++i) p[i]=io(255);
+    receive(p,count);
     crc=(U16)io(255)<<8; crc|=io(255);
     return crc==sd_crc16(p,count)?0:fail(SD_CRC);
 }
@@ -318,7 +347,7 @@ static int write_once(U32 lba) {
     if (sd_diag.r1) { finish(); return fail(SD_REJECT); }
     ++sd_diag.transmissions;
     (void)io(255); (void)io(254);
-    for (i=0;i<512;++i) (void)io(expected[i]);
+    send(expected,512);
     (void)io((U8)(crc>>8)); (void)io((U8)crc);
     sd_diag.stage=124;
     for (i=0;i<100;++i) {

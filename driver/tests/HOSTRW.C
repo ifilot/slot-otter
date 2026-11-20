@@ -15,6 +15,11 @@ static U8 pending_value;
 static U32 fault_write, fault_read_lba;
 unsigned rw_host_writes, rw_host_reads, rw_host_resets, rw_host_unfinished;
 U32 rw_host_commands[64];
+/* Data-port INs observed between one data-port OUT and the next register
+ * write, by count (7 means seven or more). Shows the settling discipline. */
+unsigned rw_host_settle_reads[8];
+static unsigned reads_since_out;
+static U8 out_seen;
 /* Capture the first eight payload+CRC packets. writes counts observed CMD24
  * commands, unlike sd_diag.transmissions, which requires command acceptance. */
 U32 rw_host_lbas[8];
@@ -27,7 +32,8 @@ int rw_host_open(const char *path, unsigned flags) {
     repeat_option=repeat_value=delay=pending=flip_crc=0;
     replace_pending=0; mutate_buffer=0;
     rw_host_writes=rw_host_resets=rw_host_unfinished=packet_count=0;
-    rw_host_reads=0;
+    rw_host_reads=0; reads_since_out=out_seen=0;
+    memset(rw_host_settle_reads,0,sizeof(rw_host_settle_reads));
     fault_write=fault_read_lba=0;
     memset(rw_host_commands,0,sizeof(rw_host_commands));
     memset(rw_host_lbas,0,sizeof(rw_host_lbas));
@@ -92,6 +98,8 @@ static void exchange(U16 offset,U8 value) {
 static void advance(void) { if (pending && !--pending) exchange(pending_offset,pending_value); }
 void rw_reg_write(U16 offset,U8 value) {
     advance();
+    if (out_seen) ++rw_host_settle_reads[reads_since_out<7?reads_since_out:7];
+    out_seen=(U8)(offset==0); reads_since_out=0;
     if (pending) { ++rw_host_unfinished; pending=0; }
     if (offset==2 || offset==3) {
         selected=(U8)(offset==3); command_count=command_done=0;
@@ -99,7 +107,10 @@ void rw_reg_write(U16 offset,U8 value) {
     if (offset<=1 && delay) { pending_offset=offset; pending_value=value; pending=delay; }
     else exchange(offset,value);
 }
-U8 rw_reg_read(U16 offset) { advance(); return slot_model_read(card,offset); }
+U8 rw_reg_read(U16 offset) {
+    advance(); if (!offset) ++reads_since_out;
+    return slot_model_read(card,offset);
+}
 /* Synthetic ticks count byte exchanges; they are not hardware speed evidence. */
 U16 rw_ticks(void) { return (U16)(clocks/2048UL); }
 void rw_host_advance_ticks(U16 ticks) { clocks+=(U32)ticks*2048UL; }
