@@ -86,7 +86,7 @@ CASES = [
     ('lose duplicate reference count', 'RWOPS.C', 'get16(sft)-1', '0',
      'test_region_locks_guard_reads_writes_truncation_and_final_close'),
     ('lose shared SFT size updates', 'RWOPS.C',
-     'put32(files[i].sft+17,FILE_DISK(file).size);', 'put32(files[i].sft+17,0);',
+     'put32(o->sft+17,FILE_DISK(file).size);', 'put32(o->sft+17,0);',
      'test_shared_handles_refresh_first_cluster_size_and_preserve_positions'),
     ('lose committed timestamp', 'RWOPS.C',
      'rw_metadata(&FILE_DISK(file),FILE_DISK(file).attr,time,date)',
