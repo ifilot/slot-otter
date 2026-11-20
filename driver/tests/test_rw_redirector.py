@@ -539,7 +539,7 @@ class WritableRedirectorTests(unittest.TestCase):
         self.lib.rw_feedback(1); self.lib.rw_feedback(0)
         self.feedback_call(2,console=0)
         self.assertEqual(self.feedback_bytes(),b'')
-        for command,console in ((0,1),(3,1),(9,1),(10,2)):
+        for command,console in ((0,1),(4,1),(9,1),(10,2)):  # 3 recovers
             self.feedback_call(command,console,error=1)
         self.assertEqual(self.image.read_bytes(),before)
 

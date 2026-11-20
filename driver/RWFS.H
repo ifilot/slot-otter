@@ -24,6 +24,11 @@ extern U32 rw_read_serial;
  * Paths and names use DOS short aliases; this module does not create LFNs. */
 /* Installed policy persists across invalidate/remount; only mount scans skip. */
 extern U8 rw_skip_fat_check;
+/* One-shot dirty-volume recovery. 1 asks the next rw_mount to accept a volume
+ * not cleanly unmounted, after the I/O-error flag and a complete FAT mirror
+ * comparison pass, and mark it clean. rw_mount resets it to 0, or to 2 when
+ * it cleared the flag. This is not a chain/lost-cluster check. */
+extern U8 rw_recover;
 /* Private query 13: retain the writable-mount rejection after offline() clears
  * Volume. Independent of the fixed SD diagnostic ABI; no media I/O on query. */
 #define MOUNT_GEOMETRY 1

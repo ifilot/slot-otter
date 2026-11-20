@@ -53,6 +53,7 @@ OTTERSD /DRIVE:S /PORT:330 /RW
 | `/RW` | Read/write access with read-back verification of every sector. |
 | `/NOVERIFY` | With `/RW`: skip the read-back. See [Write verification](#write-verification). |
 | `/SKIPFATCHECK` | With `/RW`: faster mount. See [Mounting](#mounting). |
+| `/RECOVER` | With `/RW`: accept a card that was not cleanly unmounted. See [Recovery](#recovery). |
 | `/FAT16`, `/FAT32` | Accept only that file system. Without either, it is detected automatically. |
 
 The access mode and options are fixed at installation; reboot or `/UNLOAD`
@@ -66,6 +67,7 @@ Control commands operate on the installed driver:
 | `OTTERSD /STATUS` | Report version, mode, policies and the last SD diagnostic. |
 | `OTTERSD /UNMOUNT` | Commit and check the FAT copies, mark the volume clean and take the drive offline. Required before removing the card, rebooting or using Navigator. |
 | `OTTERSD /MOUNT` | Bring the drive online again after inserting a card. |
+| `OTTERSD /MOUNT /RECOVER` | Mount, accepting a card that was not cleanly unmounted. See [Recovery](#recovery). |
 | `OTTERSD /UNLOAD` | Remove the driver completely and free its memory. |
 
 `/UNMOUNT` and `/UNLOAD` refuse to run while files on the SD drive are open.
@@ -134,6 +136,17 @@ allocation errors or cross-linked files.
 the first FAT sector. All other mount checks, the comparisons made before FAT
 changes and the full commit checks remain. It requires `/RW`; `/RO` never
 performs the full comparison.
+
+### Recovery
+
+A `/RW` mount refuses a volume whose FAT clean-shutdown flag is clear, for
+example after switching off without `/UNMOUNT`. `/RECOVER`, at installation
+or with `/MOUNT`, accepts such a volume only if the FAT reports no earlier I/O
+error and every FAT copy matches the primary, compared in full even with
+`/SKIPFATCHECK`. It then writes the clean flag to every copy through the
+verified store path. The request is one-shot and reported by the installer.
+It is not a chain, lost-cluster or cross-link check; after power loss during
+a write, check the card on another computer instead.
 
 ### Caching and card changes
 

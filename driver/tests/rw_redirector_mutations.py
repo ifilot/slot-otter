@@ -101,6 +101,17 @@ CASES = [
     ('allow delete with live handle', 'RWOPS.C',
      'if (file_busy(&f))', 'if (file_busy(&f) && 0)',
      'test_directory_attributes_rename_delete_and_cwd_interlock'),
+    ('recover despite FAT I/O error flag', 'RWFS.C',
+     'if (!(value&(clean>>1)) || (!(value&clean) && !recover))',
+     'if (!(value&clean) && !recover)',
+     'test_mount_diagnostics.MountDiagnosticTests.test_recover_refuses_io_error_and_mismatched_fat_without_writes'),
+    ('recover after fast FAT header comparison only', 'RWFS.C',
+     '(recover?mirrors():compare_mirrors(0))', 'compare_mirrors(0)',
+     'test_mount_diagnostics.MountDiagnosticTests.test_recover_refuses_io_error_and_mismatched_fat_without_writes'),
+    ('recovery request is not one-shot', 'RWFS.C', '  rw_recover=0;\n', '',
+     'test_mount_diagnostics.MountDiagnosticTests.test_recover_marks_dirty_volume_clean_in_every_fat_copy'),
+    ('recovery leaves the volume dirty', 'RWFS.C', '    if (mark_clean(1)) return -1;\n', '',
+     'test_mount_diagnostics.MountDiagnosticTests.test_recover_marks_dirty_volume_clean_in_every_fat_copy'),
 ]
 
 

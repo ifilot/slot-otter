@@ -9,6 +9,10 @@
   about 60 KiB/s.
 - Reduce the resident allocation from 44,016 to 42,064 bytes by sharing
   filesystem and redirector code paths. Capacities and caches are unchanged.
+- Add `/RECOVER` (installation with `/RW`, or `OTTERSD /MOUNT /RECOVER`) to
+  accept a card switched off without `/UNMOUNT`. It requires a clear FAT
+  I/O-error flag and a complete match of all FAT copies, then marks the volume
+  clean. It does not check for lost clusters or interrupted files.
 - Make build error detection independent of ripgrep.
 - Increment OTTERSD/HWRT to 1.2.0.
 

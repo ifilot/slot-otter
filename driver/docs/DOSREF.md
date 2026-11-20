@@ -53,11 +53,12 @@ in AX; otherwise AX is zero except for selectors with explicit AX results:
 |---|---|---|
 | 1 | unmount after flushing | fails while any resident file slot is open |
 | 2 | initialize and remount in installed mode | also requires zero file slots |
+| 3 | as 2, with one-shot dirty-volume recovery (OTTERSD 1.2.0) | writable mode only; query 8 flag bit8 reports a cleared flag |
 | 4 | copy transport diagnostics | ES:DI writable buffer, CX at least 40; CX=40 |
 | 5 | installed mode | BX=write enabled, CX=3 total sector attempts, DX=online, DI=post-write readback enabled |
 | 6 | last callback failure | AX=11xx function, BX=DOS error before kernel mapping |
 | 7 | observed private stack use | AX=used, BX=untouched prefix, CX=2048 |
-| 11 | foreground media control with optional console feedback | CX=1 (unmount), 2 (mount), or 10 (prepare unload); DI=0 (silent) or 1 (BIOS console percentage); other values fail with AX=1 |
+| 11 | foreground media control with optional console feedback | CX=1 (unmount), 2 (mount), 3 (mount with recovery) or 10 (prepare unload); DI=0 (silent) or 1 (BIOS console percentage); other values fail with AX=1 |
 | 12 | foreground feedback capability query | CX=1 identifies feedback ABI 1; older residents reject this selector |
 | 13 | copy writable-mount rejection | ES:DI writable buffer, CX at least 12; CX=12; older residents reject this selector |
 
@@ -107,7 +108,8 @@ The private D74Fh/OT/RO multiplex control uses SI=8, CX >=32 and ES:DI pointing
 to a 32-byte DriverInfo. Far offsets at FFE0h and above are rejected. CF clear returns
 CX=32. Fields are last LBA (U32), CID (16 bytes), version (U16,000Bh), resident
 bytes, SD ticks, filesystem ticks, flags and ABI (U16,1). Flags: bit0 cached
-identity valid, bit1 installed writable mode, bit2 online, bit3 post-write readback disabled. CID is zero when
+identity valid, bit1 installed writable mode, bit2 online, bit3 post-write readback disabled, bit8 the last mount cleared a dirty flag
+(selector 3 or `/RECOVER`, 1.2.0). CID is zero when
 invalid; capacity is meaningful only with valid identity. This cached query
 performs no SD I/O and does not freshly authenticate a removed card.
 Mount tick fields are U16 BIOS low-word deltas for short operations; midnight

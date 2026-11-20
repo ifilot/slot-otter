@@ -7,7 +7,7 @@
 #include "RWFS.H"
 #include <string.h>
 U32 rw_start, rw_end, rw_fatsz, rw_allocated, rw_freed;
-U8 rw_skip_fat_check;
+U8 rw_skip_fat_check, rw_recover;
 MountDiagnostic mount_diag;
 static U16 feedback_enabled, feedback_line, feedback_tick, feedback_percent;
 #ifdef HOST_TEST
@@ -447,6 +447,7 @@ static int mirrors(void) {
   }
   return 0;
 }
+static int mark_clean(int clean);
 static int mount_rejected(U16 check,U32 lba,U32 value) {
   mount_diag.check=check; mount_diag.lba=lba; mount_diag.value=value;
   return fs_invalid();
@@ -455,9 +456,10 @@ int rw_mount(void) {
   /* Read-only preflight precedes arming: geometry/capacity, backup BPB, enabled
    * FAT mirrors, clean/error flags and optional FSInfo signatures. This is
    * not a whole-volume consistency or cross-linked-cluster scan. */
-  U32 start=0,total;
+  U32 start=0,total,value,clean;
   U16 reserved,flags,info,backup;
-  int result;
+  int result,recover=rw_recover;
+  rw_recover=0;
   memset(&mount_diag,0,sizeof(mount_diag));
   rw_invalidate(); rw_allocated=rw_freed=0;
   if (fs_mount()) {
@@ -499,15 +501,18 @@ int rw_mount(void) {
     return -1;
   }
   if (read_sector(volume.fat,block)) return -1;
-  if (volume.fat_bits==16) {
-    if ((get16(block+2)&0xc000U)!=0xc000U)
-      return mount_rejected(MOUNT_FLAGS,volume.fat,get16(block+2));
-  } else if ((get32(block+4)&0x0c000000UL)!=0x0c000000UL)
-    return mount_rejected(MOUNT_FLAGS,volume.fat,get32(block+4));
+  /* FAT entry 1: clean-shutdown bit, and the no-I/O-error bit below it. A
+   * previous I/O error is never recovered here. */
+  if (volume.fat_bits==16) { value=get16(block+2); clean=0x8000UL; }
+  else { value=get32(block+4); clean=0x08000000UL; }
+  if (!(value&(clean>>1)) || (!(value&clean) && !recover))
+    return mount_rejected(MOUNT_FLAGS,volume.fat,value);
+  recover=!(value&clean);
   /* The clean/error flags share FAT sector zero with allocation entries.
    * mark_clean copies that whole sector to each mirror. Even a fast mount
-   * must compare it first, so the first write cannot hide a disagreement. */
-  if (rw_skip_fat_check && compare_mirrors(0)) {
+   * must compare it first, so the first write cannot hide a disagreement.
+   * Recovery always compares every mirror sector. */
+  if (rw_skip_fat_check && (recover?mirrors():compare_mirrors(0))) {
     if (fs_error==E_INVALID) return mount_rejected(MOUNT_MIRRORS,sd_diag.lba,0);
     return -1;
   }
@@ -522,7 +527,12 @@ int rw_mount(void) {
   }
   result=sd_write_arm(start+1,rw_end);
   if (result) return fail((U16)result);
-  hint=2; begun=1; fs_error=0; return 0;
+  hint=2; begun=1; fs_error=0;
+  if (recover) {
+    if (mark_clean(1)) return -1;
+    rw_recover=2;
+  }
+  return 0;
 }
 static int mark_clean(int clean) {
   U32 flags;

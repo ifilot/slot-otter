@@ -349,7 +349,10 @@ static U16 control_media(U16 command) {
     U16 i;
     U8 FAR *vector;
     if (command==1) return media_unmount();
-    if (command==2) return media_mount();
+    /* 3 mounts with one-shot dirty-volume recovery; see rw_recover. */
+    if (command==2 || command==3) {
+        rw_recover=(U8)(command==3 && sd_write_enabled); return media_mount();
+    }
     vector=far_at(0,0x2f*4);
     if (get16(vector)!=unload_state[1] ||
         get16(vector+2)!=unload_state[2]) return E_ACCESS;
@@ -379,11 +382,11 @@ int dispatch(void) {
             /* ABI 1 foreground feedback. Never enabled by DOS file callbacks.
              * Caller checks stdout before asking for BIOS console updates. */
             if (regs.si==12) { success(); regs.cx=1; return 1; }
-            if (regs.si==1 || regs.si==2 || regs.si==10 || regs.si==11) {
+            if ((regs.si>=1 && regs.si<=3) || regs.si==10 || regs.si==11) {
                 U16 command=regs.si, code, feedback=0;
                 if (command==11) {
                     command=regs.cx; feedback=regs.di;
-                    if ((command!=1 && command!=2 && command!=10) || feedback>1)
+                    if (!command || (command>3 && command!=10) || feedback>1)
                         return error(1);
                 }
                 rw_feedback(feedback);
@@ -419,6 +422,7 @@ int dispatch(void) {
                 if (fs_required==32) info.flags|=128;
                 if (!sd_verify_writes) info.flags|=8;
                 if (rw_skip_fat_check) info.flags|=16;
+                if (rw_recover==2) info.flags|=256;
                 info.version=OTTER_VERSION; info.resident=resident_bytes;
                 info.sd_ticks=mount_sd_ticks; info.fs_ticks=mount_fs_ticks; info.abi=1;
                 return query_out(&info,sizeof(info));
