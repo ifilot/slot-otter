@@ -38,7 +38,28 @@ extern U8 resident_end;
 
 /* Installer/control output only. Avoid pulling stdio formatting, streams and
  * buffering into the TSR. DOS handle 1 preserves command-line redirection. */
-static U16 control_error;
+/* Initialized installer data moves to discarded INITDATA; uninitialized
+ * statics would land in resident _BSS (installer_segments.py rejects them). */
+static U16 control_error=0;
+/* Whitespace-separated words of the PSP command tail; slot 0 is unused. */
+#define MAX_ARGUMENTS 24
+static char command_tail[128]={0};
+static char *arguments[MAX_ARGUMENTS]={0};
+static int far command_line(void) {
+    U8 far *psp=(U8 far *)MK_FP(_psp,0);
+    U16 i, length=psp[0x80];
+    int count=1;
+    if (length>126) length=126;
+    for (i=0;i<length;++i) command_tail[i]=psp[0x81+i];
+    command_tail[length]=0;
+    for (i=0;;) {
+        while (command_tail[i]==' ' || command_tail[i]=='\t') command_tail[i++]=0;
+        if (!command_tail[i]) return count;
+        if (count==MAX_ARGUMENTS) return -1;
+        arguments[count++]=command_tail+i;
+        while (command_tail[i] && command_tail[i]!=' ' && command_tail[i]!='\t') ++i;
+    }
+}
 static void far text(const char *value) {
     union REGS r;
     r.x.ax=0x4000; r.x.bx=1; r.x.cx=i_strlen(value); r.x.dx=(U16)value;
@@ -213,7 +234,9 @@ static int far unload_driver(U16 drive,U16 console) {
     return 0;
 }
 
-int far installer(int argc, char **argv) {
+int far installer(void) {
+    char **argv=arguments;
+    int argc=command_line();
     union REGS r;
     struct SREGS s;
     U8 far *lol, far *cds;
@@ -224,6 +247,7 @@ int far installer(int argc, char **argv) {
     int have_recover;
     have_drive=command=have_port=have_access=have_noverify=have_skipfat=have_format=0;
     have_recover=0;
+    if (argc<0) return usage();
     for (i=1; i<argc; ++i) {
         i_option_upper(argv[i]);
         if (!i_strncmp(argv[i], "/DRIVE:", 7) && i_strlen(argv[i])==8 &&

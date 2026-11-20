@@ -8,7 +8,7 @@
 unsigned _stklen=2048;
 /* Includes the discarded installer code, strings and mount diagnostics. */
 unsigned _heaplen=10240;
-int main(int argc,char **argv) { return installer(argc,argv); }
+int main(void) { return installer(); }
 int FAR i_int86(int n,union REGS *in,union REGS *out) { return int86(n,in,out); }
 int FAR i_int86x(int n,union REGS *in,union REGS *out,struct SREGS *s) {
     return int86x(n,in,out,s);

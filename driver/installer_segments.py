@@ -30,6 +30,11 @@ def transform(path):
             raise RuntimeError('Installer contains an external near/runtime call: '+call)
     if re.search(r'\bproc\s+near\b',text,re.I):
         raise RuntimeError('Installer contains a near function')
+    # Turbo C emits uninitialized statics in _BSS, which is not renamed and
+    # would stay resident. Installer data must be initialized (INITDATA).
+    for block in re.finditer(r'(?ms)^_BSS\s+segment[^\n]*\n(.*?)^_BSS\s+ends',text):
+        if re.search(r'(?m)^\w+\s+label\b',block[1]):
+            raise RuntimeError('Installer contains uninitialized (resident) data')
     text=text.replace('_DATA','INITDATA')
     text=re.sub(r"(INITTAIL\s+segment\s+byte public )'CODE'",r"\1'INSTALL'",text)
     text=re.sub(r"(INITDATA\s+segment\s+word public )'DATA'",r"\1'INSTALL'",text)

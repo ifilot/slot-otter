@@ -2,7 +2,7 @@
 #ifndef INSTALL_H
 #define INSTALL_H
 #include "OTTER.H"
-int FAR installer(int argc,char **argv);
+int FAR installer(void);
 int FAR i_int86(int n,union REGS *in,union REGS *out);
 int FAR i_int86x(int n,union REGS *in,union REGS *out,struct SREGS *s);
 void FAR i_segread(struct SREGS *s);
