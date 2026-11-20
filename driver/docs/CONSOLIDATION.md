@@ -34,7 +34,7 @@ kits and are not uploaded as GitHub release downloads.
 
 ## Developer kit
 
-Resident allocation is **42,064 bytes including the PSP**, in both access
+Resident allocation is **40,208 bytes including the PSP**, in both access
 modes. The 2,048-byte private stack, 16 open handles and 32 searches remain.
 Sequential writable-mode reads retain per-handle cluster positions. Four FAT
 sectors and two directory sectors are cached independently of file payload.

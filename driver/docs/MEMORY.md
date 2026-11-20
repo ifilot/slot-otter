@@ -1,13 +1,23 @@
 # Resident memory
 
-The current **OTTERSD 1.2.0** allocation is **42,064 bytes (41.1 KiB)** including
-the PSP, in both `/RO` and `/RW`: 1,952 bytes below 1.1.5. Code (`_TEXT`) shrinks by 2,062 bytes; capacities, caches, the 2,048-byte
-stack, 16 handles and 32 searches are unchanged. The savings come from shared
-failure/authentication/mirror helpers in RWFS.C, shared directory-entry and
-SFT/query fills, and pointer iteration over the redirector's file and lock
-tables, which removes 53 multiplications by the structure size. The inline
-payload transfer loops cost 96 bytes of this budget. The 45,000-byte
-qualification ceiling is unchanged. `/UNLOAD` reclaims the complete resident
+The current **OTTERSD 1.2.0** allocation is **40,208 bytes (39.3 KiB)** including
+the PSP, in both `/RO` and `/RW`: 3,808 bytes below 1.1.5. Capacities, caches,
+the 2,048-byte stack, 16 handles and 32 searches are unchanged.
+
+| Change | Resident bytes |
+| --- | ---: |
+| Shared filesystem/redirector helpers, pointer iteration over file and lock tables | -2,048 |
+| Inline 512-byte payload transfer loops | +96 |
+| `/RECOVER` dirty-volume recovery | +128 |
+| Installer parses the command tail; CRT `_setargv` not linked | -240 |
+| 16-entry command CRC7 table instead of 256 entries | -176 |
+| Installer interrupt helpers in discarded INSTINT.ASM; CRT int86/int86x/segread/getvect/setvect and errno mapping not linked | -528 |
+| Callee-popped `pascal` calls (`CALLEE` in OTTER.H) for internal helpers | -1,056 |
+
+`CALLEE` is empty in host tests. Functions called from assembly, native tests,
+far gates or interrupt entry points keep the C convention. Turbo C evaluates
+`pascal` arguments left to right; keep side effects out of their arguments.
+The 45,000-byte qualification ceiling is unchanged. `/UNLOAD` reclaims the complete resident
 allocation when its existing safety conditions are met.
 
 The current qualification ceiling is 45,000 bytes. Exact measured layout and

@@ -60,7 +60,7 @@ Use the actual configured ISA base port instead of 330 if it differs; port
 values are hexadecimal. Installation must report verified read/write and a
 mounted card. Without /RW, OTTERSD installs read-only and write tests refuse
 to proceed. Use /RO to select read-only explicitly. Both modes use the same consolidated
-42,064-byte resident allocation. Use OTTERSD 1.2.0 and HWRT 1.2.0 from the SAME kit. Replace earlier executable
+40,208-byte resident allocation. Use OTTERSD 1.2.0 and HWRT 1.2.0 from the SAME kit. Replace earlier executable
 files in your local kit directory; update any old AUTOEXEC.BAT command names.
 
 Keep the complete local directory for each card, and copy its logs to a
@@ -299,7 +299,7 @@ the filesystem improvements or /NOVERIFY.
 ## Reclaim memory before running a game
 
 The installer releases its temporary code, heap and startup stack automatically.
-OTTERSD 1.2.0 retains 42,064 bytes of conventional memory including its PSP.
+OTTERSD 1.2.0 retains 40,208 bytes of conventional memory including its PSP.
 `/UNMOUNT` makes the drive offline but does not reclaim that memory. `/UNLOAD`
 commits any closed-file changes, restores the drive's original DOS state and
 interrupt vector, and releases the entire resident memory block.

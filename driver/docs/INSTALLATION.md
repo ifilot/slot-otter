@@ -76,7 +76,7 @@ and unmount before removing the card:
     C:\OTTERSD\OTTERSD /UNMOUNT
 
 Insert the replacement and run OTTERSD /MOUNT. /UNMOUNT keeps the driver
-resident. To reclaim its approximately 42 KiB of conventional memory for a
+resident. To reclaim its approximately 40 KiB of conventional memory for a
 game, run OTTERSD /UNLOAD after closing files and switching to a local drive.
 Unloading flushes filesystem state and refuses unsafe conditions, including
 open files or a later resident program hooking its interrupt chain.

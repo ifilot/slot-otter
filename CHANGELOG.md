@@ -7,8 +7,10 @@
   split byte tables without shifts. SPI commands are unchanged. A first
   physical run on a 20 MHz 80286 wrote FAT16 at about 24 KiB/s and read at
   about 60 KiB/s.
-- Reduce the resident allocation from 44,016 to 42,064 bytes by sharing
-  filesystem and redirector code paths. Capacities and caches are unchanged.
+- Reduce the resident allocation from 44,016 to 40,208 bytes: shared
+  filesystem and redirector code paths, installer-only command-line and
+  interrupt handling, a smaller command CRC table and callee-popped calls
+  for internal helpers. Capacities and caches are unchanged.
 - Add `/RECOVER` (installation with `/RW`, or `OTTERSD /MOUNT /RECOVER`) to
   accept a card switched off without `/UNMOUNT`. It requires a clear FAT
   I/O-error flag and a complete match of all FAT copies, then marks the volume
