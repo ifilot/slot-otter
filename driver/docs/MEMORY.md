@@ -1,5 +1,16 @@
 # Resident memory
 
+## optimize/driver branch
+
+Resident allocation is **42,064 bytes** including the PSP, 1,952 bytes below
+1.1.5. Code (`_TEXT`) shrinks by 2,062 bytes; capacities, caches, the 2,048-byte
+stack, 16 handles and 32 searches are unchanged. The savings come from shared
+failure/authentication/mirror helpers in RWFS.C, shared directory-entry and
+SFT/query fills, and pointer iteration over the redirector's file and lock
+tables, which removes 53 multiplications by the structure size. The inline
+payload transfer loops cost 96 bytes of this budget. The 45,000-byte
+qualification ceiling is unchanged.
+
 The current **OTTERSD 1.1.5** allocation is **44,016 bytes (43.0 KiB)** including
 the PSP, in both `/RO` and `/RW`. The increase over 0.14 is 4,528 bytes for read
 caches, per-handle cursor state, directory attribute handling, mount diagnostics
