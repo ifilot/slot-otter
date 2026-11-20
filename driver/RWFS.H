@@ -29,6 +29,10 @@ extern U8 rw_skip_fat_check;
  * comparison pass, and mark it clean. rw_mount resets it to 0, or to 2 when
  * it cleared the flag. This is not a chain/lost-cluster check. */
 extern U8 rw_recover;
+#ifndef HOST_TEST
+/* FASTIO.ASM: BIOS teletype output for foreground feedback only. */
+void bios_putc(U8 c);
+#endif
 /* Private query 13: retain the writable-mount rejection after offline() clears
  * Volume. Independent of the fixed SD diagnostic ABI; no media I/O on query. */
 #define MOUNT_GEOMETRY 1

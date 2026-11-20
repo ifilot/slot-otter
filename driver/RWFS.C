@@ -20,10 +20,8 @@ static void feedback_char(U8 c) {
   if (rw_feedback_length<sizeof(rw_feedback_output))
     rw_feedback_output[rw_feedback_length++]=c;
 #else
-  union REGS r;
-  /* Query the active page; do not assume page zero or a color adapter. */
-  r.h.ah=0x0f; int86(0x10,&r,&r);
-  r.h.ah=0x0e; r.h.al=c; r.h.bl=7; int86(0x10,&r,&r);
+  /* FASTIO.ASM queries the active page; it does not assume page zero. */
+  bios_putc(c);
 #endif
 }
 void rw_feedback(U16 enabled) {

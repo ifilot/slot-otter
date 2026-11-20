@@ -38,6 +38,20 @@ extern U8 resident_end;
 
 /* Installer/control output only. Avoid pulling stdio formatting, streams and
  * buffering into the TSR. DOS handle 1 preserves command-line redirection. */
+typedef void interrupt far (*Vector)(void);
+/* DOS get/set interrupt vector through the discarded interrupt helper. */
+static Vector far vector_get(U8 n) {
+    union REGS r;
+    struct SREGS s;
+    segread(&s); r.h.ah=0x35; r.h.al=n; int86x(0x21,&r,&r,&s);
+    return (Vector)MK_FP(s.es,r.x.bx);
+}
+static void far vector_set(U8 n,Vector handler) {
+    union REGS r;
+    struct SREGS s;
+    segread(&s); r.h.ah=0x25; r.h.al=n;
+    r.x.dx=FP_OFF(handler); s.ds=FP_SEG(handler); int86x(0x21,&r,&r,&s);
+}
 /* Initialized installer data moves to discarded INITDATA; uninitialized
  * statics would land in resident _BSS (installer_segments.py rejects them). */
 static U16 control_error=0;

@@ -184,7 +184,8 @@ unchanged. Volumes above about 2 GiB still exceed what the call can report.
 | REDIR.C / RWOPS.C / RWDIR.C | DOS redirector, handles, locks and write callbacks |
 | FAT32.C / RWFS.C / RWFS.H | FAT16/FAT32 reading, writing and directory operations |
 | SDRW.C / RWSD.H | Card identity, recovery and verified sector transport; version number |
-| FASTIO.ASM | 8086 far memory copy |
+| FASTIO.ASM | 8086 far memory copy and BIOS progress output |
+| INSTINT.ASM | Installer-only interrupt and segment helpers; discarded after loading |
 | PORTBODY.H | Shared, exhaustively tested option parser |
 | HWRT.C / TESTCHLD.C | Hardware tester, including its self-exec child mode |
 | installer_segments.py / tests/layout.py | Checks that installer segments are discarded and the startup reserve fits |

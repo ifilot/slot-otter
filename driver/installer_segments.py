@@ -17,6 +17,8 @@ def transform(path):
     local=set(re.findall(r'(?m)^(\w+)\s+proc\s+far\b',text,re.I))
     gates={'_i_'+name for name in ('int86','int86x','segread','getvect','setvect',
                                  'mount','feedback','bridge','keep','get16','put16','put32')}
+    # INSTINT.ASM helpers share the discarded INITTAIL segment.
+    gates|={'_inst_int86x','_inst_segread'}
     # Turbo C shortens a same-segment far call to PUSH CS / CALL NEAR.
     # That has the required far return frame, and its target must be local.
     for instruction in re.finditer(r'(?m)^\s*call\s+([^\n]+)',text):
