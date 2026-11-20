@@ -50,6 +50,11 @@ int sd_read(U32 lba, U8 *buffer);
 int fs_mount(void);
 void fs_invalidate(void);
 void fs_invalidate_sector(U32 lba);
+/* Sets fs_error to E_INVALID and returns -1. */
+int fs_invalid(void);
+/* Data cluster numbers are 2..clusters+1; LBA of a valid cluster's first sector. */
+int fs_valid(U32 cluster);
+U32 fs_cluster_lba(U32 cluster);
 /* Read-only metadata cache; callers use fresh reads for mutation proofs. */
 int fs_read_metadata(U32 lba,U8 *buffer);
 /* Raw cached FAT entry, including free/EOF; zero also requires fs_error check. */

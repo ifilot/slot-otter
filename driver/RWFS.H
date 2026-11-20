@@ -51,6 +51,8 @@ int rw_flush(void);
 /* Mutations not yet covered by a successful global commit. */
 int rw_dirty_session(void);
 int rw_lookup(const char *path, RwFile *file);
+/* Fill file from the entry fs_next has just returned at cursor. */
+void rw_entry(RwFile *file, const DirCursor *cursor, const U8 *entry, U32 parent);
 int rw_refresh(RwFile *file);
 int rw_mkdir(U32 parent, const char *name, RwFile *file);
 int rw_create(U32 parent, const char *name, RwFile *file);

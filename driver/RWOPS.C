@@ -290,10 +290,7 @@ static int delete_pattern(void) {
         match=1;
         for (i=0;i<11;++i) if (pattern[i]!='?' && pattern[i]!=e[i]) { match=0; break; }
         if (!match) continue;
-        memset(&f,0,sizeof(f)); f.first=fs_entry_cluster(e); f.size=get32(e+28);
-        f.parent=parent; f.attr=e[11]; f.time=get16(e+22); f.date=get16(e+24);
-        f.lba=fs_dir_lba(cursor.cluster,(U16)(cursor.slot-1));
-        f.offset=(U16)((cursor.slot-1)%16)*32;
+        rw_entry(&f,&cursor,e,parent);
         if (file_busy(&f)) return error(E_SHARE);
         if (rw_delete(&f)) return filesystem_error();
         found=1;

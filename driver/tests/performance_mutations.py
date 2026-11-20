@@ -10,8 +10,8 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 CASES = [
     ('omit audit exit authentication', 'RWFS.C',
-     'if (n>=0x0ffffff8UL) {\n      if (sd_check_media())',
-     'if (n>=0x0ffffff8UL) {\n      if (0)',
+     '    if (n>=0x0ffffff8UL) return authenticate();',
+     '    if (n>=0x0ffffff8UL) return 0;',
      'test_performance.PerformanceGuards.test_mid_audit_removal_and_replacement_never_accept_cached_proof'),
     ('ignore command CRC input', 'SDRW.C',
      'crc7_table[(U8)((crc<<1)^p[i])]', 'crc7_table[(U8)((crc<<1)^(p[i]&0))]',

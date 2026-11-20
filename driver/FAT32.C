@@ -44,6 +44,7 @@ void fs_invalidate_sector(U32 lba) {
 }
 
 static int fail(U16 error) { fs_error = error; return -1; }
+int fs_invalid(void) { return fail(E_INVALID); }
 static U8 *cached_sector(U32 lba,CachedSector *cache,U8 mask,U8 *next) {
     unsigned i;
     int result;
@@ -81,8 +82,8 @@ static int sector(U32 lba, int fat) {
     data_lba=lba;
     return 0;
 }
-static int valid_cluster(U32 c) { return c >= 2 && c - 2 < volume.clusters; }
-static U32 cluster_lba(U32 c) { return volume.data + ((c-2)<<fs_spc_shift); }
+int fs_valid(U32 c) { return c >= 2 && c - 2 < volume.clusters; }
+U32 fs_cluster_lba(U32 c) { return volume.data + ((c-2)<<fs_spc_shift); }
 /* Keep EOF/bad/reserved values in the existing FAT32-shaped internal range.
  * The on-disk entry remains exactly two bytes for FAT16. */
 U32 fs_fat_sector(U32 c) {
@@ -100,10 +101,10 @@ U32 fs_fat_value(const U8 *p,U32 c) {
     return value>=0xfff0U?0x0fff0000UL|value:(U32)value;
 }
 U32 fs_dir_lba(U32 c,U16 slot) {
-    return (volume.fat_bits==16 && c==ROOT16?volume.root_lba:cluster_lba(c))+slot/16;
+    return (volume.fat_bits==16 && c==ROOT16?volume.root_lba:fs_cluster_lba(c))+slot/16;
 }
 U32 fs_fat_entry(U32 c) {
-    if (!valid_cluster(c)) { (void)fail(E_INVALID); return 0; }
+    if (!fs_valid(c)) { (void)fs_invalid(); return 0; }
     if (sector(volume.fat + fs_fat_sector(c), 1)) return 0;
     return fs_fat_value(fat_buffer,c);
 }
@@ -111,7 +112,7 @@ static int next_cluster(U32 c, U32 *next) {
     fs_error=0; *next=fs_fat_entry(c);
     if (fs_error) return -1;
     if (*next >= 0x0ffffff8UL) return 1;
-    if (!valid_cluster(*next)) return fail(E_INVALID);
+    if (!fs_valid(*next)) return fs_invalid();
     return 0;
 }
 
@@ -123,7 +124,7 @@ int fs_mount(void) {
     fs_invalidate();
     memset(&volume, 0, sizeof(volume));
     if (sector(0, 0)) return -1;
-    if (get16(data_buffer+510) != 0xaa55) return fail(E_INVALID);
+    if (get16(data_buffer+510) != 0xaa55) return fs_invalid();
     start = 0; limit = 0; found = 0;
     /* BPB geometry identifies a superfloppy. Otherwise use the first
      * supported primary MBR partition; extended partitions/GPT are excluded. */
@@ -137,11 +138,11 @@ int fs_mount(void) {
             }
         }
         if (!found || !start || !limit || start > 0xffffffffUL-limit)
-            return fail(E_INVALID);
+            return fs_invalid();
         if (sector(start, 0)) return -1;
     }
     if (get16(data_buffer+510)!=0xaa55 || get16(data_buffer+11)!=512)
-        return fail(E_INVALID);
+        return fs_invalid();
     volume.spc = data_buffer[13];
     nfats=data_buffer[16]; reserved=get16(data_buffer+14);
     entries=get16(data_buffer+17); fatsz=get16(data_buffer+22);
@@ -149,7 +150,7 @@ int fs_mount(void) {
     if (!total) total=get32(data_buffer+32);
     active=0;
     if (!fatsz) {
-        if (entries || get16(data_buffer+42)) return fail(E_INVALID);
+        if (entries || get16(data_buffer+42)) return fs_invalid();
         fatsz=get32(data_buffer+36); flags=get16(data_buffer+40);
         active=(flags&0x80)?(U8)(flags&15):0;
     }
@@ -157,10 +158,10 @@ int fs_mount(void) {
         !reserved || !nfats || active>=nfats || !fatsz || !total ||
         (limit && total>limit) || start>0xffffffffUL-total ||
         reserved>=total || fatsz>(total-reserved)/nfats)
-        return fail(E_INVALID);
+        return fs_invalid();
     roots=((U32)entries+15)/16;
     overhead=reserved+fatsz*nfats;
-    if (roots>=total-overhead) return fail(E_INVALID);
+    if (roots>=total-overhead) return fs_invalid();
     overhead+=roots;
     /* Type is determined by cluster count, never the printable FAT label. */
     fs_spc_shift=0;
@@ -168,19 +169,19 @@ int fs_mount(void) {
     volume.clusters=(total-overhead)>>fs_spc_shift;
     volume.fat_bits=volume.clusters<65525UL?16:32;
     if (volume.clusters<4085UL || volume.clusters>0x0fffffeeUL ||
-        (fs_required && fs_required!=volume.fat_bits)) return fail(E_INVALID);
+        (fs_required && fs_required!=volume.fat_bits)) return fs_invalid();
     if (volume.fat_bits==16) {
         /* Avoid data cluster numbers colliding with reserved FAT16 markers. */
         if (!entries || (entries&15) || !get16(data_buffer+22) ||
             volume.clusters>65518UL || fatsz<(volume.clusters+2+255)/256)
-            return fail(E_INVALID);
+            return fs_invalid();
         volume.root=ROOT16; volume.root_entries=entries;
         volume.root_lba=start+reserved+fatsz*nfats;
     } else {
         if (entries || get16(data_buffer+22) ||
-            fatsz<(volume.clusters+2+127)/128) return fail(E_INVALID);
+            fatsz<(volume.clusters+2+127)/128) return fs_invalid();
         volume.root=get32(data_buffer+44)&0x0fffffffUL;
-        if (!valid_cluster(volume.root)) return fail(E_INVALID);
+        if (!fs_valid(volume.root)) return fs_invalid();
     }
     volume.start=start; volume.total=total; volume.fat_sectors=fatsz;
     volume.fat=start+reserved+fatsz*active;
@@ -204,10 +205,10 @@ int fs_next(DirCursor *cursor, U8 entry[32]) {
         if (volume.fat_bits==16 && cursor->cluster==ROOT16) {
             if (cursor->slot>=volume.root_entries) { cursor->cluster=0; return 1; }
         } else {
-            if (!valid_cluster(cursor->cluster)) return fail(E_INVALID);
+            if (!fs_valid(cursor->cluster)) return fs_invalid();
             if (cursor->slot >= slots) {
                 if (cursor->hops == 65535U || (U32)cursor->hops >= volume.clusters)
-                    return fail(E_INVALID);
+                    return fs_invalid();
                 ++cursor->hops;
                 result = next_cluster(cursor->cluster, &next);
                 if (result < 0) return -1;
@@ -295,7 +296,7 @@ int fs_parent(const char *path, U32 *cluster, char leaf[13]) {
         if (!(entry[11]&16)) return fail(E_PATH);
         *cluster=fs_entry_cluster(entry);
         if (!*cluster) *cluster=volume.root;
-        if (*cluster!=volume.root && !valid_cluster(*cluster)) return fail(E_INVALID);
+        if (*cluster!=volume.root && !fs_valid(*cluster)) return fs_invalid();
         if (!*p) { leaf[0]=0; return 0; }
     }
 }
@@ -319,18 +320,18 @@ int fs_read(FileCursor *cursor, U32 position, U8 FAR *buffer,
     int result;
     *done = 0;
     wanted = position>>(9+fs_spc_shift);
-    if (!valid_cluster(cursor->first) || wanted >= volume.clusters)
-        return fail(E_INVALID);
-    if (!valid_cluster(cursor->cluster) || wanted < cursor->index) {
+    if (!fs_valid(cursor->first) || wanted >= volume.clusters)
+        return fs_invalid();
+    if (!fs_valid(cursor->cluster) || wanted < cursor->index) {
         cursor->cluster=cursor->first; cursor->index=0;
     }
     while (cursor->index < wanted) {
         result=next_cluster(cursor->cluster, &next);
-        if (result) return result < 0 ? -1 : fail(E_INVALID);
+        if (result) return result < 0 ? -1 : fs_invalid();
         cursor->cluster=next; ++cursor->index;
     }
     while (count) {
-        lba=cluster_lba(cursor->cluster)+((position>>9)&(volume.spc-1U));
+        lba=fs_cluster_lba(cursor->cluster)+((position>>9)&(volume.spc-1U));
         offset=(U16)(position & 511);
         chunk=512-offset; if (chunk > count) chunk=count;
         if (sector(lba, 0)) return -1;
@@ -341,9 +342,9 @@ int fs_read(FileCursor *cursor, U32 position, U8 FAR *buffer,
         fs_copy(buffer,data_buffer+offset,chunk);
         buffer+=chunk; position+=chunk; *done+=chunk; count-=chunk;
         if (count && !(position&(((U32)volume.spc<<9)-1UL))) {
-            if (cursor->index+1 >= volume.clusters) return fail(E_INVALID);
+            if (cursor->index+1 >= volume.clusters) return fs_invalid();
             result=next_cluster(cursor->cluster, &next);
-            if (result) return result < 0 ? -1 : fail(E_INVALID);
+            if (result) return result < 0 ? -1 : fs_invalid();
             cursor->cluster=next; ++cursor->index;
         }
     }
