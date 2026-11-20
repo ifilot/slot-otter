@@ -59,24 +59,24 @@ int rw_begin(void);
 int rw_flush(void);
 /* Mutations not yet covered by a successful global commit. */
 int rw_dirty_session(void);
-int rw_lookup(const char *path, RwFile *file);
+int CALLEE rw_lookup(const char *path, RwFile *file);
 /* Fill file from the entry fs_next has just returned at cursor. */
-void rw_entry(RwFile *file, const DirCursor *cursor, const U8 *entry, U32 parent);
+void CALLEE rw_entry(RwFile *file, const DirCursor *cursor, const U8 *entry, U32 parent);
 int rw_refresh(RwFile *file);
 int rw_mkdir(U32 parent, const char *name, RwFile *file);
 int rw_create(U32 parent, const char *name, RwFile *file);
 int rw_read(const RwFile *file, U32 pos, U8 FAR *data, U16 count, U16 *done);
 /* A null append buffer supplies zeroes (gap/extension initialization). */
-int rw_append(RwFile *file, const U8 FAR *data, U16 count);
+int CALLEE rw_append(RwFile *file, const U8 FAR *data, U16 count);
 int rw_overwrite(RwFile *file, U32 pos, const U8 FAR *data, U16 count);
-int rw_truncate(RwFile *file, U32 size);
+int CALLEE rw_truncate(RwFile *file, U32 size);
 /* done reports completed bytes; count==0 resizes the file to pos. */
 int rw_write(RwFile *file, U32 pos, const U8 FAR *data, U16 count, U16 *done);
-int rw_resize(RwFile *file, U32 size);
+int CALLEE rw_resize(RwFile *file, U32 size);
 int rw_delete(RwFile *file);
 int rw_rmdir(RwFile *file);
-int rw_metadata(RwFile *file, U8 attr, U16 time, U16 date);
+int CALLEE rw_metadata(RwFile *file, U8 attr, U16 time, U16 date);
 int rw_rename(RwFile *file, const char *destination);
 int rw_free_space(U32 *count);
-U32 rw_fat(U32 cluster);
+U32 CALLEE rw_fat(U32 cluster);
 #endif

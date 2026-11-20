@@ -12,14 +12,14 @@ static RegionLock locks[MAX_LOCKS];
 #ifdef HOST_TEST
 U32 rw_bios_ticks;
 #endif
-static int rw_result(int result) {
+static int CALLEE rw_result(int result) {
     return result ? filesystem_error() : success();
 }
-static int same_file(const RwFile *a,const RwFile *b) {
+static int CALLEE same_file(const RwFile *a,const RwFile *b) {
     /* Directory location is stable while open: rename/delete are refused. */
     return a->lba==b->lba && a->offset==b->offset;
 }
-static U16 access_bits(U16 mode) {
+static U16 CALLEE access_bits(U16 mode) {
     return (mode&3)==0?1:(mode&3)==1?2:3;
 }
 static U16 denied_bits(U16 mode) {
@@ -52,7 +52,7 @@ static int file_busy(const RwFile *f) {
         if (o->sft && same_file(f,&FILE_DISK(o))) return 1;
     return 0;
 }
-static void timestamp(U16 *time,U16 *date) {
+static void CALLEE timestamp(U16 *time,U16 *date) {
     /* Resident callbacks cannot ask DOS for the clock. DOS keeps the date in
      * SDA; BIOS ticks supply time. Sample high/low/high on the 16-bit CPU so
      * an IRQ increment between word reads cannot tear the 32-bit counter. */
@@ -85,7 +85,7 @@ static void timestamp(U16 *time,U16 *date) {
 }
 /* A differing SFT time/date is a pending DOS handle-time update. Preserve it
  * while refreshing metadata changed by another independently opened handle. */
-static int refresh_file(OpenFile *file) {
+static int CALLEE refresh_file(OpenFile *file) {
     U16 time=get16(file->sft+13),date=get16(file->sft+15);
     int pending=time!=FILE_DISK(file).time || date!=FILE_DISK(file).date;
     if (rw_refresh(&FILE_DISK(file))) return -1;
@@ -96,7 +96,7 @@ static int refresh_file(OpenFile *file) {
 }
 /* DOS caches EOF in each SFT, including for seek. Publish size immediately
  * to all independent handles without changing their individual positions. */
-static void sync_files(OpenFile *file) {
+static void CALLEE sync_files(OpenFile *file) {
     U16 time,date;
     OpenFile *o;
     for (o=files;o<files+MAX_OPEN;++o) {
@@ -110,7 +110,7 @@ static void sync_files(OpenFile *file) {
         put16(o->sft+13,time); put16(o->sft+15,date);
     }
 }
-static int rw_open_file(U8 FAR *sft,U16 mode,U16 action,U8 attr) {
+static int CALLEE rw_open_file(U8 FAR *sft,U16 mode,U16 action,U8 attr) {
     U16 branch,time,date;
     U32 parent;
     char leaf[13];
@@ -150,11 +150,11 @@ static int rw_open_file(U8 FAR *sft,U16 mode,U16 action,U8 attr) {
     sync_files(find_file(sft));
     success(); regs.cx=branch; return 1;
 }
-static int overlap(U32 start,U32 length,U32 a,U32 n) {
+static int CALLEE overlap(U32 start,U32 length,U32 a,U32 n) {
     /* Overflow-free half-open interval comparison. */
     return length && n && (start>=a ? start-a<n : a-start<length);
 }
-static int locked(OpenFile *file,U32 start,U32 length) {
+static int CALLEE locked(OpenFile *file,U32 start,U32 length) {
     RegionLock *l;
     for (l=locks;l<locks+MAX_LOCKS;++l)
         if (l->sft && l->sft!=file->sft &&
@@ -166,7 +166,7 @@ static void unlock_file(U8 FAR *sft) {
     RegionLock *l;
     for (l=locks;l<locks+MAX_LOCKS;++l) if (l->sft==sft) l->sft=0;
 }
-static int rw_lock_file(U8 FAR *sft,U8 fn) {
+static int CALLEE rw_lock_file(U8 FAR *sft,U8 fn) {
     OpenFile *file=find_file(sft);
     U8 FAR *p;
     U32 start,length;
@@ -239,7 +239,7 @@ static int rw_write_file(U8 FAR *sft) {
     }
     return filesystem_error();
 }
-static int rw_commit_file(U8 FAR *sft,int closing) {
+static int CALLEE rw_commit_file(U8 FAR *sft,int closing) {
     /* Commit failure must not strand a final close: release our slot/locks
      * even with removed/poisoned media. Duplicate handles share an SFT, so
      * locks survive until its last DOS reference has closed. */

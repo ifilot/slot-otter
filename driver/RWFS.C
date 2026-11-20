@@ -15,7 +15,7 @@ static U16 feedback_enabled, feedback_line, feedback_tick, feedback_percent;
 U8 rw_feedback_output[4096];
 U16 rw_feedback_length;
 #endif
-static void feedback_char(U8 c) {
+static void CALLEE feedback_char(U8 c) {
 #ifdef HOST_TEST
   if (rw_feedback_length<sizeof(rw_feedback_output))
     rw_feedback_output[rw_feedback_length++]=c;
@@ -31,7 +31,7 @@ void rw_feedback(U16 enabled) {
   if (enabled) rw_feedback_length=0;
 #endif
 }
-static void feedback_update(U32 done,U32 total) {
+static void CALLEE feedback_update(U32 done,U32 total) {
   U16 tick, percent, finished;
   const char *p;
   if (!feedback_enabled) return;
@@ -71,13 +71,13 @@ static void invalidate_reads(void) {
    * After wrap, reads always start fresh for the rest of this installation. */
   if (rw_read_serial) ++rw_read_serial;
 }
-static int chain_valid(U32 c);
-static int validate_file(RwFile *f);
-static int erase_lfn(RwFile *f);
-static int same_name(const U8 *raw,const U8 *pattern) {
+static int CALLEE chain_valid(U32 c);
+static int CALLEE validate_file(RwFile *f);
+static int CALLEE erase_lfn(RwFile *f);
+static int CALLEE same_name(const U8 *raw,const U8 *pattern) {
   return (raw[0]==5?229:raw[0])==pattern[0] && !memcmp(raw+1,pattern+1,10);
 }
-static int fail(unsigned code) {
+static int CALLEE fail(unsigned code) {
   fs_error = code;
   return -1;
 }
@@ -89,7 +89,7 @@ static int inconsistent(void) {
   poison();
   return fs_invalid();
 }
-static int read_sector(U32 lba,U8 *p) {
+static int CALLEE read_sector(U32 lba,U8 *p) {
   int result=sd_read(lba,p);
   if (!result) return 0;
   poison();
@@ -107,13 +107,13 @@ static int authenticate(void) {
 }
 /* The fixed FAT16 root is outside the cluster area. Never admit a FAT or
  * reserved sector as a writable directory slot. */
-static int slot_valid(U32 lba,U16 offset) {
+static int CALLEE slot_valid(U32 lba,U16 offset) {
   if ((offset&31) || offset>480 || lba>=rw_end) return 0;
   if (lba>=volume.data) return 1;
   return volume.fat_bits==16 && lba>=volume.root_lba &&
          lba-volume.root_lba<(U32)volume.root_entries/16;
 }
-static int raw_store(U32 lba, const U8 *p) {
+static int CALLEE raw_store(U32 lba, const U8 *p) {
   int result;
   if (unarmed()) return -1;
   if (lba < rw_start || lba >= rw_end || lba == rw_start || lba == backup_boot ||
@@ -125,11 +125,11 @@ static int raw_store(U32 lba, const U8 *p) {
   if (result) return fail((U16)result);
   return 0;
 }
-static int store(U32 lba, const U8 *p) {
+static int CALLEE store(U32 lba, const U8 *p) {
   if (!dirty) return fs_invalid();
   return raw_store(lba,p);
 }
-U32 rw_fat(U32 c) {
+U32 CALLEE rw_fat(U32 c) {
   if (!fs_valid(c)) {
     fs_invalid();
     return 0;
@@ -142,17 +142,17 @@ U32 rw_fat(U32 c) {
   if (fs_error) poison();
   return c;
 }
-static void load_entry(RwFile *f,const U8 *e) {
+static void CALLEE load_entry(RwFile *f,const U8 *e) {
   f->first=fs_entry_cluster(e); f->size=get32(e+28);
   f->attr=e[11]; f->time=get16(e+22); f->date=get16(e+24);
 }
-void rw_entry(RwFile *f,const DirCursor *cursor,const U8 *e,U32 parent) {
+void CALLEE rw_entry(RwFile *f,const DirCursor *cursor,const U8 *e,U32 parent) {
   memset(f,0,sizeof(*f)); load_entry(f,e);
   f->lba=fs_dir_lba(cursor->cluster,(U16)(cursor->slot-1));
   f->offset=(U16)((cursor->slot-1)%16)*32; f->parent=parent;
   f->directory=(U8)((e[11]&16)!=0);
 }
-int rw_lookup(const char *path, RwFile *f) {
+int CALLEE rw_lookup(const char *path, RwFile *f) {
   U32 parent;
   char leaf[13];
   U8 pattern[11], e[32];
@@ -198,7 +198,7 @@ int rw_refresh(RwFile *f) {
   load_entry(f,e); f->last=0;
   fs_error=0; return 0;
 }
-int rw_metadata(RwFile *f,U8 attr,U16 time,U16 date) {
+int CALLEE rw_metadata(RwFile *f,U8 attr,U16 time,U16 date) {
   if (!f->lba || (attr&0xd8)!=(f->attr&0x10)) return fail(E_ACCESS);
   if (validate_file(f)) return -1;
   if (rw_begin() || read_sector(f->lba,block)) return -1;
@@ -209,7 +209,7 @@ int rw_metadata(RwFile *f,U8 attr,U16 time,U16 date) {
 }
 /* block contains the primary FAT sector at this offset from the FAT start.
  * Never overwrite a disagreeing mirror, even with fast mounting. */
-static int compare_mirrors(U32 offset) {
+static int CALLEE compare_mirrors(U32 offset) {
   unsigned f;
   if (!mirrored) return 0;
   for (f=1;f<fat_count;++f) {
@@ -220,7 +220,7 @@ static int compare_mirrors(U32 offset) {
   return 0;
 }
 /* Store block to the active FAT sector, then to every enabled mirror. */
-static int store_fat(U32 offset) {
+static int CALLEE store_fat(U32 offset) {
   unsigned f;
   if (raw_store(volume.fat+offset,block)) return -1;
   if (mirrored) for (f=1;f<fat_count;++f) {
@@ -231,7 +231,7 @@ static int store_fat(U32 offset) {
 }
 /* block already contains this primary FAT sector. Compare every mirror
  * before changing it; the allocation scan can supply the same fresh read. */
-static int setfat_loaded(U32 c, U32 value) {
+static int CALLEE setfat_loaded(U32 c, U32 value) {
   U32 sector=fs_fat_sector(c);
   unsigned offset=fs_fat_offset(c);
   if (!fs_valid(c)) return fs_invalid();
@@ -241,12 +241,12 @@ static int setfat_loaded(U32 c, U32 value) {
   if (!dirty) return fs_invalid();
   return store_fat(sector);
 }
-static int setfat(U32 c,U32 value) {
+static int CALLEE setfat(U32 c,U32 value) {
   if (!fs_valid(c)) return fs_invalid();
   if (read_sector(volume.fat+fs_fat_sector(c),block)) return -1;
   return setfat_loaded(c,value);
 }
-static U32 allocate(int clear) {
+static U32 CALLEE allocate(int clear) {
   /* Reserve as EOF. Directory clusters must be cleared before linking:
    * their entries are scanned without a byte-size limit. Regular files
    * instead initialize only bytes made visible by the published file size.
@@ -287,7 +287,7 @@ static U32 allocate(int clear) {
 /* Brent cycle detection visits each link once. Unlike a slow/fast pair, it
  * does not alternate between distant FAT sectors and evict the small cache.
  * The cluster count also establishes allocation length before mutation. */
-static int chain_length(U32 c,U32 *count,U32 wanted,U32 *at) {
+static int CALLEE chain_length(U32 c,U32 *count,U32 wanted,U32 *at) {
   U32 n, i, anchor=c, power=1, length=0;
   *count=0;
   if (at) *at=0;
@@ -310,14 +310,14 @@ static int chain_length(U32 c,U32 *count,U32 wanted,U32 *at) {
   }
   return fs_invalid();
 }
-static int chain_valid(U32 c) {
+static int CALLEE chain_valid(U32 c) {
   U32 count;
   fs_invalidate();
   if (volume.fat_bits==16 && c==ROOT16) return authenticate();
   return chain_length(c,&count,0,0);
 }
 /* Verify both the directory location and every FAT link before mutation. */
-static int validate_file(RwFile *f) {
+static int CALLEE validate_file(RwFile *f) {
   U32 count=0,needed;
   U8 *e;
   /* Begin each mutation with fresh FAT evidence. Cache only within this
@@ -351,7 +351,7 @@ static int release_chain(U32 c) {
     hint = first;
   return 0;
 }
-static int publish(RwFile *f) {
+static int CALLEE publish(RwFile *f) {
   if (read_sector(f->lba, block))
     return -1;
   if (volume.fat_bits==32)
@@ -363,7 +363,7 @@ static int publish(RwFile *f) {
 }
 /* Raw directory iteration retains LFN positions; fs_next deliberately skips
  * them. Constant memory, including when the sequence crosses a FAT boundary. */
-static int dir_slot(DirCursor *cur,U32 *lba,U16 *offset) {
+static int CALLEE dir_slot(DirCursor *cur,U32 *lba,U16 *offset) {
   U32 next;
   if (volume.fat_bits==16 && cur->cluster==ROOT16) {
     if (cur->slot>=volume.root_entries) return 1;
@@ -387,7 +387,7 @@ static U8 name_checksum(const U8 *name) {
   for (i=0;i<11;++i) sum=(U8)(((sum&1)?128:0)+(sum>>1)+name[i]);
   return sum;
 }
-static int erase_lfn(RwFile *f) {
+static int CALLEE erase_lfn(RwFile *f) {
   DirCursor cur,start;
   U32 lba;
   U16 off,remaining=0,count=0,i;
@@ -445,8 +445,8 @@ static int mirrors(void) {
   }
   return 0;
 }
-static int mark_clean(int clean);
-static int mount_rejected(U16 check,U32 lba,U32 value) {
+static int CALLEE mark_clean(int clean);
+static int CALLEE mount_rejected(U16 check,U32 lba,U32 value) {
   mount_diag.check=check; mount_diag.lba=lba; mount_diag.value=value;
   return fs_invalid();
 }
@@ -532,7 +532,7 @@ int rw_mount(void) {
   }
   return 0;
 }
-static int mark_clean(int clean) {
+static int CALLEE mark_clean(int clean) {
   U32 flags;
   if (read_sector(volume.fat,block)) return -1;
   /* FAT sector zero holds the flags; check it before any mirror store. */
@@ -593,7 +593,7 @@ static int reserve_root(const U8 pattern[11],U32 *target,U16 *slot) {
   if (!free_lba) return fail(E_FULL);
   *target=free_lba; *slot=free_offset; return 0;
 }
-static int reserve_slot(U32 parent,const U8 pattern[11],U32 *target,U16 *slot) {
+static int CALLEE reserve_slot(U32 parent,const U8 pattern[11],U32 *target,U16 *slot) {
   U32 c,next,i,free_lba=0;
   unsigned sector,offset,free_offset=0;
   int end=0;
@@ -644,7 +644,7 @@ static int reserve_slot(U32 parent,const U8 pattern[11],U32 *target,U16 *slot) {
     return fs_invalid();
   *target=free_lba; *slot=(U16)free_offset; return 0;
 }
-static int write_entry(U32 parent,U32 lba,U16 off,const U8 entry[32]) {
+static int CALLEE write_entry(U32 parent,U32 lba,U16 off,const U8 entry[32]) {
   /* Replacing an end marker must first establish the next zero marker, even
    * when that slot lies in the next sector/cluster. Otherwise stale entries
    * beyond the former end would become visible. */
@@ -676,7 +676,7 @@ static int write_entry(U32 parent,U32 lba,U16 off,const U8 entry[32]) {
   memcpy(block+off,entry,32);
   return store(lba,block);
 }
-static int create(U32 parent, const char *name, RwFile *f, int directory) {
+static int CALLEE create(U32 parent, const char *name, RwFile *f, int directory) {
   U8 pattern[11],entry[32];
   U32 next,free_lba;
   U16 free_offset;
@@ -779,7 +779,7 @@ int rw_rename(RwFile *f,const char *destination) {
   if (store(f->lba,block)) return -1;
   f->parent=parent; f->lba=target; f->offset=off; fs_error=0; return 0;
 }
-static U32 locate(RwFile *f, U32 pos) {
+static U32 CALLEE locate(RwFile *f, U32 pos) {
   U32 c = f->first, i, n, index = pos >> (9+fs_spc_shift);
   for (i = 0; i < index; ++i) {
     n = rw_fat(c);
@@ -834,7 +834,7 @@ int rw_overwrite(RwFile *f, U32 pos, const U8 FAR *data, U16 count) {
   fs_error = 0;
   return 0;
 }
-int rw_append(RwFile *f, const U8 FAR *data, U16 count) {
+int CALLEE rw_append(RwFile *f, const U8 FAR *data, U16 count) {
   U32 c, lba;
   unsigned offset, n;
   U32 old_size = f->size;
@@ -895,7 +895,7 @@ int rw_append(RwFile *f, const U8 FAR *data, U16 count) {
   fs_error = 0;
   return 0;
 }
-int rw_resize(RwFile *f,U32 size) {
+int CALLEE rw_resize(RwFile *f,U32 size) {
   U32 remaining;
   U16 count;
   if (size<=f->size) return rw_truncate(f,size);
@@ -938,7 +938,7 @@ int rw_write(RwFile *f,U32 pos,const U8 FAR *data,U16 count,U16 *done) {
   }
   return 0;
 }
-int rw_truncate(RwFile *f, U32 size) {
+int CALLEE rw_truncate(RwFile *f, U32 size) {
   /* Publish the smaller size before reclaiming the tail. Delete likewise
    * hides the directory entry before freeing its chain. Interruptions can
    * leak clusters rather than leave a visible file pointing to freed data. */

@@ -34,7 +34,7 @@ int sd_card_info(U8 *cid,U32 *last_lba) {
  * IN base+0 does not clock the card. OUT base+2/3 releases/asserts CS;
  * IN base+3 instead raises the board's MISO pull latch. */
 static void settle(void) { (void)rw_reg_read(0); (void)rw_reg_read(0); }
-static U8 io(U8 b) {
+static U8 CALLEE io(U8 b) {
     rw_reg_write(0,b); settle(); return rw_reg_read(0);
 }
 /* Bulk 512-byte payloads only. The port stays in a register and the I/O is
@@ -66,13 +66,13 @@ static void send(register const U8 *p, U16 count) {
         port_out(port,*p++); bulk_settle(port); (void)port_in(port);
     }
 }
-static void select_card(int selected) {
+static void CALLEE select_card(int selected) {
     rw_reg_write(selected?3:2,255); settle();
 }
 static void finish(void) {
     (void)io(255); select_card(0); (void)io(255);
 }
-static int fail(U16 code) { sd_diag.error=code; return -1; }
+static int CALLEE fail(U16 code) { sd_diag.error=code; return -1; }
 /* SD CRC16 (x^16+x^12+x^5+1), initial remainder zero.
  * Split high/low byte tables avoid bit loops and the 16-bit shifts Turbo C
  * emits for crc<<8 and crc>>8; they do not change SPI pacing or checks. */
@@ -176,7 +176,7 @@ U8 sd_test_crc7(const U8 *p) { return crc7(p); }
 #endif
 /* BIOS ticks are about 55 ms. Unsigned subtraction tolerates low-word wrap;
  * the poll limit also bounds a wait when the BIOS clock is not advancing. */
-static int ready(U16 ticks, U16 consecutive) {
+static int CALLEE ready(U16 ticks, U16 consecutive) {
     U16 start=rw_ticks(), idle=0;
     U32 polls;
     for (polls=0;polls<4000000UL;++polls) {
@@ -186,7 +186,7 @@ static int ready(U16 ticks, U16 consecutive) {
     }
     return fail(SD_TIMEOUT);
 }
-static int command(U8 cmd, U32 arg) {
+static int CALLEE command(U8 cmd, U32 arg) {
     U8 p[6], value;
     U16 i;
     sd_diag.stage=cmd; sd_diag.r1=sd_diag.token=255; sd_diag.status=0;
@@ -206,7 +206,7 @@ static int command(U8 cmd, U32 arg) {
     }
     finish(); return fail(SD_TIMEOUT);
 }
-static int packet(U8 *p, U16 count) {
+static int CALLEE packet(U8 *p, U16 count) {
     U16 start=rw_ticks(),crc;
     U32 polls;
     for (polls=0;polls<4000000UL;++polls) {
@@ -220,7 +220,7 @@ static int packet(U8 *p, U16 count) {
     crc=(U16)io(255)<<8; crc|=io(255);
     return crc==sd_crc16(p,count)?0:fail(SD_CRC);
 }
-static int read_register(U8 cmd, U8 *p) {
+static int CALLEE read_register(U8 cmd, U8 *p) {
     int result;
     if (command(cmd,0)) return -1;
     if (sd_diag.r1) { finish(); return fail(SD_IDENTITY); }
@@ -293,7 +293,7 @@ int sd_check_media(void) {
     }
     return 0;
 }
-static int read_block(U32 lba, U8 *p) {
+static int CALLEE read_block(U32 lba, U8 *p) {
     int result;
     if (command(17,lba)) return -1;
     if (sd_diag.r1) { finish(); return fail(SD_REJECT); }

@@ -19,12 +19,12 @@ void fs_copy(U8 *dest,const U8 *src,U16 count) { memcpy(dest,src,count); }
 #endif
 static U32 data_lba = 0xffffffffUL;
 
-U16 get16(const U8 FAR *p) { return (U16)p[0] | ((U16)p[1] << 8); }
-U32 get32(const U8 FAR *p) {
+U16 CALLEE get16(const U8 FAR *p) { return (U16)p[0] | ((U16)p[1] << 8); }
+U32 CALLEE get32(const U8 FAR *p) {
     return (U32)get16(p) | ((U32)get16(p + 2) << 16);
 }
-void put16(U8 FAR *p, U16 v) { p[0] = (U8)v; p[1] = (U8)(v >> 8); }
-void put32(U8 FAR *p, U32 v) { put16(p, (U16)v); put16(p+2, (U16)(v>>16)); }
+void CALLEE put16(U8 FAR *p, U16 v) { p[0] = (U8)v; p[1] = (U8)(v >> 8); }
+void CALLEE put32(U8 FAR *p, U32 v) { put16(p, (U16)v); put16(p+2, (U16)(v>>16)); }
 void fs_invalidate(void) {
     unsigned i;
     data_lba=0xffffffffUL;
@@ -43,9 +43,9 @@ void fs_invalidate_sector(U32 lba) {
         if (directory_cache[i].lba==lba) directory_cache[i].lba=0xffffffffUL;
 }
 
-static int fail(U16 error) { fs_error = error; return -1; }
+static int CALLEE fail(U16 error) { fs_error = error; return -1; }
 int fs_invalid(void) { return fail(E_INVALID); }
-static U8 *cached_sector(U32 lba,CachedSector *cache,U8 mask,U8 *next) {
+static U8 *CALLEE cached_sector(U32 lba,CachedSector *cache,U8 mask,U8 *next) {
     unsigned i;
     int result;
     CachedSector *slot;
@@ -69,7 +69,7 @@ int fs_read_metadata(U32 lba,U8 *buffer) {
     memcpy(buffer,p,512);
     return 0;
 }
-static int sector(U32 lba, int fat) {
+static int CALLEE sector(U32 lba, int fat) {
     int result;
     if (fat) {
         fat_buffer=cached_sector(lba,fat_cache,3,&fat_next);
@@ -82,25 +82,25 @@ static int sector(U32 lba, int fat) {
     data_lba=lba;
     return 0;
 }
-int fs_valid(U32 c) { return c >= 2 && c - 2 < volume.clusters; }
-U32 fs_cluster_lba(U32 c) { return volume.data + ((c-2)<<fs_spc_shift); }
+int CALLEE fs_valid(U32 c) { return c >= 2 && c - 2 < volume.clusters; }
+U32 CALLEE fs_cluster_lba(U32 c) { return volume.data + ((c-2)<<fs_spc_shift); }
 /* Keep EOF/bad/reserved values in the existing FAT32-shaped internal range.
  * The on-disk entry remains exactly two bytes for FAT16. */
-U32 fs_fat_sector(U32 c) {
+U32 CALLEE fs_fat_sector(U32 c) {
     /* Constant shifts let an 8088 compiler avoid a variable long-shift helper. */
     if (volume.fat_bits==16) return c>>8;
     return c>>7;
 }
-U16 fs_fat_offset(U32 c) {
+U16 CALLEE fs_fat_offset(U32 c) {
     return volume.fat_bits==16?(U16)(c&255)*2:(U16)(c&127)*4;
 }
-U32 fs_fat_value(const U8 *p,U32 c) {
+U32 CALLEE fs_fat_value(const U8 *p,U32 c) {
     U16 value;
     if (volume.fat_bits!=16) return get32(p+fs_fat_offset(c))&0x0fffffffUL;
     value=get16(p+fs_fat_offset(c));
     return value>=0xfff0U?0x0fff0000UL|value:(U32)value;
 }
-U32 fs_dir_lba(U32 c,U16 slot) {
+U32 CALLEE fs_dir_lba(U32 c,U16 slot) {
     return (volume.fat_bits==16 && c==ROOT16?volume.root_lba:fs_cluster_lba(c))+slot/16;
 }
 U32 fs_fat_entry(U32 c) {
@@ -108,7 +108,7 @@ U32 fs_fat_entry(U32 c) {
     if (sector(volume.fat + fs_fat_sector(c), 1)) return 0;
     return fs_fat_value(fat_buffer,c);
 }
-static int next_cluster(U32 c, U32 *next) {
+static int CALLEE next_cluster(U32 c, U32 *next) {
     fs_error=0; *next=fs_fat_entry(c);
     if (fs_error) return -1;
     if (*next >= 0x0ffffff8UL) return 1;
@@ -189,12 +189,12 @@ int fs_mount(void) {
     return 0;
 }
 
-U32 fs_entry_cluster(const U8 *e) {
+U32 CALLEE fs_entry_cluster(const U8 *e) {
     if (volume.fat_bits==16) return get16(e+26);
     return (((U32)get16(e+20) << 16) | get16(e+26)) & 0x0fffffffUL;
 }
 /* 0 = entry, 1 = end, -1 = error. Deleted and LFN entries are skipped. */
-int fs_next(DirCursor *cursor, U8 entry[32]) {
+int CALLEE fs_next(DirCursor *cursor, U8 entry[32]) {
     U16 slots;
     U32 next;
     U8 *p;
@@ -229,7 +229,7 @@ int fs_next(DirCursor *cursor, U8 entry[32]) {
 }
 
 static U8 upper(U8 c) { return c >= 'a' && c <= 'z' ? c-32 : c; }
-int fs_pattern(const char *name, U8 pattern[11], int wild) {
+int CALLEE fs_pattern(const char *name, U8 pattern[11], int wild) {
     U16 pos, end;
     U8 c;
     memset(pattern, ' ', 11);
@@ -255,7 +255,7 @@ int fs_pattern(const char *name, U8 pattern[11], int wild) {
     return 0;
 }
 
-static int child(U32 parent, const char *name, U8 entry[32]) {
+static int CALLEE child(U32 parent, const char *name, U8 entry[32]) {
     DirCursor cursor;
     U8 pattern[11];
     int result;
@@ -268,7 +268,7 @@ static int child(U32 parent, const char *name, U8 entry[32]) {
     return fail(E_NOTFOUND);
 }
 
-int fs_parent(const char *path, U32 *cluster, char leaf[13]) {
+int CALLEE fs_parent(const char *path, U32 *cluster, char leaf[13]) {
     char component[13];
     U8 entry[32];
     U16 n;
@@ -300,7 +300,7 @@ int fs_parent(const char *path, U32 *cluster, char leaf[13]) {
         if (!*p) { leaf[0]=0; return 0; }
     }
 }
-int fs_lookup(const char *path, U8 entry[32]) {
+int CALLEE fs_lookup(const char *path, U8 entry[32]) {
     U32 parent;
     char leaf[13];
     if (fs_parent(path, &parent, leaf)) return -1;
@@ -313,8 +313,8 @@ int fs_lookup(const char *path, U8 entry[32]) {
     return child(parent, leaf, entry);
 }
 
-int fs_read(FileCursor *cursor, U32 position, U8 FAR *buffer,
-            U16 count, U16 *done) {
+int CALLEE fs_read(FileCursor *cursor, U32 position, U8 FAR *buffer,
+                   U16 count, U16 *done) {
     U32 wanted, next, lba;
     U16 offset, chunk;
     int result;

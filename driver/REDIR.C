@@ -58,7 +58,7 @@ static union { char path[PATH_MAX]; U8 entry[32]; } scratch;
 #define path (scratch.path)
 #define entry (scratch.entry)
 
-static U8 FAR *far_at(U16 seg, U16 off) {
+static U8 FAR *CALLEE far_at(U16 seg, U16 off) {
     /* Construct only; streaming transfers normalize before offset rollover. */
 #ifdef HOST_TEST
     return test_far_at(seg,off);
@@ -83,9 +83,9 @@ static void disk_space(U32 free) {
     regs.bx=total>65535UL?65535U:(U16)total;
     regs.dx=free>regs.bx?regs.bx:(U16)free;
 }
-static U8 FAR *pointer_at(U8 FAR *p) { return far_at(get16(p+2), get16(p)); }
+static U8 FAR *CALLEE pointer_at(U8 FAR *p) { return far_at(get16(p+2), get16(p)); }
 static int success(void) { regs.ax=0; regs.flags &= ~1; return 1; }
-static int error(U16 code) {
+static int CALLEE error(U16 code) {
 #ifdef RW_DRIVER
     if ((regs.ax&0xff00)==0x1100) { rw_error_function=regs.ax; rw_error_code=code; }
 #endif
@@ -186,15 +186,15 @@ static int our_cds(U8 FAR *cds) {
     return cds[0]=='A'+drive_number && cds[1]==':' && (get16(cds+0x43)&0x8000);
 }
 /* A null SFT finds a free slot. */
-static OpenFile *find_file(U8 FAR *sft) {
+static OpenFile *CALLEE find_file(U8 FAR *sft) {
     OpenFile *o;
     for (o=files;o<files+MAX_OPEN;++o) if (o->sft==sft) return o;
     return 0;
 }
 /* Fill redirector-owned SFT fields only. DOS owns the reference count at +0
  * and sharing/PSP fields from +43; final close handles the count. */
-static void fill_sft(U8 FAR *sft,U16 mode,U8 attr,U16 time,U16 date,U32 size,
-                     const U8 *name) {
+static void CALLEE fill_sft(U8 FAR *sft,U16 mode,U8 attr,U16 time,U16 date,U32 size,
+                            const U8 *name) {
     U16 i;
     put16(sft+2,mode); sft[4]=attr;
     put16(sft+5,0xc000|drive_number|((mode&0x80)?0x1000:0));
@@ -206,7 +206,7 @@ static void fill_sft(U8 FAR *sft,U16 mode,U8 attr,U16 time,U16 date,U32 size,
 #ifdef RW_DRIVER
 #include "RWOPS.C"
 #endif
-static int open_file(U8 FAR *sft, U16 mode, int extended) {
+static int CALLEE open_file(U8 FAR *sft, U16 mode, int extended) {
     U16 action;
     U32 cluster;
     OpenFile *file;
@@ -270,13 +270,13 @@ static int read_file(U8 FAR *sft) {
     return result ? filesystem_error() : success();
 }
 
-static void load_cursor(U8 FAR *dta, DirCursor *cursor) {
+static void CALLEE load_cursor(U8 FAR *dta, DirCursor *cursor) {
     *cursor=searches[get16(dta+13)].cursor;
 }
-static void save_cursor(U8 FAR *dta, DirCursor *cursor) {
+static void CALLEE save_cursor(U8 FAR *dta, DirCursor *cursor) {
     searches[get16(dta+13)].cursor=*cursor;
 }
-static int find_next(U8 FAR *dta) {
+static int CALLEE find_next(U8 FAR *dta) {
     DirCursor cursor;
     U16 i;
     U8 attr;
@@ -337,7 +337,7 @@ static int find_first(U8 FAR *dta) {
 static int query_fits(U16 size) {
     return regs.cx>=size && regs.di<=65535U-size;
 }
-static int query_out(const void *record,U16 size) {
+static int CALLEE query_out(const void *record,U16 size) {
     U16 i;
     U8 FAR *out=far_at(regs.es,regs.di);
     if (!query_fits(size)) return error(1);

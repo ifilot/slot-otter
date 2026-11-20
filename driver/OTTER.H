@@ -7,12 +7,18 @@ typedef uint8_t U8;
 typedef uint16_t U16;
 typedef uint32_t U32;
 #define FAR
+#define CALLEE
 #else
 #include <dos.h>
 typedef unsigned char U8;
 typedef unsigned int U16;
 typedef unsigned long U32;
 #define FAR far
+/* Callee-popped arguments: one RET n instead of cleanup at every call site.
+ * Only for near C calls between translation units sharing these prototypes;
+ * not for assembly/gate ABIs. Arguments are pushed left to right, so calls
+ * must not depend on argument evaluation order. */
+#define CALLEE pascal
 #endif
 
 #define E_NOTFOUND 2
@@ -53,29 +59,29 @@ void fs_invalidate_sector(U32 lba);
 /* Sets fs_error to E_INVALID and returns -1. */
 int fs_invalid(void);
 /* Data cluster numbers are 2..clusters+1; LBA of a valid cluster's first sector. */
-int fs_valid(U32 cluster);
-U32 fs_cluster_lba(U32 cluster);
+int CALLEE fs_valid(U32 cluster);
+U32 CALLEE fs_cluster_lba(U32 cluster);
 /* Read-only metadata cache; callers use fresh reads for mutation proofs. */
 int fs_read_metadata(U32 lba,U8 *buffer);
 /* Raw cached FAT entry, including free/EOF; zero also requires fs_error check. */
 U32 fs_fat_entry(U32 cluster);
-U32 fs_fat_sector(U32 cluster);
-U16 fs_fat_offset(U32 cluster);
-U32 fs_fat_value(const U8 *sector,U32 cluster);
-U32 fs_dir_lba(U32 cluster,U16 slot);
-int fs_next(DirCursor *cursor, U8 entry[32]);
-int fs_lookup(const char *path, U8 entry[32]);
-int fs_parent(const char *path, U32 *cluster, char leaf[13]);
-int fs_pattern(const char *name, U8 pattern[11], int wild);
-U32 fs_entry_cluster(const U8 *entry);
-int fs_read(FileCursor *cursor, U32 position, U8 FAR *buffer,
-            U16 count, U16 *done);
+U32 CALLEE fs_fat_sector(U32 cluster);
+U16 CALLEE fs_fat_offset(U32 cluster);
+U32 CALLEE fs_fat_value(const U8 *sector,U32 cluster);
+U32 CALLEE fs_dir_lba(U32 cluster,U16 slot);
+int CALLEE fs_next(DirCursor *cursor, U8 entry[32]);
+int CALLEE fs_lookup(const char *path, U8 entry[32]);
+int CALLEE fs_parent(const char *path, U32 *cluster, char leaf[13]);
+int CALLEE fs_pattern(const char *name, U8 pattern[11], int wild);
+U32 CALLEE fs_entry_cluster(const U8 *entry);
+int CALLEE fs_read(FileCursor *cursor, U32 position, U8 FAR *buffer,
+                   U16 count, U16 *done);
 /* Each far buffer is normalized; chunks must not wrap either offset. */
 void fs_copy(U8 FAR *dest,const U8 FAR *src,U16 count);
-U16 get16(const U8 FAR *p);
-U32 get32(const U8 FAR *p);
-void put16(U8 FAR *p, U16 v);
-void put32(U8 FAR *p, U32 v);
+U16 CALLEE get16(const U8 FAR *p);
+U32 CALLEE get32(const U8 FAR *p);
+void CALLEE put16(U8 FAR *p, U16 v);
+void CALLEE put32(U8 FAR *p, U32 v);
 
 /* Matches the saved 8086 stack in ENTRY.ASM exactly. */
 typedef struct {
