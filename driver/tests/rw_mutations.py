@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CASES = [
     ('lose fast retry scratch restoration', [('memcpy(actual,expected,512);', 'memset(actual,0,512);')],
      'test_noverify_recovery_restores_shared_scratch_and_frozen_crc'),
-    ('wrong byte CRC polynomial', [('crc16_table[((crc>>8)^*p++)&255]', 'crc16_table[*p++ & 0]')],
+    ('wrong byte CRC polynomial', [('i=crc.b[1]^*p++;', 'i=*p++ & 0;')],
      'test_crc_all_single_bytes_and_variable_packet_lengths'),
     ('report stale read LBA', [('sd_diag.error=0; sd_diag.lba=lba;', 'sd_diag.error=0;')],
      'test_readonly_initialization_and_crc_checked_read'),
