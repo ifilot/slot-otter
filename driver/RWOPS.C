@@ -297,7 +297,7 @@ static int delete_pattern(void) {
     if (result<0) return filesystem_error();
     return found?success():error(E_NOTFOUND);
 }
-static int rw_path_operation(U8 fn,U8 FAR *sft) {
+static int CALLEE rw_path_operation(U8 fn,U8 FAR *sft) {
     RwFile f;
     U32 parent;
     U16 i,time,date;

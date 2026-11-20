@@ -62,9 +62,9 @@ int fs_invalid(void);
 int CALLEE fs_valid(U32 cluster);
 U32 CALLEE fs_cluster_lba(U32 cluster);
 /* Read-only metadata cache; callers use fresh reads for mutation proofs. */
-int fs_read_metadata(U32 lba,U8 *buffer);
+int CALLEE fs_read_metadata(U32 lba,U8 *buffer);
 /* Raw cached FAT entry, including free/EOF; zero also requires fs_error check. */
-U32 fs_fat_entry(U32 cluster);
+U32 CALLEE fs_fat_entry(U32 cluster);
 U32 CALLEE fs_fat_sector(U32 cluster);
 U16 CALLEE fs_fat_offset(U32 cluster);
 U32 CALLEE fs_fat_value(const U8 *sector,U32 cluster);

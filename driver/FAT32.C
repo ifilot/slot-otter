@@ -61,7 +61,7 @@ static U8 *CALLEE cached_sector(U32 lba,CachedSector *cache,U8 mask,U8 *next) {
 }
 /* Directory refreshes may hit RAM, but still authenticate the mounted card.
  * Mutation preflight uses fresh sd_read calls rather than this helper. */
-int fs_read_metadata(U32 lba,U8 *buffer) {
+int CALLEE fs_read_metadata(U32 lba,U8 *buffer) {
     U8 *p;
     if (sd_check_media()) return fail(E_NOTREADY);
     p=cached_sector(lba,directory_cache,1,&directory_next);
@@ -103,7 +103,7 @@ U32 CALLEE fs_fat_value(const U8 *p,U32 c) {
 U32 CALLEE fs_dir_lba(U32 c,U16 slot) {
     return (volume.fat_bits==16 && c==ROOT16?volume.root_lba:fs_cluster_lba(c))+slot/16;
 }
-U32 fs_fat_entry(U32 c) {
+U32 CALLEE fs_fat_entry(U32 c) {
     if (!fs_valid(c)) { (void)fs_invalid(); return 0; }
     if (sector(volume.fat + fs_fat_sector(c), 1)) return 0;
     return fs_fat_value(fat_buffer,c);

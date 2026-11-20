@@ -24,7 +24,7 @@ static void CALLEE feedback_char(U8 c) {
   bios_putc(c);
 #endif
 }
-void rw_feedback(U16 enabled) {
+void CALLEE rw_feedback(U16 enabled) {
   if (feedback_line) { feedback_char(13); feedback_char(10); }
   feedback_line=0; feedback_enabled=enabled;
 #ifdef HOST_TEST
@@ -336,7 +336,7 @@ static int CALLEE validate_file(RwFile *f) {
   if (count<needed || (f->directory && !count)) return fs_invalid();
   return 0;
 }
-static int release_chain(U32 c) {
+static int CALLEE release_chain(U32 c) {
   U32 next, i, first = c;
   for (i = 0; c && i < volume.clusters; ++i) {
     next = rw_fat(c);
@@ -578,7 +578,7 @@ int rw_flush(void) {
 }
 /* FAT16's root cannot grow. Find an existing free slot without allocating
  * clusters or changing the FAT; a full root is an ordinary disk-full error. */
-static int reserve_root(const U8 pattern[11],U32 *target,U16 *slot) {
+static int CALLEE reserve_root(const U8 pattern[11],U32 *target,U16 *slot) {
   U16 n,offset,free_offset=0;
   U32 lba,tag=0xffffffffUL,free_lba=0;
   if (chain_valid(ROOT16)) return -1;
@@ -722,8 +722,8 @@ static int CALLEE create(U32 parent, const char *name, RwFile *f, int directory)
   fs_error = 0;
   return 0;
 }
-int rw_mkdir(U32 p, const char *n, RwFile *f) { return create(p, n, f, 1); }
-int rw_create(U32 p, const char *n, RwFile *f) { return create(p, n, f, 0); }
+int CALLEE rw_mkdir(U32 p, const char *n, RwFile *f) { return create(p, n, f, 1); }
+int CALLEE rw_create(U32 p, const char *n, RwFile *f) { return create(p, n, f, 0); }
 int rw_rename(RwFile *f,const char *destination) {
   /* Cross-parent moves update '..', publish destination, then erase source.
    * Interrupted moves may leave duplicates or an inconsistent parent link.
@@ -796,7 +796,7 @@ static U32 CALLEE locate(RwFile *f, U32 pos) {
   }
   return c;
 }
-int rw_overwrite(RwFile *f, U32 pos, const U8 FAR *data, U16 count) {
+int CALLEE rw_overwrite(RwFile *f, U32 pos, const U8 FAR *data, U16 count) {
   U32 c, lba;
   unsigned offset, n;
   if (f->directory || (f->attr&1)) return fail(E_ACCESS);
@@ -906,7 +906,7 @@ int CALLEE rw_resize(RwFile *f,U32 size) {
   }
   return 0;
 }
-int rw_write(RwFile *f,U32 pos,const U8 FAR *data,U16 count,U16 *done) {
+int CALLEE rw_write(RwFile *f,U32 pos,const U8 FAR *data,U16 count,U16 *done) {
   /* DOS offsets are 32-bit but far pointer offsets are 16-bit. Normalize
    * between overwrite and append so addition cannot wrap at 64 KiB.
    * Disk-full append can publish a completed prefix, reported through done. */

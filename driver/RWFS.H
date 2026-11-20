@@ -50,7 +50,7 @@ typedef struct {
 extern MountDiagnostic mount_diag;
 /* Explicit foreground controls only. Zero always closes and disables feedback.
  * BIOS console output never calls DOS and is never armed by file callbacks. */
-void rw_feedback(U16 enabled);
+void CALLEE rw_feedback(U16 enabled);
 int rw_mount(void);
 /* Invalidate disarms without committing. Flush verifies mirrors and marks
  * the volume clean; callers must explicitly flush before safe removal. */
@@ -63,15 +63,15 @@ int CALLEE rw_lookup(const char *path, RwFile *file);
 /* Fill file from the entry fs_next has just returned at cursor. */
 void CALLEE rw_entry(RwFile *file, const DirCursor *cursor, const U8 *entry, U32 parent);
 int rw_refresh(RwFile *file);
-int rw_mkdir(U32 parent, const char *name, RwFile *file);
-int rw_create(U32 parent, const char *name, RwFile *file);
+int CALLEE rw_mkdir(U32 parent, const char *name, RwFile *file);
+int CALLEE rw_create(U32 parent, const char *name, RwFile *file);
 int rw_read(const RwFile *file, U32 pos, U8 FAR *data, U16 count, U16 *done);
 /* A null append buffer supplies zeroes (gap/extension initialization). */
 int CALLEE rw_append(RwFile *file, const U8 FAR *data, U16 count);
-int rw_overwrite(RwFile *file, U32 pos, const U8 FAR *data, U16 count);
+int CALLEE rw_overwrite(RwFile *file, U32 pos, const U8 FAR *data, U16 count);
 int CALLEE rw_truncate(RwFile *file, U32 size);
 /* done reports completed bytes; count==0 resizes the file to pos. */
-int rw_write(RwFile *file, U32 pos, const U8 FAR *data, U16 count, U16 *done);
+int CALLEE rw_write(RwFile *file, U32 pos, const U8 FAR *data, U16 count, U16 *done);
 int CALLEE rw_resize(RwFile *file, U32 size);
 int rw_delete(RwFile *file);
 int rw_rmdir(RwFile *file);
