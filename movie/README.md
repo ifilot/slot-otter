@@ -1,6 +1,7 @@
 # Slot-otter Classic explainer movie
 
-Watch it on YouTube: https://www.youtube.com/watch?v=h1xjg9emv7I
+Watch it: https://movies.filotcdn.org/slot-otter-classic/watch.html
+(adaptive streaming, 4K/1080p/720p/480p; see [streaming/](streaming/) for how it is encoded and published)
 
 An animation of about ten minutes. It first introduces the card from a high level
 (the PC writes and reads bytes at I/O ports, the SD card speaks SPI, the card bridges

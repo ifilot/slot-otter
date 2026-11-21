@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Slot-otter Classic</title>
+<style>
+  :root { color-scheme: light dark; --bg: #fafafa; --fg: #1a1a1a; --muted: #666; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #111; --fg: #eee; --muted: #999; } }
+  body { margin: 0; padding: 16px; background: var(--bg); color: var(--fg);
+         font: 16px/1.5 system-ui, sans-serif; }
+  main { max-width: 1280px; margin: 0 auto; }
+  video { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; background: #000; }
+  .bar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center;
+         gap: 8px 16px; margin-top: 8px; font-size: 14px; }
+  #status { font: 13px/1.4 ui-monospace, monospace; color: var(--muted); }
+  #quality-wrap { margin-left: auto; color: var(--muted); }
+  #quality { font: inherit; color: var(--fg); background: var(--bg); padding: 2px 4px;
+             border: 1px solid var(--muted); border-radius: 4px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Slot-otter Classic</h1>
+
+  <!-- Served as <movie>/watch.html next to the encode folder (v1/), so every URL is relative and
+       same-origin: no CORS rule needed. After a re-encode to v2/, change v1/ here (three places). -->
+  <video id="video" controls playsinline preload="metadata" crossorigin="anonymous"
+         poster="v1/poster.jpg"
+         data-src="v1/master.m3u8">
+    <track kind="captions" srclang="en" label="English"
+           src="v1/captions.en.vtt">
+  </video>
+  <div class="bar">
+    <div id="status" hidden></div>
+    <label id="quality-wrap" hidden>Quality <select id="quality"></select></label>
+  </div>
+</main>
+
+<!-- hls.js only loads on browsers without native HLS (Chrome/Firefox/Edge on desktop, most Android browsers). -->
+<script>
+(function () {
+  const video = document.getElementById('video');
+  const src = video.dataset.src;
+  const params = new URLSearchParams(location.search);
+  const force = params.get('engine');          // ?engine=native | ?engine=hlsjs  (testing)
+  const debug = params.has('debug');           // ?debug  shows rendition / bandwidth / buffer
+  const status = document.getElementById('status');
+  status.hidden = !debug;
+  const say = (s) => { if (debug) status.textContent = s; };
+
+  // Quality menu: "auto" or a picture height ("1080", "720", ...). The viewer's choice is
+  // remembered in this browser; storage may be unavailable (private mode), which is fine.
+  const picker = document.getElementById('quality');
+  const PREF = 'slot-otter-quality';
+  const loadPref = () => { try { return localStorage.getItem(PREF) || 'auto'; } catch (e) { return 'auto'; } };
+  const savePref = (v) => { try { localStorage.setItem(PREF, v); } catch (e) {} };
+  const name = (h) => h >= 2160 ? `${h}p (4K)` : `${h}p`;
+  function showPicker(heights, selected, onPick) {      // heights: highest first
+    picker.replaceChildren(new Option('Auto', 'auto'),
+                           ...heights.map((h) => new Option(name(h), String(h))));
+    picker.value = selected;
+    picker.onchange = () => { savePref(picker.value); onPick(picker.value); };
+    document.getElementById('quality-wrap').hidden = false;
+  }
+  const autoLabel = (h) => { picker.options[0].text = h ? `Auto (${h >= 2160 ? '4K' : h + 'p'})` : 'Auto'; };
+
+  const nativeHls = video.canPlayType('application/vnd.apple.mpegurl') !== '';
+
+  if (force !== 'hlsjs' && (nativeHls || force === 'native')) {
+    // Safari (macOS, iOS, iPadOS) and other browsers with built-in HLS: the browser does ABR itself
+    // and offers no API to pick a rendition. A fixed quality is chosen by loading that rendition's
+    // own playlist instead of the master; "Auto" loads the master again.
+    video.src = src;
+    let auto = true;
+    video.addEventListener('resize', () => {
+      say(`native HLS · rendition ${video.videoWidth}×${video.videoHeight}`);
+      if (auto) autoLabel(video.videoHeight);
+    });
+    say('native HLS');
+
+    fetch(src).then((r) => r.ok ? r.text() : Promise.reject(r.status)).then((text) => {
+      const base = new URL(src, location.href);
+      const variants = Object.create(null);              // height -> playlist URL
+      const lines = text.split(/\r?\n/);
+      lines.forEach((line, i) => {
+        const m = line.startsWith('#EXT-X-STREAM-INF') && line.match(/RESOLUTION=\d+x(\d+)/);
+        const uri = m && lines.slice(i + 1).find((l) => l && !l.startsWith('#'));
+        if (uri) variants[m[1]] = new URL(uri, base).href;
+      });
+      const heights = Object.keys(variants).map(Number).sort((a, b) => b - a);
+      if (heights.length < 2) return;
+
+      const pick = (v) => {
+        auto = v === 'auto' || !variants[v];
+        const t = video.currentTime, playing = !video.paused;
+        const modes = [...video.textTracks].map((tt) => tt.mode);   // keep captions on/off
+        video.src = auto ? src : variants[v];
+        video.addEventListener('loadedmetadata', () => {
+          [...video.textTracks].forEach((tt, i) => { if (modes[i]) tt.mode = modes[i]; });
+          if (t) video.currentTime = t;
+          if (playing) video.play().catch(() => {});
+        }, { once: true });
+        if (!auto) autoLabel(0);
+      };
+      const pref = loadPref();
+      showPicker(heights, variants[pref] ? pref : 'auto', pick);
+      if (variants[pref]) pick(pref);
+    }).catch(() => {});                                  // no menu, automatic quality only
+    return;
+  }
+
+  const s = document.createElement('script');
+  s.src = 'https://cdn.jsdelivr.net/npm/hls.js@1.7.4/dist/hls.min.js';
+  s.integrity = 'sha384-p9vgU/7IYJWd3I4STrtqxqR/2cAQlhIX7D/HrTnIMEjjcUox165b7se7sxmm3zDg';
+  s.crossOrigin = 'anonymous';
+  s.onload = startHlsJs;
+  s.onerror = () => say('could not load hls.js');
+  document.head.appendChild(s);
+
+  function startHlsJs() {
+    if (!window.Hls || !Hls.isSupported()) {          // no MediaSource: last resort, try the URL directly
+      video.src = src;
+      say('no HLS support in this browser');
+      return;
+    }
+    const hls = new Hls({
+      capLevelToPlayerSize: true,    // don't fetch 1080p for a 400 px-wide player (saves mobile data)
+      maxBufferLength: 30,           // seconds of forward buffer to aim for...
+      maxMaxBufferLength: 60,        // ...and never more (hls.js would otherwise go up to 600 s)
+    });
+    hls.loadSource(src);
+    hls.attachMedia(video);
+
+    const show = () => {
+      const l = hls.levels[hls.currentLevel];
+      if (!l) return;
+      const buf = video.buffered.length ? video.buffered.end(video.buffered.length - 1) - video.currentTime : 0;
+      say(`hls.js · ${l.height}p (${Math.round(l.bitrate / 1000)} kb/s peak) · ` +
+          `estimate ${Math.round(hls.bandwidthEstimate / 1000)} kb/s · buffer ${buf.toFixed(1)} s · ` +
+          `auto ${hls.autoLevelEnabled ? 'on' : 'off'}`);
+    };
+    hls.on(Hls.Events.LEVEL_SWITCHED, show);
+    hls.on(Hls.Events.FRAG_BUFFERED, show);
+
+    // Quality menu. hls.levels is ordered by bitrate; the menu lists heights, highest first.
+    hls.on(Hls.Events.MANIFEST_PARSED, () => {
+      const index = Object.create(null);                 // height -> level index
+      hls.levels.forEach((l, i) => { index[l.height] = i; });
+      const heights = Object.keys(index).map(Number).sort((a, b) => b - a);
+      if (heights.length < 2) return;
+      const pick = (v) => {
+        if (v in index) {
+          hls.currentLevel = index[v];                   // switch now (drops the buffered rest)
+          autoLabel(0);
+        } else {
+          hls.loadLevel = -1;                            // back to automatic from the next segment
+          autoLabel(hls.levels[hls.currentLevel] && hls.levels[hls.currentLevel].height);
+        }
+      };
+      const pref = loadPref();
+      showPicker(heights, pref in index ? pref : 'auto', pick);
+      if (pref in index) pick(pref);
+    });
+    hls.on(Hls.Events.LEVEL_SWITCHED, (_, d) => {
+      if (hls.autoLevelEnabled) autoLabel(hls.levels[d.level] && hls.levels[d.level].height);
+    });
+
+    // Standard hls.js recovery: retry network errors, try once to recover decoder errors.
+    let mediaRecoveries = 0;
+    hls.on(Hls.Events.ERROR, (_, data) => {
+      if (!data.fatal) return;
+      if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+        say(`network error (${data.details}), retrying…`);
+        hls.startLoad();
+      } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR && mediaRecoveries++ < 2) {
+        say(`media error (${data.details}), recovering…`);
+        hls.recoverMediaError();
+      } else {
+        say(`fatal: ${data.details}`);
+        hls.destroy();
+      }
+    });
+    if (debug) window.hls = hls;     // poke at it from the console: hls.levels, hls.currentLevel = 2, …
+  }
+})();
+</script>
+</body>
+</html>
