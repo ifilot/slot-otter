@@ -25,7 +25,7 @@ class PerformanceGuards(unittest.TestCase):
         cls.work = Path(cls.tmp.name)
         # Interpose only in this test library; the shipped driver has no hook.
         fat = (ROOT / 'FAT32.C').read_text()
-        marker = 'U32 fs_fat_entry(U32 c) {'
+        marker = 'U32 CALLEE fs_fat_entry(U32 c) {'
         assert fat.count(marker) == 1
         fat = fat.replace(marker, 'static U32 raw_entry(U32 c) {')
         fat += '''

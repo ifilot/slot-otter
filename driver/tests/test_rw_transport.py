@@ -379,6 +379,29 @@ class ResidentTransportTests(unittest.TestCase):
         self.arm()
         self.assertEqual(self.lib.sd_write(self.scratch, self.buffer), 0)
 
+    def settle_reads(self):
+        return list((C.c_uint * 8).in_dll(self.lib, 'rw_host_settle_reads'))
+
+    def test_bulk_payload_bytes_have_three_settling_reads(self):
+        # io() samples after two settling INs; 512-byte payloads use three.
+        self.lib.rw_host_open(str(self.image).encode(), 3)
+        self.assertEqual(self.lib.sd_init(), 0)
+        before = self.settle_reads()
+        sector = C.create_string_buffer(512)
+        self.assertEqual(self.lib.sd_read(self.scratch, sector), 0)
+        self.assertEqual(sector.raw, self.sector())
+        read = [a - b for a, b in zip(self.settle_reads(), before)]
+        self.assertEqual(read[:3], [0, 0, 0], 'no data OUT may be sampled early')
+        self.assertEqual(read[4], 16 + 512, 'CID check and sector payloads')
+        self.assertGreater(read[3], 0, 'command framing keeps io() spacing')
+        self.arm()
+        before = self.settle_reads()
+        self.assertEqual(self.lib.sd_write(self.scratch, self.buffer), 0)
+        wrote = [a - b for a, b in zip(self.settle_reads(), before)]
+        self.assertEqual(wrote[:3], [0, 0, 0])
+        self.assertGreaterEqual(wrote[4], 1024, 'payload and readback')
+        self.assertEqual(self.sector(), self.payload)
+
     def test_cold_start_delayed_byte_completion_and_ready_cmd55(self):
         self.assertEqual(self.lib.rw_host_open(str(self.image).encode(), 15), 0)
         self.lib.rw_host_timing(3)

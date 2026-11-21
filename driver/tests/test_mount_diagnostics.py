@@ -142,3 +142,109 @@ class MountDiagnosticTests(unittest.TestCase):
             self.call(0, ax=0xd74f, bx=0x4f54, dx=0x524f, si=13,
                       cx=size, es=4, di=offset, error=1)
             self.assertEqual(bytes(self.snapshot()), before)
+
+    # Dirty-volume recovery (OTTERSD /MOUNT /RECOVER, control command 3).
+    def volume(self, bits):
+        """Return (fat LBAs, entry-1 offset, width, clean bit) for a fresh image."""
+        if bits == 16:
+            layout = fat16_fixture.prepare(
+                self.image, spc=4, total_sectors=32768, partitioned=False)
+            first, offset, width, clean = 1, 2, '<H', 0x8000
+        else:
+            layout = fs.builder.prepare(self.image)
+            first, offset, width, clean = layout['start'] + 32, 4, '<I', 0x08000000
+        return [first, first + layout['fatsz']], offset, width, clean
+
+    def entry1(self, lba, offset, width):
+        with self.image.open('rb') as disk:
+            disk.seek(lba * 512 + offset)
+            return struct.unpack(width, disk.read(struct.calcsize(width)))[0]
+
+    def recover_flag(self):
+        return C.c_ubyte.in_dll(self.lib, 'rw_recover').value
+
+    def info_flags(self):
+        self.call(0, ax=0xd74f, bx=0x4f54, dx=0x524f, si=8, cx=32, es=4, di=4096)
+        return int.from_bytes(bytes(self.memory(4)[4096 + 28:4096 + 30]), 'little')
+
+    def writes(self):
+        return C.c_uint.in_dll(self.lib, 'rw_host_writes').value
+
+    def test_recover_marks_dirty_volume_clean_in_every_fat_copy(self):
+        for bits, request in ((16, dict(si=3)), (32, dict(si=11, cx=3, di=0))):
+            with self.subTest(bits=bits):
+                fats, offset, width, clean = self.volume(bits)
+                original = self.entry1(fats[0], offset, width)
+                self.assertTrue(original & clean)
+                for lba in fats:
+                    self.patch(lba, offset, struct.pack(width, original & ~clean))
+                expected = None
+                self.open()
+                self.assertEqual(self.lib.media_mount(), 13, 'refused without /RECOVER')
+                self.assertEqual(self.query().check, 6)
+                self.assertEqual(self.writes(), 0)
+                self.call(0, ax=0xd74f, bx=0x4f54, dx=0x524f, **request)
+                self.assertEqual(C.c_ubyte.in_dll(self.lib, 'media_online').value, 1)
+                self.assertEqual(self.recover_flag(), 2)
+                self.assertTrue(self.info_flags() & 256)
+                self.assertEqual(self.writes(), 2, 'only FAT sector zero of each copy')
+                self.assertEqual([self.entry1(lba, offset, width) for lba in fats],
+                                 [original, original])
+                expected = self.image.read_bytes()
+                # One-shot: a later plain mount neither recovers nor reports it.
+                self.assertEqual(self.lib.media_mount(), 0)
+                self.assertEqual(self.recover_flag(), 0)
+                self.assertFalse(self.info_flags() & 256)
+                self.assertEqual(self.lib.media_unmount(), 0)
+                self.assertEqual(self.image.read_bytes(), expected)
+                self.lib.rw_host_close()
+
+    def test_recover_refuses_io_error_and_mismatched_fat_without_writes(self):
+        for bits in (16, 32):
+            for case in ('io-error', 'mirror', 'mirror-skipfatcheck'):
+                with self.subTest(bits=bits, case=case):
+                    fats, offset, width, clean = self.volume(bits)
+                    original = self.entry1(fats[0], offset, width)
+                    value = original & ~clean
+                    if case == 'io-error':
+                        value &= ~(clean >> 1)
+                    for lba in fats:
+                        self.patch(lba, offset, struct.pack(width, value))
+                    if case != 'io-error':
+                        # Differ only in the last sector of the second copy, which
+                        # the fast mount check alone would never read.
+                        last = fats[1] + (fats[1] - fats[0]) - 1
+                        self.patch(last, 500, b'\x5a')
+                    C.c_ubyte.in_dll(self.lib, 'rw_skip_fat_check').value = (
+                        case == 'mirror-skipfatcheck')
+                    before = self.image.read_bytes()
+                    self.open()
+                    self.call(0, ax=0xd74f, bx=0x4f54, dx=0x524f, si=3, error=13)
+                    self.assertEqual(self.query().check, 6 if case == 'io-error' else 5)
+                    self.assertEqual(self.recover_flag(), 0)
+                    self.assertFalse(self.info_flags() & 256)
+                    self.assertEqual(self.writes(), 0)
+                    self.assertEqual(self.image.read_bytes(), before)
+                    self.lib.rw_host_close()
+                    C.c_ubyte.in_dll(self.lib, 'rw_skip_fat_check').value = 0
+
+    def test_recover_on_clean_volume_changes_nothing(self):
+        for bits in (16, 32):
+            with self.subTest(bits=bits):
+                self.volume(bits)
+                before = self.image.read_bytes()
+                self.open()
+                self.call(0, ax=0xd74f, bx=0x4f54, dx=0x524f, si=3)
+                self.assertEqual(self.recover_flag(), 0)
+                self.assertEqual(self.writes(), 0)
+                self.assertEqual(self.lib.media_unmount(), 0)
+                self.assertEqual(self.image.read_bytes(), before)
+                self.lib.rw_host_close()
+
+    def test_recover_requires_writable_driver(self):
+        self.volume(32)
+        self.open()
+        C.c_int.in_dll(self.lib, 'sd_write_enabled').value = 0
+        self.call(0, ax=0xd74f, bx=0x4f54, dx=0x524f, si=3)
+        self.assertEqual(self.recover_flag(), 0)
+        self.assertEqual(self.writes(), 0)

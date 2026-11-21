@@ -58,7 +58,7 @@ static union { char path[PATH_MAX]; U8 entry[32]; } scratch;
 #define path (scratch.path)
 #define entry (scratch.entry)
 
-static U8 FAR *far_at(U16 seg, U16 off) {
+static U8 FAR *CALLEE far_at(U16 seg, U16 off) {
     /* Construct only; streaming transfers normalize before offset rollover. */
 #ifdef HOST_TEST
     return test_far_at(seg,off);
@@ -83,17 +83,18 @@ static void disk_space(U32 free) {
     regs.bx=total>65535UL?65535U:(U16)total;
     regs.dx=free>regs.bx?regs.bx:(U16)free;
 }
-static U8 FAR *pointer_at(U8 FAR *p) { return far_at(get16(p+2), get16(p)); }
+static U8 FAR *CALLEE pointer_at(U8 FAR *p) { return far_at(get16(p+2), get16(p)); }
 static int success(void) { regs.ax=0; regs.flags &= ~1; return 1; }
-static int error(U16 code) {
+static int CALLEE error(U16 code) {
 #ifdef RW_DRIVER
     if ((regs.ax&0xff00)==0x1100) { rw_error_function=regs.ax; rw_error_code=code; }
 #endif
     regs.ax=code; regs.flags |= 1; return 1;
 }
 static U16 open_count(void) {
-    U16 i, count=0;
-    for (i=0;i<MAX_OPEN;++i) if (files[i].sft) ++count;
+    U16 count=0;
+    OpenFile *o;
+    for (o=files;o<files+MAX_OPEN;++o) if (o->sft) ++count;
     return count;
 }
 static void offline(void) {
@@ -184,17 +185,31 @@ static int our_sft(U8 FAR *sft) {
 static int our_cds(U8 FAR *cds) {
     return cds[0]=='A'+drive_number && cds[1]==':' && (get16(cds+0x43)&0x8000);
 }
-static OpenFile *find_file(U8 FAR *sft) {
-    U16 i;
-    for (i=0; i<MAX_OPEN; ++i) if (files[i].sft==sft) return files+i;
+/* A null SFT finds a free slot. */
+static OpenFile *CALLEE find_file(U8 FAR *sft) {
+    OpenFile *o;
+    for (o=files;o<files+MAX_OPEN;++o) if (o->sft==sft) return o;
     return 0;
+}
+/* Fill redirector-owned SFT fields only. DOS owns the reference count at +0
+ * and sharing/PSP fields from +43; final close handles the count. */
+static void CALLEE fill_sft(U8 FAR *sft,U16 mode,U8 attr,U16 time,U16 date,U32 size,
+                            const U8 *name) {
+    U16 i;
+    put16(sft+2,mode); sft[4]=attr;
+    put16(sft+5,0xc000|drive_number|((mode&0x80)?0x1000:0));
+    for (i=7;i<13;++i) sft[i]=0;
+    put16(sft+13,time); put16(sft+15,date); put32(sft+17,size);
+    for (i=21;i<32;++i) sft[i]=0;
+    for (i=0;i<11;++i) sft[32+i]=name[i];
 }
 #ifdef RW_DRIVER
 #include "RWOPS.C"
 #endif
-static int open_file(U8 FAR *sft, U16 mode, int extended) {
-    U16 i, action;
+static int CALLEE open_file(U8 FAR *sft, U16 mode, int extended) {
+    U16 action;
     U32 cluster;
+    OpenFile *file;
 #ifdef RW_DRIVER
     if (sd_write_enabled)
         return rw_open_file(sft,mode,extended?(get16(dos_sda+0x2dd)&255):1,
@@ -210,19 +225,12 @@ static int open_file(U8 FAR *sft, U16 mode, int extended) {
     if (fs_lookup(path, entry)) return filesystem_error();
     if (entry[11]&24) return error(E_ACCESS);
     cluster=fs_entry_cluster(entry);
-    for (i=0; i<MAX_OPEN; ++i) if (!files[i].sft) break;
-    if (i==MAX_OPEN) return error(E_HANDLES);
-    files[i].sft=sft; FILE_CURSOR(files+i).first=cluster;
-    FILE_CURSOR(files+i).cluster=cluster; FILE_CURSOR(files+i).index=0;
-    /* Preserve reference count and DOS-owned sharing/PSP fields. */
-    put16(sft+2, mode);
-    sft[4]=entry[11]|1;
-    put16(sft+5, 0xc000|drive_number|((mode&0x80)?0x1000:0));
-    put32(sft+7, 0); put16(sft+11, 0);
-    put16(sft+13, get16(entry+22)); put16(sft+15, get16(entry+24));
-    put32(sft+17, get32(entry+28)); put32(sft+21, 0);
-    put32(sft+25, 0); sft[29]=sft[30]=sft[31]=0;
-    for (i=0; i<11; ++i) sft[32+i]=entry[i];
+    file=find_file(0);
+    if (!file) return error(E_HANDLES);
+    file->sft=sft; FILE_CURSOR(file).first=cluster;
+    FILE_CURSOR(file).cluster=cluster; FILE_CURSOR(file).index=0;
+    fill_sft(sft,mode,(U8)(entry[11]|1),get16(entry+22),get16(entry+24),
+             get32(entry+28),entry);
     if (extended) regs.cx=1;
     return success();
 }
@@ -262,13 +270,13 @@ static int read_file(U8 FAR *sft) {
     return result ? filesystem_error() : success();
 }
 
-static void load_cursor(U8 FAR *dta, DirCursor *cursor) {
+static void CALLEE load_cursor(U8 FAR *dta, DirCursor *cursor) {
     *cursor=searches[get16(dta+13)].cursor;
 }
-static void save_cursor(U8 FAR *dta, DirCursor *cursor) {
+static void CALLEE save_cursor(U8 FAR *dta, DirCursor *cursor) {
     searches[get16(dta+13)].cursor=*cursor;
 }
-static int find_next(U8 FAR *dta) {
+static int CALLEE find_next(U8 FAR *dta) {
     DirCursor cursor;
     U16 i;
     U8 attr;
@@ -325,12 +333,26 @@ static int find_first(U8 FAR *dta) {
 }
 
 #ifdef RW_DRIVER
+/* Private query records go to ES:DI only when CX and the offset fit. */
+static int query_fits(U16 size) {
+    return regs.cx>=size && regs.di<=65535U-size;
+}
+static int CALLEE query_out(const void *record,U16 size) {
+    U16 i;
+    U8 FAR *out=far_at(regs.es,regs.di);
+    if (!query_fits(size)) return error(1);
+    for (i=0;i<size;++i) out[i]=((const U8 *)record)[i];
+    success(); regs.cx=size; return 1;
+}
 /* Share validation and commit paths between legacy and feedback controls. */
 static U16 control_media(U16 command) {
     U16 i;
     U8 FAR *vector;
     if (command==1) return media_unmount();
-    if (command==2) return media_mount();
+    /* 3 mounts with one-shot dirty-volume recovery; see rw_recover. */
+    if (command==2 || command==3) {
+        rw_recover=(U8)(command==3 && sd_write_enabled); return media_mount();
+    }
     vector=far_at(0,0x2f*4);
     if (get16(vector)!=unload_state[1] ||
         get16(vector+2)!=unload_state[2]) return E_ACCESS;
@@ -360,11 +382,11 @@ int dispatch(void) {
             /* ABI 1 foreground feedback. Never enabled by DOS file callbacks.
              * Caller checks stdout before asking for BIOS console updates. */
             if (regs.si==12) { success(); regs.cx=1; return 1; }
-            if (regs.si==1 || regs.si==2 || regs.si==10 || regs.si==11) {
+            if ((regs.si>=1 && regs.si<=3) || regs.si==10 || regs.si==11) {
                 U16 command=regs.si, code, feedback=0;
                 if (command==11) {
                     command=regs.cx; feedback=regs.di;
-                    if ((command!=1 && command!=2 && command!=10) || feedback>1)
+                    if (!command || (command>3 && command!=10) || feedback>1)
                         return error(1);
                 }
                 rw_feedback(feedback);
@@ -389,9 +411,7 @@ int dispatch(void) {
             }
             if (regs.si==8) {
                 DriverInfo info;
-                U16 i;
-                U8 FAR *out=far_at(regs.es,regs.di);
-                if (regs.cx<sizeof(info) || regs.di>65535U-sizeof(info)) return error(1);
+                if (!query_fits(sizeof(info))) return error(1);
                 info.flags=(U16)sd_card_info(info.cid,&info.last_lba);
                 if (sd_write_enabled) info.flags|=2;
                 if (media_online) {
@@ -402,27 +422,13 @@ int dispatch(void) {
                 if (fs_required==32) info.flags|=128;
                 if (!sd_verify_writes) info.flags|=8;
                 if (rw_skip_fat_check) info.flags|=16;
+                if (rw_recover==2) info.flags|=256;
                 info.version=OTTER_VERSION; info.resident=resident_bytes;
                 info.sd_ticks=mount_sd_ticks; info.fs_ticks=mount_fs_ticks; info.abi=1;
-                for (i=0;i<sizeof(info);++i) out[i]=((U8 *)&info)[i];
-                success(); regs.cx=sizeof(info); return 1;
+                return query_out(&info,sizeof(info));
             }
-            if (regs.si==13) {
-                U16 i;
-                U8 FAR *out=far_at(regs.es,regs.di);
-                if (regs.cx<sizeof(mount_diag) || regs.di>65535U-sizeof(mount_diag))
-                    return error(1);
-                for (i=0;i<sizeof(mount_diag);++i) out[i]=((U8 *)&mount_diag)[i];
-                success(); regs.cx=sizeof(mount_diag); return 1;
-            }
-            if (regs.si==4) {
-                U16 i;
-                U8 FAR *out=far_at(regs.es,regs.di);
-                if (regs.cx<sizeof(sd_diag) || regs.di>65535U-sizeof(sd_diag))
-                    return error(1);
-                for (i=0;i<sizeof(sd_diag);++i) out[i]=((U8 *)&sd_diag)[i];
-                success(); regs.cx=sizeof(sd_diag); return 1;
-            }
+            if (regs.si==13) return query_out(&mount_diag,sizeof(mount_diag));
+            if (regs.si==4) return query_out(&sd_diag,sizeof(sd_diag));
             if (regs.si==7) {
                 /* Pattern scanning measures this run, not a proof of worst-
                  * case stack space. See DOSREF.md for the private query ABI. */
@@ -459,8 +465,7 @@ int dispatch(void) {
         if (!ready()) return error(E_NOTREADY);
         return find_next(dta);
     }
-    if (fn==6 || fn==7 || fn==8 || fn==9 || fn==0x0a ||
-        fn==0x0b || fn==0x21 || fn==0x2d) {
+    if ((fn>=6 && fn<=0x0b) || fn==0x21 || fn==0x2d) {
         if (!our_sft(sft)) return 0;
         if (fn!=6 && fn!=7 && !ready()) {
             if (fn==8 || fn==9) regs.cx=0;
@@ -539,12 +544,10 @@ int dispatch(void) {
         return 0;
     }
 #endif
-    /* These calls are not associated with a filename or SFT. */
-    if (fn==0x1d || fn==0x1e || fn==0x1f || fn==0x20 || fn==0x22 ||
-        fn==0x23 || fn==0x24 || fn==0x25 || fn==0x26) return 0;
-    if (fn!=1 && fn!=2 && fn!=3 && fn!=4 && fn!=5 && fn!=0x0e &&
-        fn!=0x0f && fn!=0x11 && fn!=0x13 && fn!=0x16 && fn!=0x17 &&
-        fn!=0x18 && fn!=0x19 && fn!=0x1b && fn!=0x2e) return 0;
+    /* 1Dh-26h are not associated with a filename or SFT; 21h returned above. */
+    if (fn>=0x1d && fn<=0x26) return 0;
+    /* Path calls: 01h-05h, 0Eh, 0Fh, 11h, 13h, 16h-19h, 1Bh and 2Eh. fn is nonzero. */
+    if (!strchr("\1\2\3\4\5\16\17\21\23\26\27\30\31\33\56",fn)) return 0;
     owned=get_path();
     if (!owned) return 0;
     if (owned<0) return error(E_PATH);

@@ -19,7 +19,7 @@ SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy timeout 90 "$dosbox_bin" -noconsole 
   -c 'tcc -ms -O -d -Z -S -zCINITTAIL INSTALL.C > INIT.TXT' -c exit \
   > "$build_dir/compiler.log" 2>&1
 cat "$build_dir/CORE.TXT" "$build_dir/INIT.TXT"
-if rg -qi '(^Error [^ ]+ [0-9]+|^Error:|^Fatal:|^Warning [^ ]+ [0-9]+|^Warning:|^Warning messages:[[:space:]]*[1-9]|Undefined symbol)' "$build_dir/CORE.TXT" "$build_dir/INIT.TXT"; then
+if grep -qiE '(^Error [^ ]+ [0-9]+|^Error:|^Fatal:|^Warning [^ ]+ [0-9]+|^Warning:|^Warning messages:[[:space:]]*[1-9]|Undefined symbol)' "$build_dir/CORE.TXT" "$build_dir/INIT.TXT"; then
   echo "Compilation failed: $build_dir" >&2; exit 1
 fi
 python3 "$driver_dir/installer_segments.py" "$build_dir/INSTALL.ASM"
@@ -28,7 +28,7 @@ SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy timeout 90 "$dosbox_bin" -noconsole 
   -c 'set PATH=C:\TC;C:\TASM' -c 'd:' -c 'make > LINK.TXT' -c exit \
   > "$build_dir/linker.log" 2>&1
 cat "$build_dir/LINK.TXT"
-if [[ ! -s "$build_dir/OTTERSD.EXE" ]] || rg -qi '(^Error [^ ]+ [0-9]+|^Error:|^Fatal:|^Warning [^ ]+ [0-9]+|^Warning:|^Warning messages:[[:space:]]*[1-9]|Undefined symbol)' "$build_dir/LINK.TXT"; then
+if [[ ! -s "$build_dir/OTTERSD.EXE" ]] || grep -qiE '(^Error [^ ]+ [0-9]+|^Error:|^Fatal:|^Warning [^ ]+ [0-9]+|^Warning:|^Warning messages:[[:space:]]*[1-9]|Undefined symbol)' "$build_dir/LINK.TXT"; then
   echo "Assembly/link failed: $build_dir" >&2; exit 1
 fi
 python3 "$driver_dir/tests/layout.py" "$build_dir/OTTERSD.MAP"

@@ -15,8 +15,9 @@ when rebuilding the scene, including the matching actuator recess surfaces.
 
 The scene uses the actual KiCad VRML export. The simplified CPLD/socket and
 resistor-array models are described in [the model sources](../components/3d/README.md).
-The assembled-board reference photo guides the yellow-brown FR4, cream bracket,
-red DIP switch, tan ceramic capacitors, dark packages and silver terminals.
+The assembled-board reference photo guides the yellow-brown FR4, red DIP
+switch, tan ceramic capacitors, dark packages and silver terminals. The printed
+bracket is shown in anthracite grey (RAL 7016).
 Materials and lighting are illustrative and do not specify a manufacturing finish.
 The PLCC44 socket molding has a dark brown finish, with a separate material
 from the black CPLD package and resistor arrays.

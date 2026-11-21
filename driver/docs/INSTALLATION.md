@@ -1,4 +1,4 @@
-# OTTERSD 1.1.5
+# OTTERSD 1.2.0
 
 OTTERSD exposes the Slot-otter SD card as an ordinary DOS drive letter for
 COPY, XCOPY, games and file managers. For browsing and copying files, we
@@ -76,13 +76,29 @@ and unmount before removing the card:
     C:\OTTERSD\OTTERSD /UNMOUNT
 
 Insert the replacement and run OTTERSD /MOUNT. /UNMOUNT keeps the driver
-resident. To reclaim its approximately 42 KiB of conventional memory for a
+resident. To reclaim its approximately 40 KiB of conventional memory for a
 game, run OTTERSD /UNLOAD after closing files and switching to a local drive.
 Unloading flushes filesystem state and refuses unsafe conditions, including
 open files or a later resident program hooking its interrupt chain.
 
 Never use the legacy Navigator or raw-sector software on a mounted card.
 Unmount first. OTTERSD /STATUS displays the current drive state.
+
+## Switched off without unmounting
+
+Writing marks the card as in use until OTTERSD /UNMOUNT. If the computer was
+switched off or reset first, the next /RW mount refuses the card with "volume
+was not cleanly unmounted". When all copying had finished before power-off,
+accept the card with:
+
+    C:\OTTERSD\OTTERSD /MOUNT /RECOVER
+
+or install with OTTERSD /DRIVE:S /RW /RECOVER. /RECOVER compares every FAT
+copy, even with /SKIPFATCHECK, and marks the card clean only when they all
+match and the FAT reports no earlier I/O error. It does not search for lost
+clusters or repair a file that was being written at power-off. If power was
+lost during a copy, check the card with CHKDSK or fsck on another computer
+instead.
 
 ## Performance options
 

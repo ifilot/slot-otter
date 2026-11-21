@@ -1,16 +1,38 @@
 # Resident memory
 
-The current **OTTERSD 1.1.5** allocation is **44,016 bytes (43.0 KiB)** including
-the PSP, in both `/RO` and `/RW`. The increase over 0.14 is 4,528 bytes for read
-caches, per-handle cursor state, directory attribute handling, mount diagnostics
-and their code. The private stack remains
-2,048 bytes, with 16 open handles and 32 directory searches. `/UNLOAD` reclaims
-the complete resident allocation when its existing safety conditions are met.
+The current **OTTERSD 1.2.0** allocation is **40,208 bytes (39.3 KiB)** including
+the PSP, in both `/RO` and `/RW`: 3,808 bytes below 1.1.5. Capacities, caches,
+the 2,048-byte stack, 16 handles and 32 searches are unchanged.
+
+| Change | Resident bytes |
+| --- | ---: |
+| Shared filesystem/redirector helpers, pointer iteration over file and lock tables | -2,048 |
+| Inline 512-byte payload transfer loops | +96 |
+| `/RECOVER` dirty-volume recovery | +128 |
+| Installer parses the command tail; CRT `_setargv` not linked | -240 |
+| 16-entry command CRC7 table instead of 256 entries | -176 |
+| Installer interrupt helpers in discarded INSTINT.ASM; CRT int86/int86x/segread/getvect/setvect and errno mapping not linked | -528 |
+| Callee-popped `pascal` calls (`CALLEE` in OTTER.H) for internal helpers | -1,056 |
+
+`CALLEE` is empty in host tests. Functions called from assembly, native tests,
+far gates or interrupt entry points keep the C convention. Turbo C evaluates
+`pascal` arguments left to right; keep side effects out of their arguments.
+The 45,000-byte qualification ceiling is unchanged. `/UNLOAD` reclaims the complete resident
+allocation when its existing safety conditions are met.
 
 The current qualification ceiling is 45,000 bytes. Exact measured layout and
 native memory-pressure evidence are retained in `driver/dist/build` and
 `driver/dist/EVIDENCE`. The sections below record earlier releases; their
 sizes, ceilings and pending hardware statements apply to those versions.
+
+## Release 1.1.5
+
+OTTERSD 1.1.5 allocated 44,016 bytes (43.0 KiB) including
+the PSP, in both `/RO` and `/RW`. The increase over 0.14 is 4,528 bytes for read
+caches, per-handle cursor state, directory attribute handling, mount diagnostics
+and their code. The private stack remains
+2,048 bytes, with 16 open handles and 32 directory searches. `/UNLOAD` reclaims
+the complete resident allocation when its existing safety conditions are met.
 
 # Historical layout: OTTERSD 0.8
 

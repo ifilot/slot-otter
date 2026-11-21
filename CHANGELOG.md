@@ -1,7 +1,22 @@
 # Release history
 
-## Unreleased
+## 1.2.0
 
+- Speed up SD transfers: 512-byte payloads use an inline transfer loop with
+  the port in a register and three settling reads per byte, and CRC16 uses
+  split byte tables without shifts. SPI commands are unchanged. A first
+  physical run on a 20 MHz 80286 wrote FAT16 at about 24 KiB/s and read at
+  about 60 KiB/s.
+- Reduce the resident allocation from 44,016 to 40,208 bytes: shared
+  filesystem and redirector code paths, installer-only command-line and
+  interrupt handling, a smaller command CRC table and callee-popped calls
+  for internal helpers. Capacities and caches are unchanged.
+- Add `/RECOVER` (installation with `/RW`, or `OTTERSD /MOUNT /RECOVER`) to
+  accept a card switched off without `/UNMOUNT`. It requires a clear FAT
+  I/O-error flag and a complete match of all FAT copies, then marks the volume
+  clean. It does not check for lost clusters or interrupted files.
+- Make build error detection independent of ripgrep.
+- Increment OTTERSD/HWRT to 1.2.0.
 - Slot-otter Classic hardware revision 3: fit a 74HCT595 (U7) and a 74HCT04
   (U12) instead of the 74HC parts. Both receive MISO from the 3.3 V-powered
   74LVC125, whose 3.3 V high level is below the 74HC input threshold at 5 V
@@ -14,6 +29,11 @@
   `pcb/release/slot-otter-classic.kicad_wks`, with the Slot-otter logo in the
   title block. `tools/make_drawing_sheet.py` regenerates it from KiCad's default
   sheet.
+- Show the Slot-otter Forge bracket in anthracite grey (RAL 7016) in the
+  Blender scene, the README renders and the interactive 3D viewer.
+- Add `bracket/bracket-release-card.scad`, a parametric OpenSCAD model of the
+  release-card bracket with an optional thumb socket around the SD window,
+  and its STL export in print orientation.
 - Add the Slot-otter Classic explainer movie (`movie/`): a narrated ten-minute
   walk-through that follows one byte from the ISA bus to the SD card and back,
   rendered frame by frame from the KiCad design and the Blender scene.

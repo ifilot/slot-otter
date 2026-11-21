@@ -1,5 +1,7 @@
 # Slot-otter Classic explainer movie
 
+Watch it on YouTube: https://www.youtube.com/watch?v=h1xjg9emv7I
+
 An animation of about ten minutes. It first introduces the card from a high level
 (the PC writes and reads bytes at I/O ports, the SD card speaks SPI, the card bridges
 the two) and takes a closer look at both sides' wires, then follows one byte from the

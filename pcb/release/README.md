@@ -9,6 +9,8 @@ with either board.
 
 ![Slot-otter Classic board and bracket](../../img/slot-otter-discrete-blender.png)
 
+How the board works, chip by chip: [Slot-otter Classic explainer video](https://www.youtube.com/watch?v=h1xjg9emv7I) (10 minutes).
+
 This directory contains the Classic hardware sources. Use the matching
 source revision when repairing or reproducing a card; these fabrication files
 and pinouts differ from Forge's. See the

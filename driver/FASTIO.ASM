@@ -3,7 +3,7 @@
 .8086
 .model small, c
 .code
-public fs_copy
+public fs_copy, bios_putc
 
 ; Far destination/source/count at BP+4/+8/+12. Callers normalize original
 ; DOS pointers before each <=512-byte chunk, so neither offset can wrap.
@@ -31,4 +31,25 @@ fs_copy proc near
     pop bp
     ret
 fs_copy endp
+
+; void bios_putc(unsigned char c): BIOS teletype on the active page with
+; attribute 7. Some BIOSes change BP during INT 10h scrolling; keep every
+; register Turbo C expects. The character waits in DL across AH=0Fh.
+bios_putc proc near
+    push bp
+    mov bp,sp
+    push si
+    push di
+    mov dl,[bp+4]
+    mov ah,0fh
+    int 10h
+    mov al,dl
+    mov ah,0eh
+    mov bl,7
+    int 10h
+    pop di
+    pop si
+    pop bp
+    ret
+bios_putc endp
 end

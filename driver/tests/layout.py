@@ -50,7 +50,8 @@ def verify(path):
             raise RuntimeError('Installer overlaps the startup stack or freed memory')
         for segment,offset,symbol in re.findall(r'^\s*([0-9A-F]+):([0-9A-F]+)\s+(\S+)\s*$',text,re.M):
             addr=int(segment,16)*16+int(offset,16)
-            if addr>end and symbol!='_installer':
+            # The installer entry and its INSTINT.ASM helpers are discarded.
+            if addr>end and symbol!='_installer' and not symbol.startswith('_inst_'):
                 raise RuntimeError('Unexpected public beyond resident boundary: '+symbol)
         print('Installer tail verified inside temporary heap; startup stack retained during installation')
     for start, size, name, kind in segments:

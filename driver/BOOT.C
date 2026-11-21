@@ -7,15 +7,8 @@
 #include <process.h>
 unsigned _stklen=2048;
 /* Includes the discarded installer code, strings and mount diagnostics. */
-unsigned _heaplen=10240;
-int main(int argc,char **argv) { return installer(argc,argv); }
-int FAR i_int86(int n,union REGS *in,union REGS *out) { return int86(n,in,out); }
-int FAR i_int86x(int n,union REGS *in,union REGS *out,struct SREGS *s) {
-    return int86x(n,in,out,s);
-}
-void FAR i_segread(struct SREGS *s) { segread(s); }
-void interrupt FAR (* FAR i_getvect(int n))(void) { return getvect(n); }
-void FAR i_setvect(int n,void interrupt FAR (*handler)(void)) { setvect(n,handler); }
+unsigned _heaplen=11264;
+int main(void) { return installer(); }
 U16 FAR i_mount(void) { return media_mount(); }
 void FAR i_feedback(U16 enabled) { rw_feedback(enabled); }
 void FAR i_bridge(void interrupt FAR (*previous)(void)) { bridge_init(previous); }

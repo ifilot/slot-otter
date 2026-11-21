@@ -17,6 +17,8 @@ def transform(path):
     local=set(re.findall(r'(?m)^(\w+)\s+proc\s+far\b',text,re.I))
     gates={'_i_'+name for name in ('int86','int86x','segread','getvect','setvect',
                                  'mount','feedback','bridge','keep','get16','put16','put32')}
+    # INSTINT.ASM helpers share the discarded INITTAIL segment.
+    gates|={'_inst_int86x','_inst_segread'}
     # Turbo C shortens a same-segment far call to PUSH CS / CALL NEAR.
     # That has the required far return frame, and its target must be local.
     for instruction in re.finditer(r'(?m)^\s*call\s+([^\n]+)',text):
@@ -30,6 +32,11 @@ def transform(path):
             raise RuntimeError('Installer contains an external near/runtime call: '+call)
     if re.search(r'\bproc\s+near\b',text,re.I):
         raise RuntimeError('Installer contains a near function')
+    # Turbo C emits uninitialized statics in _BSS, which is not renamed and
+    # would stay resident. Installer data must be initialized (INITDATA).
+    for block in re.finditer(r'(?ms)^_BSS\s+segment[^\n]*\n(.*?)^_BSS\s+ends',text):
+        if re.search(r'(?m)^\w+\s+label\b',block[1]):
+            raise RuntimeError('Installer contains uninitialized (resident) data')
     text=text.replace('_DATA','INITDATA')
     text=re.sub(r"(INITTAIL\s+segment\s+byte public )'CODE'",r"\1'INSTALL'",text)
     text=re.sub(r"(INITDATA\s+segment\s+word public )'DATA'",r"\1'INSTALL'",text)

@@ -53,6 +53,7 @@ OTTERSD /DRIVE:S /PORT:330 /RW
 | `/RW` | Read/write access with read-back verification of every sector. |
 | `/NOVERIFY` | With `/RW`: skip the read-back. See [Write verification](#write-verification). |
 | `/SKIPFATCHECK` | With `/RW`: faster mount. See [Mounting](#mounting). |
+| `/RECOVER` | With `/RW`: accept a card that was not cleanly unmounted. See [Recovery](#recovery). |
 | `/FAT16`, `/FAT32` | Accept only that file system. Without either, it is detected automatically. |
 
 The access mode and options are fixed at installation; reboot or `/UNLOAD`
@@ -66,6 +67,7 @@ Control commands operate on the installed driver:
 | `OTTERSD /STATUS` | Report version, mode, policies and the last SD diagnostic. |
 | `OTTERSD /UNMOUNT` | Commit and check the FAT copies, mark the volume clean and take the drive offline. Required before removing the card, rebooting or using Navigator. |
 | `OTTERSD /MOUNT` | Bring the drive online again after inserting a card. |
+| `OTTERSD /MOUNT /RECOVER` | Mount, accepting a card that was not cleanly unmounted. See [Recovery](#recovery). |
 | `OTTERSD /UNLOAD` | Remove the driver completely and free its memory. |
 
 `/UNMOUNT` and `/UNLOAD` refuse to run while files on the SD drive are open.
@@ -83,7 +85,7 @@ before that point cannot resume against a different card.
   tested; a 286 with 1 MiB is the current hardware target.
 - **Media:** SDHC/SDXC with 512-byte sectors; FAT16 or FAT32 in the first
   primary MBR partition, or as a superfloppy.
-- **Memory:** 44,016 bytes of conventional memory including the PSP, in either
+- **Memory:** 40,208 bytes of conventional memory including the PSP, in either
   access mode. Validation and packaging fail above 45,000 bytes. Resources include a
   2,048-byte private stack, 16 open-file slots and 32 search cursors. DOS
   FILES and process limits also apply.
@@ -135,6 +137,17 @@ the first FAT sector. All other mount checks, the comparisons made before FAT
 changes and the full commit checks remain. It requires `/RW`; `/RO` never
 performs the full comparison.
 
+### Recovery
+
+A `/RW` mount refuses a volume whose FAT clean-shutdown flag is clear, for
+example after switching off without `/UNMOUNT`. `/RECOVER`, at installation
+or with `/MOUNT`, accepts such a volume only if the FAT reports no earlier I/O
+error and every FAT copy matches the primary, compared in full even with
+`/SKIPFATCHECK`. It then writes the clean flag to every copy through the
+verified store path. The request is one-shot and reported by the installer.
+It is not a chain, lost-cluster or cross-link check; after power loss during
+a write, check the card on another computer instead.
+
 ### Caching and card changes
 
 Reads use separate caches: one payload sector, four FAT sectors and two
@@ -171,7 +184,8 @@ unchanged. Volumes above about 2 GiB still exceed what the call can report.
 | REDIR.C / RWOPS.C / RWDIR.C | DOS redirector, handles, locks and write callbacks |
 | FAT32.C / RWFS.C / RWFS.H | FAT16/FAT32 reading, writing and directory operations |
 | SDRW.C / RWSD.H | Card identity, recovery and verified sector transport; version number |
-| FASTIO.ASM | 8086 far memory copy |
+| FASTIO.ASM | 8086 far memory copy and BIOS progress output |
+| INSTINT.ASM | Installer-only interrupt and segment helpers; discarded after loading |
 | PORTBODY.H | Shared, exhaustively tested option parser |
 | HWRT.C / TESTCHLD.C | Hardware tester, including its self-exec child mode |
 | installer_segments.py / tests/layout.py | Checks that installer segments are discarded and the startup reserve fits |

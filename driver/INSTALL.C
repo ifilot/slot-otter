@@ -38,7 +38,42 @@ extern U8 resident_end;
 
 /* Installer/control output only. Avoid pulling stdio formatting, streams and
  * buffering into the TSR. DOS handle 1 preserves command-line redirection. */
-static U16 control_error;
+typedef void interrupt far (*Vector)(void);
+/* DOS get/set interrupt vector through the discarded interrupt helper. */
+static Vector far vector_get(U8 n) {
+    union REGS r;
+    struct SREGS s;
+    segread(&s); r.h.ah=0x35; r.h.al=n; int86x(0x21,&r,&r,&s);
+    return (Vector)MK_FP(s.es,r.x.bx);
+}
+static void far vector_set(U8 n,Vector handler) {
+    union REGS r;
+    struct SREGS s;
+    segread(&s); r.h.ah=0x25; r.h.al=n;
+    r.x.dx=FP_OFF(handler); s.ds=FP_SEG(handler); int86x(0x21,&r,&r,&s);
+}
+/* Initialized installer data moves to discarded INITDATA; uninitialized
+ * statics would land in resident _BSS (installer_segments.py rejects them). */
+static U16 control_error=0;
+/* Whitespace-separated words of the PSP command tail; slot 0 is unused. */
+#define MAX_ARGUMENTS 24
+static char command_tail[128]={0};
+static char *arguments[MAX_ARGUMENTS]={0};
+static int far command_line(void) {
+    U8 far *psp=(U8 far *)MK_FP(_psp,0);
+    U16 i, length=psp[0x80];
+    int count=1;
+    if (length>126) length=126;
+    for (i=0;i<length;++i) command_tail[i]=psp[0x81+i];
+    command_tail[length]=0;
+    for (i=0;;) {
+        while (command_tail[i]==' ' || command_tail[i]=='\t') command_tail[i++]=0;
+        if (!command_tail[i]) return count;
+        if (count==MAX_ARGUMENTS) return -1;
+        arguments[count++]=command_tail+i;
+        while (command_tail[i] && command_tail[i]!=' ' && command_tail[i]!='\t') ++i;
+    }
+}
 static void far text(const char *value) {
     union REGS r;
     r.x.ax=0x4000; r.x.bx=1; r.x.cx=i_strlen(value); r.x.dx=(U16)value;
@@ -86,9 +121,10 @@ static void far mount_report(const MountDiagnostic *d) {
     case MOUNT_BACKUP_BOOT: line("backup boot sector differs or is invalid."); break;
     case MOUNT_MIRRORS: line("FAT copies disagree."); break;
     case MOUNT_FLAGS:
-        if (!(d->value&(d->fat_bits==16?0x8000UL:0x08000000UL)))
+        if (!(d->value&(d->fat_bits==16?0x8000UL:0x08000000UL))) {
             line("volume was not cleanly unmounted.");
-        else line("FAT reports a previous I/O error.");
+            line("If it was switched off after all writes finished, run OTTERSD /MOUNT /RECOVER.");
+        } else line("FAT reports a previous I/O error. Check the card with CHKDSK on another computer.");
         break;
     case MOUNT_FSINFO: line("invalid primary FAT32 FSInfo signatures."); break;
     case MOUNT_BACKUP_INFO: line("invalid backup FAT32 FSInfo signatures."); break;
@@ -138,11 +174,28 @@ static void far control_call(U16 command,U16 console) {
     /* Keep the result in transient storage, outside resident driver state. */
     control_error=r.x.cflag?r.x.ax:0;
 }
+/* Query 8 flags of the resident driver, or 0 when unavailable. */
+static U16 far driver_flags(U16 *version) {
+    DriverInfo info;
+    union REGS r;
+    struct SREGS s;
+    i_zero(&r,sizeof(r)); r.x.ax=0xd74f; r.x.bx=0x4f54;
+    r.x.dx=0x524f; r.x.si=8; r.x.cx=sizeof(info); r.x.di=(U16)&info;
+    segread(&s); s.es=s.ds; int86x(0x2f,&r,&r,&s);
+    if (r.x.cflag || r.x.cx!=sizeof(info) || info.abi!=1) return *version=0;
+    *version=info.version; return info.flags;
+}
+static void far recover_report(int recovered) {
+    if (!recovered) { line("Volume was already clean; /RECOVER changed nothing."); return; }
+    line("Recovered: volume was not cleanly unmounted; all FAT copies match; marked clean.");
+    line("Not checked: lost clusters or a file being written at power-off. If unsure, use CHKDSK on another computer.");
+}
 static int far usage(void) {
     line("OTTERSD " OTTER_VERSION_TEXT " - Slot-otter verified FAT16/FAT32 drive");
-    line("Usage: OTTERSD /DRIVE:S [/PORT:330] [/RW | /RO] [/NOVERIFY] [/SKIPFATCHECK] [/FAT16 | /FAT32]");
+    line("Usage: OTTERSD /DRIVE:S [/PORT:330] [/RW | /RO] [/NOVERIFY] [/SKIPFATCHECK] [/RECOVER] [/FAT16 | /FAT32]");
     line("Writing is disabled unless /RW is supplied at installation.");
-    line("       OTTERSD /MOUNT | /UNMOUNT | /STATUS | /UNLOAD");
+    line("       OTTERSD /MOUNT [/RECOVER] | /UNMOUNT | /STATUS | /UNLOAD");
+    line("/RECOVER (with /RW): accept a card not cleanly unmounted if its FAT copies match.");
     line("Requires DOS 3.1-6.x, 8088+, SDHC/SDXC, and LASTDRIVE >= letter.");
     return 1;
 }
@@ -195,7 +248,9 @@ static int far unload_driver(U16 drive,U16 console) {
     return 0;
 }
 
-int far installer(int argc, char **argv) {
+int far installer(void) {
+    char **argv=arguments;
+    int argc=command_line();
     union REGS r;
     struct SREGS s;
     U8 far *lol, far *cds;
@@ -203,7 +258,10 @@ int far installer(int argc, char **argv) {
     U16 cds_size, paragraphs, env, mounted, console;
     U16 port;
     int i, have_drive, command, have_port, have_access, have_noverify, have_skipfat, have_format;
+    int have_recover;
     have_drive=command=have_port=have_access=have_noverify=have_skipfat=have_format=0;
+    have_recover=0;
+    if (argc<0) return usage();
     for (i=1; i<argc; ++i) {
         i_option_upper(argv[i]);
         if (!i_strncmp(argv[i], "/DRIVE:", 7) && i_strlen(argv[i])==8 &&
@@ -225,6 +283,8 @@ int far installer(int argc, char **argv) {
             fs_required=32; have_format=1;
         } else if (!i_strcmp(argv[i],"/SKIPFATCHECK") && !have_skipfat) {
             rw_skip_fat_check=1; have_skipfat=1;
+        } else if (!i_strcmp(argv[i],"/RECOVER") && !have_recover) {
+            have_recover=1;
         } else if (!i_strcmp(argv[i],"/MOUNT") && !command) command=2;
         else if (!i_strcmp(argv[i],"/UNMOUNT") && !command) command=1;
         else if (!i_strcmp(argv[i],"/STATUS") && !command) command=3;
@@ -236,6 +296,7 @@ int far installer(int argc, char **argv) {
     if (command && (have_access || have_format)) return usage();
     if (have_noverify && (command || !sd_write_enabled)) return usage();
     if (have_skipfat && (command || !sd_write_enabled)) return usage();
+    if (have_recover && (command?command!=2:!sd_write_enabled)) return usage();
     line("OTTERSD " OTTER_VERSION_TEXT " - Slot-otter FAT16/FAT32 driver");
     console=console_output();
     i_zero(&r,sizeof(r)); r.x.ax=0xd74f; int86(0x2f,&r,&r);
@@ -268,10 +329,17 @@ int far installer(int argc, char **argv) {
             resident_sd_report();
             return 0;
         }
+        if (have_recover) {
+            U16 resident_version, flags=driver_flags(&resident_version);
+            if (resident_version!=OTTER_VERSION) {
+                line("/RECOVER requires resident OTTERSD " OTTER_VERSION_TEXT "."); return 1;
+            }
+            if (!(flags&2)) { line("/RECOVER requires a driver installed with /RW."); return 1; }
+        }
         line(command==1?
             "Unmounting card; checking pending changes. Please wait...":
             "Mounting card; initializing SD and checking filesystem. Please wait...");
-        control_call((U16)command,console);
+        control_call(have_recover?3:(U16)command,console);
         if (control_error) {
             if (control_error==5) line("Close all files on the drive before mounting or unmounting.");
             else mount_error(control_error);
@@ -280,6 +348,10 @@ int far installer(int argc, char **argv) {
         }
         line(command==1?"OTTERSD drive is offline; card may be removed.":
                            "OTTERSD card mounted in its installed access mode.");
+        if (have_recover) {
+            U16 resident_version;
+            recover_report((driver_flags(&resident_version)&256)!=0);
+        }
         return 0;
     }
     if (r.x.ax==0x4f54 && r.x.bx==0x524f) {
@@ -311,6 +383,7 @@ int far installer(int argc, char **argv) {
         "Initializing SD card; full mount FAT comparison is SKIPPED.":
         "Initializing SD card and checking filesystem; FAT comparison may take time.");
     rw_feedback(console);
+    rw_recover=(U8)have_recover;
     mounted=media_mount();
     rw_feedback(0);
     text("Mount timing: SD "); number(mount_sd_ticks,10,0);
@@ -344,6 +417,7 @@ int far installer(int argc, char **argv) {
         text(volume.fat_bits==16?"Card mounted: FAT16, ":"Card mounted: FAT32, ");
         number((U32)volume.spc*512UL,10,0); line(" bytes per physical cluster.");
         line("Run OTTERSD /UNMOUNT before removing it or running OTTERNAV.");
+        if (have_recover) recover_report(rw_recover==2);
     }
     /* A TSR must release its inherited standard handles, especially redirected
      * output. Direct writes have no C buffers to flush. */

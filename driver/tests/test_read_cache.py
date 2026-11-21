@@ -28,8 +28,8 @@ class ReadCacheCases:
         cls.reader_tmp=tempfile.TemporaryDirectory(prefix='otter-read-walk-')
         cls.reader_source=str(Path(cls.reader_tmp.name)/'READFAT.C')
         text=(ROOT/'FAT32.C').read_text()
-        assert text.count('U32 fs_fat_entry(U32 c) {')==1
-        text=text.replace('U32 fs_fat_entry(U32 c) {','static U32 uncached_entry(U32 c) {')
+        assert text.count('U32 CALLEE fs_fat_entry(U32 c) {')==1
+        text=text.replace('U32 CALLEE fs_fat_entry(U32 c) {','static U32 uncached_entry(U32 c) {')
         text+='\nU32 test_fat_calls;\nU32 fs_fat_entry(U32 c) {\n  ++test_fat_calls; return uncached_entry(c);\n}\n'
         Path(cls.reader_source).write_text(text)
         common.WritableRedirectorTests.setUpClass.__func__(cls)

@@ -24,6 +24,15 @@ extern U32 rw_read_serial;
  * Paths and names use DOS short aliases; this module does not create LFNs. */
 /* Installed policy persists across invalidate/remount; only mount scans skip. */
 extern U8 rw_skip_fat_check;
+/* One-shot dirty-volume recovery. 1 asks the next rw_mount to accept a volume
+ * not cleanly unmounted, after the I/O-error flag and a complete FAT mirror
+ * comparison pass, and mark it clean. rw_mount resets it to 0, or to 2 when
+ * it cleared the flag. This is not a chain/lost-cluster check. */
+extern U8 rw_recover;
+#ifndef HOST_TEST
+/* FASTIO.ASM: BIOS teletype output for foreground feedback only. */
+void bios_putc(U8 c);
+#endif
 /* Private query 13: retain the writable-mount rejection after offline() clears
  * Volume. Independent of the fixed SD diagnostic ABI; no media I/O on query. */
 #define MOUNT_GEOMETRY 1
@@ -41,7 +50,7 @@ typedef struct {
 extern MountDiagnostic mount_diag;
 /* Explicit foreground controls only. Zero always closes and disables feedback.
  * BIOS console output never calls DOS and is never armed by file callbacks. */
-void rw_feedback(U16 enabled);
+void CALLEE rw_feedback(U16 enabled);
 int rw_mount(void);
 /* Invalidate disarms without committing. Flush verifies mirrors and marks
  * the volume clean; callers must explicitly flush before safe removal. */
@@ -50,22 +59,24 @@ int rw_begin(void);
 int rw_flush(void);
 /* Mutations not yet covered by a successful global commit. */
 int rw_dirty_session(void);
-int rw_lookup(const char *path, RwFile *file);
+int CALLEE rw_lookup(const char *path, RwFile *file);
+/* Fill file from the entry fs_next has just returned at cursor. */
+void CALLEE rw_entry(RwFile *file, const DirCursor *cursor, const U8 *entry, U32 parent);
 int rw_refresh(RwFile *file);
-int rw_mkdir(U32 parent, const char *name, RwFile *file);
-int rw_create(U32 parent, const char *name, RwFile *file);
+int CALLEE rw_mkdir(U32 parent, const char *name, RwFile *file);
+int CALLEE rw_create(U32 parent, const char *name, RwFile *file);
 int rw_read(const RwFile *file, U32 pos, U8 FAR *data, U16 count, U16 *done);
 /* A null append buffer supplies zeroes (gap/extension initialization). */
-int rw_append(RwFile *file, const U8 FAR *data, U16 count);
-int rw_overwrite(RwFile *file, U32 pos, const U8 FAR *data, U16 count);
-int rw_truncate(RwFile *file, U32 size);
+int CALLEE rw_append(RwFile *file, const U8 FAR *data, U16 count);
+int CALLEE rw_overwrite(RwFile *file, U32 pos, const U8 FAR *data, U16 count);
+int CALLEE rw_truncate(RwFile *file, U32 size);
 /* done reports completed bytes; count==0 resizes the file to pos. */
-int rw_write(RwFile *file, U32 pos, const U8 FAR *data, U16 count, U16 *done);
-int rw_resize(RwFile *file, U32 size);
+int CALLEE rw_write(RwFile *file, U32 pos, const U8 FAR *data, U16 count, U16 *done);
+int CALLEE rw_resize(RwFile *file, U32 size);
 int rw_delete(RwFile *file);
 int rw_rmdir(RwFile *file);
-int rw_metadata(RwFile *file, U8 attr, U16 time, U16 date);
+int CALLEE rw_metadata(RwFile *file, U8 attr, U16 time, U16 date);
 int rw_rename(RwFile *file, const char *destination);
 int rw_free_space(U32 *count);
-U32 rw_fat(U32 cluster);
+U32 CALLEE rw_fat(U32 cluster);
 #endif

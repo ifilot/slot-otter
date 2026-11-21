@@ -4,6 +4,9 @@
  * not use environ, so avoid copying it and linking an unused heap allocator.
  * Keep the normal startup and keep() vector restoration. */
 void _setenvp(void) { }
+/* The discarded installer tokenizes the PSP command tail itself, so the CRT's
+ * argv builder need not stay resident. main receives no arguments. */
+void _setargv(void) { }
 
 #include <process.h>
 /* No atexit registrations or stdio buffers exist in this program. The low-level

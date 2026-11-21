@@ -1,5 +1,31 @@
 # Read/write performance assessment
 
+## Transport CPU work, 1.2.0
+
+Physical transfer cost on an 8088 is dominated by CPU work per byte, not
+by SPI bus time. Turbo C compiled each payload byte as two near calls,
+two stack frames and three reloads of `sd_port`, around 27 instructions for four
+port accesses. The CRC16 loop used two `shl/shr reg,cl` by eight per byte.
+
+- CRC16 uses split high/low byte tables (same 512 bytes) and a byte-lane
+  union: 12 instructions per byte, no shifts. Results are identical; the host
+  oracle, all-byte and packet-length tests and the polynomial mutation pass.
+- 512-byte payload loops inline OUT, three settling INs and the sample with
+  the port in a register: about 15 instructions per byte, no calls. Commands,
+  busy and token polling keep `io()` unchanged.
+
+SPI command counts from `tests/performance.py` are identical to v1.1.5, so
+the gain is CPU time per byte only. The third settling IN keeps
+OUT-to-sample at three ISA bus cycles. That is never shorter than the
+previous code on a fast CPU and is about 3 us on an XT bus.
+
+First physical run, 80286 at 20 MHz, FAT16: the driver works and writes about
+24 KiB/s and reads about 60 KiB/s, against 15 and 38 KiB/s in the README
+table. Reads may now be limited by the destination hard disk. The earlier
+figures did not record their version, mode or cluster size; repeat v1.1.5 and 1.2.0 timed XCOPY
+on the same card, image and options in both `/RW` modes before publishing a
+comparison.
+
 ## OTTERSD 0.12
 
 The production build adopts the tested 0.11-review candidates: authentication
