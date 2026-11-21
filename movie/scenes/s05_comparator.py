@@ -1,4 +1,4 @@
-"""S04 — Is this for me? The 74HCT688 compares A9..A2 with the DIP switch."""
+"""S05 — Is this for me? The 74HCT688 compares A9..A2 with the DIP switch."""
 from otter.anim import prog, window
 from otter.camera import CamPath, drift
 from otter.config import C
@@ -10,21 +10,17 @@ from .common import finger, sig, PORT
 DECODE_VIEW = (106.0, 92.0, 64.0)
 SWITCH_VALUES = ['200', '100', '80', '40', '20', '10', '8', '4']
 SW_ON = [1, 1, 0, 0, 1, 1, 0, 0]          # 330h
-MIS0, MIS1 = 13.8, 17.6                     # "what if 300h" inset
+# narration: question 0.6, address 6.6, switch 16.8, match 22.0, other 25.4, four ports 28.8
+T_ADDR, T_SW, T_MATCH, T_PORTS = 6.6, 16.8, 22.0, 28.8
+MIS0, MIS1 = 25.4, 28.6                     # "what if 300h" inset
+END = 36.0
 
 
 class Comparator(Scene):
-    name = 's04_comparator'
-    title = 'Is this for me? 74HCT688'
-    duration = 22.0
-    cam = CamPath((0, (117.0, 108.7, 88.0)), (3.2, DECODE_VIEW), (22, DECODE_VIEW))
-    captions = [
-        (0.8, 5.2, 'Address lines A9 to A2 run to a 74HCT688, an 8-bit equality comparator.'),
-        (5.5, 10.5, "The DIP switch sets the card's address: ON means 1."),
-        (10.8, 13.6, 'All bits match and AEN is low: /PORTSEL goes low.'),
-        (13.8, 17.6, 'Any other address leaves /PORTSEL high, and the card ignores it.'),
-        (17.8, 21.6, "A1 and A0 aren't compared: the card owns four ports, 330h to 333h."),
-    ]
+    name = 's05_comparator'
+    title = 'Is this for me?'
+    duration = 37.0
+    cam = CamPath((0, (117.0, 108.7, 88.0)), (3.2, DECODE_VIEW), (37, DECODE_VIEW))
 
     def view(self, t):
         return drift(self.cam(t), t, amount=0.002, t1=self.duration)
@@ -36,21 +32,22 @@ class Comparator(Scene):
         for i in range(2, 10):
             a = f'A{i}'
             hi = (PORT >> i) & 1
-            sig(f, a, ('J2', finger(a)), t, 0.6 + (9 - i) * 0.08, 21.0, speed=28,
-                alpha=(1.0 if hi else 0.22) * (1 - 0.6 * mism), width=0.8 if hi else 0.6, t_dim=10.8)
-        sig(f, 'AEN', ('J2', 'A11'), t, 0.9, 21.0, speed=28, alpha=0.22, width=0.6)
-        sa = prog(t, 5.0, 5.8)
+            sig(f, a, ('J2', finger(a)), t, T_ADDR + (9 - i) * 0.08, END, speed=28,
+                alpha=(1.0 if hi else 0.22) * (1 - 0.6 * mism), width=0.8 if hi else 0.6, t_dim=T_MATCH)
+        sa = prog(t, T_SW, T_SW + 0.8)
         for i in range(8):
             if SW_ON[i]:
                 net = f.s.board.pad('SW1', str(i + 1)).net
-                f.net(net, C.addr, 0.7 * sa * prog(t, 5.4 + i * 0.1, 5.8 + i * 0.1) * (1 - 0.65 * prog(t, 10.8, 11.4)),
+                f.net(net, C.addr, 0.7 * sa * prog(t, T_SW + 0.4 + i * 0.1, T_SW + 0.8 + i * 0.1)
+                      * (1 - 0.65 * prog(t, T_MATCH, T_MATCH + 0.6)),
                       width=0.8)
-        sig(f, '~{PORTSEL}', ('U8', '19'), t, 10.8, 21.0, speed=30, alpha=1 - mism)
+        # /PORTSEL stays lit to the cut, like its tag: S06 opens with it lit
+        sig(f, '~{PORTSEL}', ('U8', '19'), t, T_MATCH, None, speed=30, alpha=1 - mism)
         if sa > 0:
             f.later(lambda fr: self.switches(fr, sa))
-        if t > 10.8:
-            f.tag(*f.s.pad_xy('U8', '19'), '/PORTSEL = 0', C.ctrl, prog(t, 11.0, 11.6) * (1 - mism), dx=0, dy=-60,
-                  size=22, mono=True)
+        if t > T_MATCH:
+            f.tag(*f.s.pad_xy('U8', '19'), 'card addressed', C.ctrl, prog(t, T_MATCH + 0.2, T_MATCH + 0.8)
+                  * (1 - mism), dx=0, dy=-60, size=22)
         f.dim(0.45 * mism)
 
     def switches(self, f, a):
@@ -99,7 +96,7 @@ class Comparator(Scene):
 
     def overlay(self, f, t):
         ctx = f.ctx
-        a = window(t, 6.8, 21.6, 0.6, 0.6)
+        a = window(t, T_ADDR + 2.4, END - 0.4, 0.6, 0.6)
         if a <= 0:
             return
         x, y = 1130, 120
@@ -111,22 +108,33 @@ class Comparator(Scene):
         alt = [(0x300 >> (9 - i)) & 1 for i in range(8)]
         cur = [alt[i] if mism > 0.5 else p_bits[i] for i in range(8)]
         lab = [f'A{9 - i}' for i in range(8)]
-        xs = wg.register(ctx, x + 150, y + 130, cur, C.addr, a, cell=54, gap=10, labels=None)
+        cell, gap = 48, 8
+        xs = wg.register(ctx, x + 150, y + 130, cur, C.addr, a, cell=cell, gap=gap, labels=None)
         text(ctx, 'P', x + 10, y + 130, 24, C.addr, a, mono=True, bold=True, valign='middle')
         text(ctx, 'address', x + 40, y + 130, 18, C.dim_text, a, valign='middle')
-        wg.register(ctx, x + 150, y + 210, SW_ON, C.addr, a, cell=54, gap=10)
-        text(ctx, 'Q', x + 10, y + 210, 24, C.addr, a, mono=True, bold=True, valign='middle')
-        text(ctx, 'switch', x + 40, y + 210, 18, C.dim_text, a, valign='middle')
+        # A1 and A0 are on the bus too, but the comparator never sees them
+        b = window(t, T_PORTS, END - 0.4, 0.6, 0.6)
+        ga = a * b
+        if ga > 0:
+            gx = [xs[-1] + (cell + gap) * k + 6 for k in (1, 2)]
+            for k, cx in enumerate(gx):
+                wg.bit_cell(ctx, cx, y + 130, cell, (PORT >> (1 - k)) & 1, C.dim_text, 0.75 * ga)
+                text(ctx, f'A{1 - k}', cx, y + 84, 16, C.dim_text, ga, align='center', mono=True)
+            text(ctx, 'not compared', (gx[0] + gx[1]) / 2, y + 210, 17, C.dim_text, ga, align='center',
+                 valign='middle', italic=True)
+        qa = a * prog(t, T_SW + 0.6, T_SW + 1.2)
+        wg.register(ctx, x + 150, y + 210, SW_ON, C.addr, qa, cell=cell, gap=gap)
+        text(ctx, 'Q', x + 10, y + 210, 24, C.addr, qa, mono=True, bold=True, valign='middle')
+        text(ctx, 'switch', x + 40, y + 210, 18, C.dim_text, qa, valign='middle')
         for i, cx in enumerate(xs):
             text(ctx, lab[i], cx, y + 84, 16, C.dim_text, a, align='center', mono=True)
-            ca = prog(t, 7.4 + i * 0.3, 7.7 + i * 0.3)
+            ca = prog(t, T_SW + 1.6 + i * 0.3, T_SW + 1.9 + i * 0.3)
             wg.check(ctx, cx, y + 280, cur[i] == SW_ON[i], a * ca)
-        allok = prog(t, 10.2, 10.7) * (1 - mism)
-        text(ctx, 'all equal  and  AEN = 0', x + 150, y + 350, 22, C.ok, a * allok, bold=True)
-        arrow(ctx, x + 440, y + 342, x + 520, y + 342, C.ctrl, 3, 12, a * allok)
-        text(ctx, '/PORTSEL = 0', x + 530, y + 350, 22, C.ctrl, a * allok, mono=True, bold=True)
-        text(ctx, 'two bits differ:  /PORTSEL = 1, not for us', x + 150, y + 350, 22, C.bad, a * mism, bold=True)
-        b = window(t, 17.8, 21.6, 0.6, 0.6)
+        allok = prog(t, T_MATCH, T_MATCH + 0.5) * (1 - mism)
+        text(ctx, 'all equal', x + 150, y + 350, 22, C.ok, a * allok, bold=True)
+        arrow(ctx, x + 270, y + 342, x + 350, y + 342, C.ctrl, 3, 12, a * allok)
+        text(ctx, 'card addressed', x + 362, y + 350, 22, C.ctrl, a * allok, bold=True)
+        text(ctx, 'two bits differ: not for us', x + 150, y + 350, 22, C.bad, a * mism, bold=True)
         text(ctx, '330h  331h  332h  333h', x + 150, y + 400, 24, C.text, a * b, mono=True, bold=True)
 
 

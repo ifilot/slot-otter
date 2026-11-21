@@ -3,10 +3,10 @@ Comment a line out to drop a scene from `render.py all`."""
 ORDER = [
     's01_title',
     's02_xray',
-    's03_edge',
-    's04_comparator',
-    's05_registers',
-    's06_select',
+    's03_worlds',
+    's04_edge',
+    's05_comparator',
+    's06_registers',
     's07_load',
     's08_edge_detect',
     's09_counter',
@@ -15,5 +15,6 @@ ORDER = [
     's12_answer',
     's13_readback',
     's14_sector',
-    's15_outro',
+    's15_recap',
+    's16_outro',
 ]

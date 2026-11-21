@@ -14,6 +14,7 @@ import sys
 import cairo
 
 from . import pcb, netflow
+from . import draw as draw_mod
 from .anim import clamp
 from .camera import View, shot
 from .config import W, H, C, BUILD, PCB_FILE, PLATE_PNG, PLATE_JSON
@@ -463,41 +464,50 @@ class Frame:
         else:
             go()
 
-    def pill(self, label, x, y, size=20, color=C.text, alpha=1.0, align='left', mono=False, bold=True,
-             clamp_safe=True):
-        """Label on a dark plate. (x, y) is the anchor at the vertical centre."""
-        if alpha <= 0:
-            return (x, y, x, y)
-        ctx = self.ctx
-        font(ctx, size, bold, mono)
-        tw = text_width(ctx, label)
+    def _pill_geom(self, label, x, y, size, align, mono, bold, clamp_safe=True):
+        """Text x, centre y, text width, plate width/height of a pill."""
+        font(self.ctx, size, bold, mono)
+        tw = text_width(self.ctx, label)
         bx = x - tw / 2 if align == 'center' else x if align == 'left' else x - tw
         pw, ph = tw + 20, size * 1.55
         if clamp_safe:
             sx0, sy0, sx1, sy1 = self.SAFE
             bx = min(max(bx, sx0 + 10), sx1 - tw - 10)
             y = min(max(y, sy0 + ph / 2), sy1 - ph / 2)
+        return bx, y, tw, pw, ph
+
+    def pill(self, label, x, y, size=20, color=C.text, alpha=1.0, align='left', mono=False, bold=True,
+             clamp_safe=True):
+        """Label on a dark plate. (x, y) is the anchor at the vertical centre."""
+        if alpha <= 0:
+            return (x, y, x, y)
+        ctx = self.ctx
+        bx, y, tw, pw, ph = self._pill_geom(label, x, y, size, align, mono, bold, clamp_safe)
         rounded_rect(ctx, bx - 10, y - ph / 2, pw, ph, 7)
-        ctx.set_source_rgba(0.025, 0.04, 0.075, 0.9 * alpha)
+        ctx.set_source_rgba(0.025, 0.04, 0.075, 0.95 * min(1.0, 2.0 * alpha))   # opaque until well into a fade
         ctx.fill_preserve()
         ctx.set_line_width(1.0)
         set_color(ctx, color, 0.35 * alpha)
         ctx.stroke()
         text(ctx, label, bx, y, size, color, alpha, mono=mono, bold=bold, valign='middle')
-        return (bx - 10, y - ph / 2, bx - 10 + pw, y + ph / 2)
+        box = (bx - 10, y - ph / 2, bx - 10 + pw, y + ph / 2)
+        draw_mod.log_box('pill', ctx.user_to_device(box[0], box[1]) + ctx.user_to_device(box[2], box[3]), label,
+                         alpha)
+        return box
 
     def outline(self, ref_or_box, color, alpha=1.0, pad=0.5, label=None, label_side='top', width=2.0,
-                label_size=20):
-        """Glowing rounded outline around a footprint (screen space)."""
+                label_size=20, label_alpha=1.0):
+        """Glowing rounded outline around a footprint (screen space).
+        label_alpha scales the label only (to retire it while the box stays)."""
         if alpha <= 0:
             return
         if self.deferred:
             self._labels.append(lambda f: f._outline(ref_or_box, color, alpha, pad, label, label_side, width,
-                                                     label_size))
+                                                     label_size, label_alpha))
             return
-        self._outline(ref_or_box, color, alpha, pad, label, label_side, width, label_size)
+        self._outline(ref_or_box, color, alpha, pad, label, label_side, width, label_size, label_alpha)
 
-    def _outline(self, ref_or_box, color, alpha, pad, label, label_side, width, label_size):
+    def _outline(self, ref_or_box, color, alpha, pad, label, label_side, width, label_size, label_alpha=1.0):
         if isinstance(ref_or_box, str):
             x0, y0, x1, y1 = self.box_s(ref_or_box, pad)
         else:
@@ -509,7 +519,9 @@ class Frame:
         def path(c):
             rounded_rect(c, x0, y0, x1 - x0, y1 - y0, 10)
         glow_stroke(ctx, path, color, width, alpha, glow=0.8, core=False)
-        if label:
+        draw_mod.log_box('outline', ctx.user_to_device(x0, y0) + ctx.user_to_device(x1, y1), label or '?', alpha)
+        if label and alpha * label_alpha > 0:
+            alpha *= label_alpha
             size = max(label_size, 20)
             if label_side == 'top':
                 self.pill(label, (x0 + x1) / 2, y0 - size, size, color, alpha, align='center')
@@ -651,23 +663,29 @@ class Frame:
             ctx.arc(sx, sy, 4, 0, 2 * math.pi)
             set_color(ctx, color, alpha)
             ctx.fill()
+        if align is None:
+            align = 'center' if abs(dx) < 1 else ('left' if dx > 0 else 'right')
+        if box:
+            # the plate may be pushed into the safe area: end the leader on it
+            off = 10 if align == 'left' else -10 if align == 'right' else 0
+            by = ly + (-size * 0.5 if dy < 0 else size * 0.5 if dy > 0 else 0)
+            bx, by, tw, pw, ph = self._pill_geom(label, lx + off, by, size, align, mono, bold)
+            lx = min(max(lx, bx - 10), bx - 10 + pw)
+            ly = min(max(ly, by - ph / 2), by + ph / 2)
         if dx or dy:
+            draw_mod.log_box('line', ctx.user_to_device(sx, sy) + ctx.user_to_device(lx, ly), label, alpha)
             ctx.move_to(sx, sy)
             ctx.line_to(lx, ly)
             ctx.set_line_width(1.5)
             set_color(ctx, color, alpha * 0.7)
             ctx.stroke()
-        if align is None:
-            align = 'center' if abs(dx) < 1 else ('left' if dx > 0 else 'right')
         if not box:
             font(ctx, size, bold, mono)
             tw = text_width(ctx, label)
             bx = lx - tw / 2 if align == 'center' else lx if align == 'left' else lx - tw
             text(ctx, label, bx, ly, size, color, alpha, mono=mono, bold=bold, valign='middle')
             return
-        off = 10 if align == 'left' else -10 if align == 'right' else 0
-        by = ly + (-size * 0.5 if dy < 0 else size * 0.5 if dy > 0 else 0)
-        self.pill(label, lx + off, by, size, color, alpha, align=align, mono=mono, bold=bold)
+        self.pill(label, bx, by, size, color, alpha, align='left', mono=mono, bold=bold)
 
     def subview(self, rect, view, draw_fn, alpha=1.0, title=None):
         """Picture-in-picture: draw `draw_fn(frame)` with another view into rect."""

@@ -44,7 +44,7 @@ U9_A = {f'DB{i}': str(2 + i) for i in range(8)}
 U9_B = {f'D{i}': str(18 - i) for i in range(8)}
 # 74HC165 parallel inputs (A..H = D0..D7).
 U6_IN = {'D0': '11', 'D1': '12', 'D2': '13', 'D3': '14', 'D4': '3', 'D5': '4', 'D6': '5', 'D7': '6'}
-# 74HC595 outputs (QA..QH = D0..D7).
+# 74HCT595 outputs (QA..QH = D0..D7).
 U7_OUT = {'D0': '15', 'D1': '1', 'D2': '2', 'D3': '3', 'D4': '4', 'D5': '5', 'D6': '6', 'D7': '7'}
 
 PORT = 0x330
@@ -52,15 +52,18 @@ TX_BYTE = 0x51          # CMD17 start byte
 RX_BYTE = 0xEB          # first byte of a FAT boot sector
 CMD17 = [0x51, 0x00, 0x00, 0x08, 0x00, 0xE5]   # read block, LBA 2048, CRC7
 
-BLOCKS = [
-    # (label, colour, refs, label anchor ref, label side)
-    ('Card edge', C.addr, ['J2'], 'J2', 'right'),
-    ('Address match', C.addr, ['SW1', 'U8'], 'U8', 'top'),
-    ('Register decode', C.ctrl, ['U2', 'U3', 'U5'], 'U2', 'top'),
-    ('Data gate', C.data, ['U9'], 'U9', 'bottom'),
-    ('Clock burst', C.clock, ['X1', 'U4', 'U1', 'U10', 'U13', 'U11', 'U12'], 'U4', 'top'),
-    ('Shift registers', C.data, ['U6', 'U7'], 'U6', 'top'),
-    ('3.3 V side', C.spi, ['U16', 'U21', 'J1'], 'U21', 'top'),
+# The five jobs of the fourteen logic chips (S02 shows them unnamed, S15 names
+# them). (label, colour, logic chips, companions shown but not counted,
+# label anchor, label side). Shared packages sit in their main set.
+# the fourteen logic chips (S02 counts them, S03 and S15 light them up)
+LOGIC = ['U1', 'U2', 'U3', 'U4', 'U5', 'U6', 'U7', 'U8', 'U9', 'U10', 'U11', 'U12', 'U13', 'U21']
+
+SETS = [
+    ('listeners', C.addr, ['U8', 'U2', 'U3', 'U5'], ['SW1'], 'U8', 'left'),
+    ('gate', C.data, ['U9'], [], 'U9', 'right'),
+    ('translators', C.spi, ['U6', 'U7'], [], 'U6', 'right'),
+    ('clock makers', C.clock, ['U13', 'U10', 'U11', 'U12', 'U1', 'U4'], ['X1'], 'U4', 'top'),
+    ('bridge to 3.3 V', C.power, ['U21'], ['U16'], 'U21', 'top'),
 ]
 
 
@@ -168,8 +171,8 @@ def leds_pip(f, t, states, alpha, rect=(1400, 100, 400, 225), photo=0.0):
         x0, y0, x1, y1 = f.s.board.fp(ref).bbox
         px, py = sv.to_screen(x1 + 0.6, (y0 + y1) / 2)
         on = states.get(ref, 0.0) > 0.5
-        text(f.ctx, lab, x + px * w / W, y + py * h / H, 20, C.text if on else C.dim_text, alpha, mono=True,
-             bold=True, valign='middle')
+        f.pill(lab, x + px * w / W, y + py * h / H, 19, C.text if on else C.dim_text, alpha, mono=True,
+               clamp_safe=False)
 
 
 # --------------------------------------------------------------------------
@@ -181,7 +184,7 @@ class SpiRing:
         [card] <- MOSI <- [74HC165] <- 1
           |
           +-> MISO ---------------------------+
-                      [74HC595] <-------------+     -> latch
+                      [74HCT595] <------------+     -> latch
     """
     SCK_Y = 190
     ROW1 = 420
@@ -294,9 +297,11 @@ class SpiRing:
         # legend
         if legend > 0:
             fall = running and ph >= 0.5
-            rc, fc = (C.dim_text, C.clock) if fall else (C.clock, C.dim_text)
+            rise = running and not fall
+            rc = C.clock if rise else C.dim_text
+            fc = C.clock if fall else C.dim_text
             text(ctx, 'rising edge: card and 595 sample', 1530, self.SCK_Y - 10, 19, rc, alpha * legend,
-                 bold=not fall)
+                 bold=rise)
             text(ctx, 'falling edge: 165 shifts,', 1530, self.SCK_Y + 20, 19, fc, alpha * legend, bold=fall)
             text(ctx, '595 latches', 1530, self.SCK_Y + 44, 19, fc, alpha * legend, bold=fall)
 
@@ -361,7 +366,7 @@ class SpiRing:
         # 595
         r595 = self.r595(n) if running and ph < R595_W[1] else self.r595(k_595)
         wg.register(ctx, r595_x, self.ROW2, r595, C.spi, alpha, cell=self.CELL, gap=self.GAP,
-                    title='74HC595  in', labels=['QH', 'QG', 'QF', 'QE', 'QD', 'QC', 'QB', 'QA'] if labels else None,
+                    title='74HCT595  in', labels=['QH', 'QG', 'QF', 'QE', 'QD', 'QC', 'QB', 'QA'] if labels else None,
                     shift=r595_u if running and R595_W[0] < ph < R595_W[1] else 0.0,
                     incoming=self.card_tx[n] if running and n < 8 else None, direction=-1)
 

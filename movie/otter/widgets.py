@@ -115,7 +115,7 @@ def bit_cell(ctx, x, y, s, v, color, alpha=1.0, glow=0.0):
         ctx.fill()
         text(ctx, '1', x, y, s * 0.55, C.bg, alpha, align='center', valign='middle', mono=True, bold=True)
     elif v == 0:
-        set_color(ctx, C.bg, 0.6 * alpha)
+        set_color(ctx, C.bg, alpha)           # opaque: a wire underneath must not show through the 0
         ctx.fill_preserve()
         ctx.set_line_width(2.5)
         set_color(ctx, color, alpha)
@@ -191,6 +191,8 @@ def byte_card(ctx, x, y, value, color, alpha=1.0, size=40, label=None):
     tw = text_width(ctx, s)
     w, h = tw + size, size * 1.6
     rounded_rect(ctx, x - w / 2, y - h / 2, w, h, 12)
+    set_color(ctx, C.bg, alpha)               # opaque base: wires underneath must not show through
+    ctx.fill_preserve()
     set_color(ctx, color, 0.16 * alpha)
     ctx.fill_preserve()
     ctx.set_line_width(2.5)
@@ -210,12 +212,15 @@ def bits_of(byte):
 # Timing diagram
 # --------------------------------------------------------------------------
 def timing(ctx, x, y, w, rows, t0, t1, cursor=None, alpha=1.0, row_h=46, label_w=170, reveal=True,
-           grid=None, title=None, marks=()):
+           grid=None, title=None, marks=(), mark_space=False):
     """rows: list of (label, color, fn) where fn(model_t) -> 0/1 (or None to skip).
-    Draws model time t0..t1 over width w. With reveal, only up to the cursor."""
+    Draws model time t0..t1 over width w. With reveal, only up to the cursor.
+    marks: (model_t, label, color[, alpha]) dashed verticals with a label below;
+    mark_space=True reserves their room even when none are shown, so the panel
+    does not change size when marks fade in or out."""
     if alpha <= 0:
         return
-    h = row_h * len(rows) + 30 + (34 if title else 0) + (34 if marks else 0)
+    h = row_h * len(rows) + 30 + (34 if title else 0) + (34 if (marks or mark_space) else 0)
     panel(ctx, x - 20, y - 20 - (34 if title else 0), w + label_w + 40, h + 10, alpha)
     if title:
         text(ctx, title, x, y - 18, 20, C.dim_text, alpha, bold=True)
@@ -236,34 +241,44 @@ def timing(ctx, x, y, w, rows, t0, t1, cursor=None, alpha=1.0, row_h=46, label_w
         text(ctx, label, x, yy + row_h * 0.55, 19, color, alpha, mono=True, valign='middle')
         hi, lo = yy + row_h * 0.2, yy + row_h * 0.8
         ctx.new_path()
-        steps = max(2, int((end - t0) / (t1 - t0) * w / 1.5))
-        prev = None
-        for k in range(steps + 1):
-            m = t0 + (end - t0) * k / steps
-            v = fn(m)
-            yv = hi if v else lo
-            px = sx(m)
-            if prev is None:
-                ctx.move_to(px, yv)
-            else:
-                if yv != prev:
-                    ctx.line_to(px, prev)
-                ctx.line_to(px, yv)
-            prev = yv
+        # Sample on a grid fixed to t0..t1 (not to the moving cursor) and place
+        # every edge exactly by bisection, so edges never jitter between frames.
+        dm = (t1 - t0) / max(2.0, w / 1.5)
+        v = fn(t0)
+        ctx.move_to(sx(t0), hi if v else lo)
+        m = t0
+        while m < end:
+            m2 = min(end, m + dm)
+            v2 = fn(m2)
+            if v2 != v:
+                a_, b_ = m, m2
+                for _ in range(24):
+                    mid = 0.5 * (a_ + b_)
+                    if fn(mid) == v:
+                        a_ = mid
+                    else:
+                        b_ = mid
+                ctx.line_to(sx(b_), hi if v else lo)
+                ctx.line_to(sx(b_), hi if v2 else lo)
+                v = v2
+            m = m2
+        ctx.line_to(sx(end), hi if v else lo)
         ctx.set_line_width(2.6)
         ctx.set_line_join(cairo.LINE_JOIN_MITER)
         set_color(ctx, color, alpha)
         ctx.stroke()
-    for (mt, lab, col) in marks:
-        if mt <= end:
+    for mk in marks:
+        mt, lab, col = mk[:3]
+        ma = alpha * (mk[3] if len(mk) > 3 else 1.0)
+        if mt <= end and ma > 0:
             ctx.move_to(sx(mt), y - 4)
             ctx.line_to(sx(mt), y + row_h * len(rows))
             ctx.set_dash([4, 4])
-            set_color(ctx, col, 0.7 * alpha)
+            set_color(ctx, col, 0.7 * ma)
             ctx.set_line_width(1.5)
             ctx.stroke()
             ctx.set_dash([])
-            text(ctx, lab, sx(mt), y + row_h * len(rows) + 22, 16, col, alpha, align='center')
+            text(ctx, lab, sx(mt), y + row_h * len(rows) + 22, 16, col, ma, align='center')
     if cursor is not None and t0 <= cursor <= t1:
         cx = sx(cursor)
         ctx.move_to(cx, y - 6)
@@ -299,9 +314,10 @@ def steps(transitions, initial=0):
 # Table
 # --------------------------------------------------------------------------
 def table(ctx, x, y, cols, rows, alpha=1.0, col_w=None, row_h=46, reveal=None, highlight=None,
-          hl_color=C.data, head_color=C.dim_text, size=21, mono_cols=(0,)):
+          hl_color=C.data, head_color=C.dim_text, size=21, mono_cols=(0,), row_alpha=None):
     """reveal: number of body rows visible (float, fractional fades in).
-    highlight: (row, col) cell to glow."""
+    highlight: (row, col[, amount[, colour]]) cell to glow, or a list of them.
+    row_alpha: per-row text alpha factors (to let rows step back)."""
     if alpha <= 0:
         return
     col_w = col_w or [200] * len(cols)
@@ -323,16 +339,21 @@ def table(ctx, x, y, cols, rows, alpha=1.0, col_w=None, row_h=46, reveal=None, h
             continue
         yy = y + row_h * (i + 1)
         cx = x
+        hls = highlight if isinstance(highlight, list) else ([highlight] if highlight else [])
         for j, cell in enumerate(r):
-            if highlight and highlight[0] == i and highlight[1] == j:
-                hl = highlight[2] if len(highlight) > 2 else 1.0
-                rounded_rect(ctx, cx + 2, yy + 4, col_w[j] - 4, row_h - 8, 8)
-                set_color(ctx, hl_color, 0.22 * ra * hl)
-                ctx.fill_preserve()
-                ctx.set_line_width(2)
-                set_color(ctx, hl_color, ra * hl)
-                ctx.stroke()
-            text(ctx, cell, cx + 10, yy + row_h * 0.62, size, C.text, ra, mono=j in mono_cols, bold=j in mono_cols)
+            for h in hls:
+                if h[0] == i and h[1] == j:
+                    hl = h[2] if len(h) > 2 else 1.0
+                    col = h[3] if len(h) > 3 else hl_color
+                    rounded_rect(ctx, cx + 2, yy + 4, col_w[j] - 4, row_h - 8, 8)
+                    set_color(ctx, col, 0.22 * ra * hl)
+                    ctx.fill_preserve()
+                    ctx.set_line_width(2)
+                    set_color(ctx, col, ra * hl)
+                    ctx.stroke()
+            k = row_alpha[i] if row_alpha else 1.0
+            text(ctx, cell, cx + 10, yy + row_h * 0.62, size, C.text, ra * k, mono=j in mono_cols,
+                 bold=j in mono_cols)
             cx += col_w[j]
 
 

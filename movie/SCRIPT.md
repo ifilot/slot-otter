@@ -1,377 +1,318 @@
 # Slot-otter Classic: "Eight Clocks" (movie script)
 
-A short explainer, in two cuts:
+The visual script. The story itself, act by act, is in [STORY.md](STORY.md); the
+narration in `scenes/narration.py` is its spoken form and **leads**: every scene is
+timed around its narration lines.
 
-- **Silent cut**: captions only, 5 min 4 s. Output: `build/slot-otter-classic.mp4`.
-- **Voice-over cut**: the same pictures with a calm narration, subtitled. Each
-  scene's clock slows down where a spoken line needs more room. Output:
-  `build/voiceover/slot-otter-classic-voiceover.mp4`.
+**Length**: 10 min 9 s.
 
-The camera looks straight down on the Slot-otter Classic card. We follow
+Cuts (one timeline, same pictures):
+
+- `build/slot-otter-classic.mp4`: subtitles burned in, no audio.
+- `build/slot-otter-classic-voiceover.mp4`: subtitles burned in, narration.
+- `build/slot-otter-classic-voiceover-2160p-clean.mp4`: 4K, narration, subtitles as SRT/VTT.
+
+The camera looks straight down on the Slot-otter Classic card. After a high-level
+introduction (the PC writes and reads bytes at I/O ports, the SD card speaks SPI, the
+card bridges the two) and a closer look at both sides' wires, we follow
 **one byte out** (`OUT 330h, 51h`, the first byte of the SD command *read one
 block*) from the ISA card edge to the microSD socket, then **one byte back**
-(`EBh`, the first byte of a FAT boot sector) to the CPU.
+(`EBh`, the first byte of a FAT boot sector) to the CPU, and end with a map of the
+five jobs the fourteen chips do.
 
-Format: 1920 × 1080, 60 fps. All hardware statements were checked against the
-netlist of `pcb/release/isa-sdcard.kicad_pcb` (the `.dsn` file is stale), and
-driver statements against `driver/SDRW.C`. Scene `scenes/sNN_*.py` implements
-section **SNN**. The **Captions** and **Voice-over** blocks below are generated
-from the code with `render.py script`. Do not edit them here: edit
-`captions` in the scene file or `scenes/narration.py` instead.
+Format: 1920 × 1080, 60 fps (and a 4K render). Hardware statements were checked
+against the netlist of `pcb/release/isa-sdcard.kicad_pcb`, driver statements
+against `driver/SDRW.C`. Scene `scenes/sNN_*.py` implements section **SNN**. The
+**Narration** blocks are generated from `scenes/narration.py` with
+`render.py script`; edit the text there (or in STORY.md and ask for it to be
+carried over).
 
 ---
 
 ## Visual language
 
+Every cut is a 0.8 s cross-dissolve from the previous scene's last frame (drawn through the new scene's camera); `render.py check` verifies camera continuity and that nothing pops at a cut.
+
 | Element | Look |
-| --- | --- |
-| Background | Near-black blue with a soft vignette; a dark band behind the captions at the bottom. |
-| Photo mode | Orthographic Cycles render of `slot-otter-discrete.blend` (the *plate*), registered to KiCad millimetres. |
-| X-ray mode | Vector board from the `.kicad_pcb`: outline, real copper (front bright, back dim), pads, chip bodies with part numbers. |
-| Draw order | Board, then glowing nets, then chip bodies and part numbers, then spotlight shading, then tags. Glow never covers a part number. |
-| Spotlight | Everything outside the subject dims; when the caption moves on, earlier nets step back to 35 %. |
-| Signal colours | address amber, data cyan, control and derived pulses rose, real clocks lime (16 MHz, SCK), SPI/SD violet, power soft red. Neutral white marks "look at this chip". |
-| Logic levels | A lit net is active (for active-low signals: the wire is low). Bits: `1` filled cell, `0` hollow cell. |
-| Tags | One style: dark pill, at least 20 px, inside a 60 px safe margin, never in the caption band. |
-| Type | Inter (captions, labels), DejaVu Sans Mono (hex, binary, signal names). |
-| Motion | Slow ease-in-out camera moves, zoom interpolated logarithmically, a barely visible drift that is zero at every cut. Scenes hand over on the same camera position (`render.py check`). |
+|
 
 ---
 
-## S01 — Title (10 s)
-
-Photo, drifting in from `WIDE` to `FULL`. The board is dimmed to ~25 % while
-the title is up: **Slot-otter Classic** / *How a byte reaches an SD card: 14
-logic chips, eight clocks at a time.* The board brightens at 5.6 s.
-
-<!-- captions:s01_title -->
-**Captions** (10 s silent cut)
-- 6.0–9.9 — *An 8-bit ISA card that turns an SD card into an ordinary DOS drive.*
-
-**Voice-over** (scene time → spoken)
-- 1.6 — "Slot-otter Classic."
-- 6.0 — "An eight-bit I-S-A card that turns an S-D card into an ordinary DOS drive."
-<!-- /captions -->
-
-## S02 — The x-ray (12 s)
-
-The photo cross-fades into the x-ray (0.2–2.8 s). Seven functional blocks
-outline themselves in neutral white, each with a label pill: card edge,
-address match, register decode, data gate, clock burst, shift registers,
-3.3 V side.
-
-<!-- captions:s02_xray -->
-**Captions** (12 s silent cut)
-- 3.2–9.8 — *No microcontroller, no firmware: fourteen 74-series chips, an oscillator and a regulator.*
-
-**Voice-over** (scene time → spoken)
-- 3.2 — "There is no microcontroller, and no firmware. Just fourteen seventy-four series logic chips, an oscillator, and a regulator."
-<!-- /captions -->
-
-## S03 — The card edge (26 s)
-
-The camera moves to the gold fingers (centre (117, 108.7), w 88), which sit
-above the caption band. A CPU card shows `MOV DX,330h / MOV AL,51h / OUT DX,AL`.
-Brackets label **A0 … A9**, **AEN** and **D0 … D7**. Seen from the component
-side, bit 0 is on the *left*; a read-out panel gives the usual MSB-first
-spelling (`11 0011 0000 = 330h`, `0101 0001 = 51h`). Bit tokens appear on
-the fingers, the address at 6 s and the data at 10 s. From 13.8 s, ghosts of the rear
-(B) fingers sit exactly over their positions: /IOW lit rose (= 0), /IOR
-dashed (= 1). Then active-low is defined, and AEN = 0 is shown.
-
-<!-- captions:s03_edge -->
-**Captions** (26 s silent cut)
-- 1.0–5.6 — *The CPU executes one instruction: write the byte 51h to I/O port 330h.*
-- 6.0–9.8 — *For a moment the bus carries an address and a byte…*
-- 10.0–13.6 — *51h is not random: it starts the SD command "read one block".*
-- 13.8–17.6 — *…and a "write" strobe, /IOW, on the back of the card.*
-- 17.8–21.6 — *A slash means "active low": /IOW acts when its wire is at 0 V.*
-- 21.8–25.6 — *AEN low means the CPU, not DMA, is driving the bus.*
-
-**Voice-over** (scene time → spoken)
-- 1.0 — "Let us follow one instruction. The CPU writes the byte fifty-one hex to I/O port three-thirty hex."
-- 6.0 — "For a moment, the bus carries an address, and a byte."
-- 10.0 — "Fifty-one hex is not a random choice. It is the first byte of the S-D command: read one block."
-- 13.8 — "And on the back of the card, a write strobe: I-O-W."
-- 17.8 — "The slash means active low. I-O-W does its job when its wire is at zero volts."
-- 21.8 — "A-E-N is low too. That means the CPU, not D-M-A, is driving the bus."
-<!-- /captions -->
-
-## S04 — Is this for me? 74HCT688 (22 s)
-
-Address lines A9..A2 travel along their real copper to U8; the lines at logic 0
-are dim. SW1 is redrawn as slide switches above the tracks, with a legend
-strip (`200 100 80 40 20 10 8 4` / `A9 … A2`) and ON/OFF. Comparator panel:
-P = address, Q = switches, column-by-column check marks, then
-*all equal and AEN = 0 → /PORTSEL = 0*, and /PORTSEL spreads to U2 and U9.
-From 13.8 to 17.6 s, under the heading *What if: OUT 300h*, the board dims and
-two columns fail. Finally: four ports, 330h–333h.
-
-<!-- captions:s04_comparator -->
-**Captions** (22 s silent cut)
-- 0.8–5.2 — *Address lines A9 to A2 run to a 74HCT688, an 8-bit equality comparator.*
-- 5.5–10.5 — *The DIP switch sets the card's address: ON means 1.*
-- 10.8–13.6 — *All bits match and AEN is low: /PORTSEL goes low.*
-- 13.8–17.6 — *Any other address leaves /PORTSEL high, and the card ignores it.*
-- 17.8–21.6 — *A1 and A0 aren't compared: the card owns four ports, 330h to 333h.*
-
-**Voice-over** (scene time → spoken)
-- 0.8 — "Address lines A-nine down to A-two run to a seventy-four H-C-T six eighty-eight: an eight-bit equality comparator."
-- 5.5 — "The DIP switch holds the card's address. A switch that is on, means a one."
-- 10.8 — "All bits match, and A-E-N is low. So port-select goes low."
-- 13.8 — "Any other address leaves port-select high, and the card simply ignores it."
-- 17.8 — "A-one and A-zero are not compared. So the card owns four ports: three-thirty to three-thirty-three hex."
-<!-- /captions -->
-
-## S05 — Which register? '32 + '139 (24 s)
-
-/PORTSEL and /IOW meet at U2 (OR gates; with active-low inputs this works as
-an AND). The write half of U3 is enabled; A1 = A0 = 0 selects 2Y0 =
-**/SER_WR**. A register map builds row by row:
-
-| Port | IN (read, /IOR) | OUT (write, /IOW) |
-| --- | --- | --- |
-| 330h | read received byte | load byte + 8 clocks |
-| 331h | read byte + 8 clocks | 8 clocks (sends FFh) |
-| 332h | release /CS | (MISO pull, unused) |
-| 333h | assert /CS | (MISO pull, unused) |
-
-The "330h / OUT" cell glows; later "333h / IN" glows as U5 (the /CS latch) is
-highlighted. The MISO-pull latch (U5 A/B, R1) has no effect on Classic, because
-U21 drives MISO push-pull. That is why the table marks it as unused and the
-captions do not mention it.
-
-<!-- captions:s05_registers -->
-**Captions** (24 s silent cut)
-- 1.0–6.4 — *Both signals are active low, so an OR gate means "this card AND write".*
-- 7.0–12.6 — *A1 and A0 select one of four actions. Reads and writes each have their own decoder.*
-- 13.0–16.6 — *OUT 330h: load a byte and send it.*
-- 17.0–23.4 — *A NAND latch remembers whether the SD card is selected.*
-
-**Voice-over** (scene time → spoken)
-- 1.0 — "Both signals are active low. So here, an OR gate really means: this card, and write."
-- 7.0 — "A-one and A-zero then select one of four actions. Reads and writes each have their own decoder."
-- 13.0 — "Writing to three-thirty means: load a byte, and send it."
-- 17.0 — "And a small NAND latch remembers whether the S-D card is selected."
-<!-- /captions -->
-
-## S06 — Flashback: selecting the card (9 s)
-
-Same view, picture slightly darker, with an **EARLIER · IN AL, 333h** pill.
-/IOR and A1 = A0 = 1 reach U3; 1Y3 (/SDCS_RESET) flips the U5 latch; /CS
-goes low and stays low. An LED inset shows D1 (/CS) lighting up. OTTERSD's
-`initialize()` reads 333h once, so on Classic /CS stays asserted. (Forge swaps
-the roles of IN and OUT at 332h/333h; the driver works on both.)
-
-<!-- captions:s06_select -->
-**Captions** (9 s silent cut)
-- 0.4–4.2 — *Earlier, the driver selected the card by reading port 333h.*
-- 4.4–8.6 — *The read is just a trigger: the latch now holds /CS low.*
-
-**Voice-over** (scene time → spoken)
-- 0.4 — "Earlier, the driver selected the card by reading port three-thirty-three."
-- 4.4 — "The read is only a trigger. The latch now holds chip-select low."
-<!-- /captions -->
-
-## S07 — Through the gate, into the '165 (24 s)
-
-The camera moves from the logic column to the bus area. U9 (74HCT245): /OE =
-/PORTSEL, DIR = /SER_RD = 1, with an arrow labelled *A → B: bus → card*. The
-bits of 51h travel DB → U9 → D bus; U7 is tagged *595 outputs off*. Panel:
-the byte card 51h splits into eight tokens that drop into the '165 cells H..A
-while /SER_WR (SH/LD = 0) is low. Then bit 7 is shown on MOSI, and SER is tied to
-5 V.
-
-<!-- captions:s07_load -->
-**Captions** (24 s silent cut)
-- 1.0–7.4 — *A 74HCT245 gates the bus into the card; DIR sets the direction.*
-- 9.0–13.0 — *While /IOW is low, the 165 copies all eight bits at once.*
-- 13.4–17.4 — *Bit 7 is already on MOSI, waiting for the first clock.*
-- 17.8–23.4 — *Its serial input is tied to 5 V: once the byte is out, MOSI rests high.*
-
-**Voice-over** (scene time → spoken)
-- 1.0 — "Back to our byte. A seventy-four H-C-T two forty-five opens the gate to the inside of the card. Its direction depends on whether the CPU reads or writes."
-- 9.0 — "While I-O-W is low, the one-sixty-five shift register copies all eight bits at once."
-- 13.4 — "Bit seven is already waiting on the Mosi line, for the first clock."
-- 17.8 — "Its serial input is tied to five volts. So once the byte has gone, Mosi rests high."
-<!-- /captions -->
-
-## S08 — Wait for the CPU to let go (20 s)
-
-U13 (two D flip-flops, both clocked at 16 MHz). Timing panel: 16 MHz, the /IOW
-strobe, the strobe as seen by flip-flop 2, and the pulse. The pulse rises the
-moment the CPU releases the strobe and lasts one to two ticks (62.5–125 ns).
-The wide view then follows the pulse (all in rose): U11 gate D → U2 gate C
-(OR) → U12 (NOT) → U11 gate A (AND /PULSE) → **/CLKSTART** at U1.
-
-<!-- captions:s08_edge_detect -->
-**Captions** (20 s silent cut)
-- 0.8–5.8 — *Clocking must wait until the CPU releases /IOW. Only then is the byte final.*
-- 6.0–12.4 — *Two flip-flops follow the strobe one to two ticks late. "Released" AND "not yet seen" gives a short pulse.*
-- 12.8–19.2 — *The pulse starts at the release, lasts about 100 ns, and becomes /CLKSTART.*
-
-**Voice-over** (scene time → spoken)
-- 0.8 — "The clock must wait until the CPU releases I-O-W. Only then is the byte final."
-- 6.0 — "Two flip-flops follow the strobe, one or two clock ticks late. Released, and not yet seen, gives a short pulse."
-- 12.8 — "The pulse starts the moment the strobe is released, and lasts about a hundred nanoseconds. It becomes clock-start."
-<!-- /captions -->
-
-## S09 — Exactly eight clocks (26 s)
-
-/CLKSTART sets the U1 NAND latch; /MR goes high (rose). The 74HC163 counts
-16 MHz ticks at two per second: lamps Q3..Q0, a decimal count, and a timing
-panel with Q0 = SCK and TC. At **15 the counter holds for 1.5 s** with the TC lamp lit
-while CLKSTOP → U1C → /CLKSTOP → latch reset lights up on the board; the next
-tick clears the counter to 0. Tally: 8 rising edges, *16 ticks × 62.5 ns = 1 µs
-per byte*. U1D makes /CLK: the '165 shifts and the '595 latches on falling SCK.
-
-<!-- captions:s09_counter -->
-**Captions** (26 s silent cut)
-- 0.6–4.0 — */CLKSTART sets a latch, which releases a 4-bit counter.*
-- 4.2–11.4 — *The counter's lowest bit flips on every 16 MHz tick: an 8 MHz clock, called SCK.*
-- 11.6–15.6 — *At 15, "terminal count" resets the latch; the counter clears and stops.*
-- 16.0–20.0 — *Eight clock pulses, then silence. One byte takes one microsecond.*
-- 20.4–25.6 — *The last NAND gate inverts the clock: the 165 shifts on the falling edge.*
-
-**Voice-over** (scene time → spoken)
-- 0.6 — "Clock-start sets a latch, which releases a four-bit counter."
-- 4.2 — "The counter's lowest bit flips on every tick of the sixteen megahertz oscillator. That makes an eight megahertz clock, called S-C-K."
-- 11.6 — "At fifteen, the terminal count output resets the latch. The counter clears, and stops."
-- 16.0 — "Eight clock pulses, then silence. One byte takes one microsecond."
-- 20.4 — "The last NAND gate inverts the clock, because the one-sixty-five shifts on the falling edge."
-<!-- /captions -->
-
-## S10 — Into the 3.3 V world (13.5 s)
-
-Camera to the SD corner (centre (162, 58.5), w 50). +3V3 lights up; U16 is labelled
-*regulator 5 V → 3.3 V*, U21 *74LVC125 buffer* (powered at 3.3 V, 5 V-tolerant
-inputs), J1 *microSD socket*. The four SPI lanes light one by one, each with a
-pill: /CS → DAT3, MOSI → CMD, SCK → CLK, DAT0 → MISO.
-
-<!-- captions:s10_spi_wires -->
-**Captions** (13.5 s silent cut)
-- 0.6–5.8 — *The SD card runs on 3.3 V, from a regulator; a 74LVC125 drives its pins.*
-- 6.2–13.0 — *SPI uses four wires: a clock (SCK), data out (MOSI), data in (MISO) and select (/CS).*
-
-**Voice-over** (scene time → spoken)
-- 0.6 — "The S-D card runs on three point three volts, from a regulator. A seventy-four L-V-C one twenty-five drives its pins."
-- 6.2 — "The card speaks S-P-I, over four wires: a clock, data out called Mosi, data in called Miso, and chip-select."
-<!-- /captions -->
-
-## S11 — Bits out, bits in (32 s), the centrepiece
-
-The **SPI ring** panel covers the dimmed board. Everything shifts *left*, so
-every register reads MSB first, and SPI shows as one ring of shift registers:
-
-```
- SCK  _|‾|_|‾|_ ...                                  (cursor, cycle numbers)
-
- [ SD card: its own register ]  <- MOSI <-  [ 74HC165  H … A ]  <- 1 (SER = 5 V)
-   |
-   +-> MISO --------------------------------------------+
-                               [ 74HC595  QH … QA ]  <--+      [ 595 output latch ]
-```
-
-Slow motion: cycles 1–2 take 3 s each, 3–4 take 1.5 s, 5–8 take 0.6 s. Per cycle: on the rising edge
-a copy of the '165's H bit glides into the card, the card shifts, and its MSB
-travels the MISO lane into the '595. On the falling edge the '165 shifts and a `1`
-enters. The '595 output latch copies, shown dimmed while the byte is still
-incomplete. Result: the card has 51h, the latch FFh. From 22.4 s the panel
-leaves and comets run along the real MOSI, SCK and MISO copper, with an LED inset.
-
-Simplification: a real SD card changes MISO on the falling edge. The movie
-shows the bit leaving at the rising edge, when the '595 samples it.
-
-<!-- captions:s11_shift -->
-**Captions** (32 s silent cut)
-- 1.6–8.0 — *On each rising edge the SD card reads a bit from MOSI, and the 595 a bit from MISO.*
-- 8.2–13.6 — *On each falling edge the 165 moves the next bit into place. Most significant bit first.*
-- 14.0–21.6 — *While a command goes out, the card has nothing to say: it answers with ones.*
-- 23.6–31.4 — *Sending and receiving are the same eight clocks. SPI simply swaps two bytes.*
-
-**Voice-over** (scene time → spoken)
-- 1.6 — "Now, in slow motion. On each rising edge, the S-D card reads one bit from Mosi, and the five-ninety-five reads one bit from Miso."
-- 8.2 — "On each falling edge, the one-sixty-five moves the next bit into place. The most significant bit goes first."
-- 14.0 — "While a command goes out, the card has nothing to say. It answers with ones."
-- 23.6 — "Sending and receiving happen in the same eight clocks. S-P-I simply swaps two bytes."
-<!-- /captions -->
-
-## S12 — The card answers (28 s)
-
-The same ring panel. The rest of CMD17 (`00 00 08 00` = sector 2048 on SDHC, CRC7
-`E5`) goes out at one byte per second, with a breakdown under the title. The driver then
-listens by sending FFh (`OUT 330h, FFh`, as OTTERSD's `io(255)` does). The replies
-`FF 00 FF FF FE` arrive (R1 = 00h OK, FEh data token), then `EBh` in slow motion
-(1.2 s per clock), and the latch shows EBh.
-
-<!-- captions:s12_answer -->
-**Captions** (28 s silent cut)
-- 0.4–5.4 — *Next comes the sector number, 2048, where a partition usually starts, then a checksum.*
-- 5.8–8.8 — *To listen, the driver simply sends FFh.*
-- 9.0–11.9 — *The card answers 00h (OK), then FEh (data starts now).*
-- 12.2–21.6 — *Out comes the sector's first byte, EBh, the start of a FAT boot sector.*
-- 22.0–27.4 — *The byte now waits in the 595's output latch.*
-
-**Voice-over** (scene time → spoken)
-- 0.4 — "Next comes the sector number: twenty forty-eight, where a partition usually starts. Then a checksum."
-- 5.8 — "To listen, the driver simply sends F-F."
-- 9.0 — "The card answers zero zero, meaning OK. Then F-E: the data starts now."
-- 12.2 — "Out comes the sector's first byte: E-B hex, the start of a FAT boot sector."
-- 22.0 — "The byte now waits in the five-ninety-five's output latch."
-<!-- /captions -->
-
-## S13 — Back to the CPU (24 s)
-
-`IN AL, DX` with DX = 330h. /IOR → U2A → U3 1Y0 (/RQ_SER_RD) → U11 gate B →
-**/SER_RD** = 0, which enables the U7 outputs (/OE) and turns U9 around (DIR = 0,
-B → A). EBh travels U7 → D bus → U9 → DB fingers (bit tokens); the CPU card shows
-`AL = EBh`. Note: per byte, OTTERSD does `OUT 330h, FFh`, two dummy reads
-while the burst runs, then `IN 330h`; 512 times per sector.
-
-<!-- captions:s13_readback -->
-**Captions** (24 s silent cut)
-- 0.5–5.0 — *The CPU reads port 330h. The read decoder pulls /SER_RD low.*
-- 5.2–11.6 — *The 595 drives the internal bus, and the 245 turns around to face the CPU.*
-- 12.0–15.8 — *EBh arrives in register AL.*
-- 16.2–23.4 — *OTTERSD repeats this for every byte: send FFh, then read the answer.*
-
-**Voice-over** (scene time → spoken)
-- 0.5 — "The CPU reads port three-thirty. The read decoder pulls serial-read low."
-- 5.2 — "The five-ninety-five drives the internal bus, and the two forty-five turns around to face the CPU."
-- 12.0 — "E-B hex arrives in register A-L."
-- 16.2 — "The Otter-S-D driver repeats this for every byte. Send F-F, then read the answer."
-<!-- /captions -->
-
-## S14 — A whole sector (22 s)
-
-Wide x-ray view. A frame strip, centred above the board: `51 00 00 08 00 E5` ·
-`FF … 00` · `FF … FE` · `512 data bytes` · `CRC16`. The active phase is bright,
-received parts are violet. A byte counter runs from 0 to 512 while comets loop along J1 →
-R8 → U21 → U7 → U9 → J2, ever faster. Note: about 520 bursts; each byte costs
-the driver four I/O cycles, and the 1 µs burst is the quick part.
-
-<!-- captions:s14_sector -->
-**Captions** (22 s silent cut)
-- 0.2–6.0 — *A complete read: six bytes out, a short wait, a start token, 512 data bytes and a checksum.*
-- 16.4–21.4 — *Every one of them takes the path you have just seen.*
-
-**Voice-over** (scene time → spoken)
-- 0.2 — "A complete read is six bytes out, a short wait, a start token, five hundred and twelve data bytes, and a checksum."
-- 14.6 — "Every one of them takes the path you have just seen."
-<!-- /captions -->
-
-## S15 — Outro (12 s)
-
-X-ray back to photo (its part numbers fade first). End card over a dimmed board:
-**Slot-otter** · `github.com/ifilot/slot-otter` · licences. Fade to black.
-
-<!-- captions:s15_outro -->
-**Captions** (12 s silent cut)
-- none
-
-**Voice-over** (scene time → spoken)
-- 3.6 — "Slot-otter. Open hardware, eight clocks at a time."
-<!-- /captions -->
+## S01 — Title and overview
+
+Photo of the card in the `WIDE` shot. Title card **Slot-otter Classic** over the dimmed board; the board brightens as the second line starts. Then the overview, with panels either side of the card: **PC** on the left (8088 / 8086 CPU, *talks to hardware through I/O ports*; `OUT DX, AL` *write a byte* and `IN AL, DX` *read a byte* highlight as they are spoken; *port 330h*), wired to the card edge (J2 outlined): 51h travels to the card on OUT, EBh back on IN. **SD card** on the right (*speaks SPI*: a clock trace and bits moving one at a time into an SD glyph; *MOSI, MISO, SCK, /CS: four wires*), wired to the socket (J1 outlined). On *"Slot-otter sits in between"* a centre label **Slot-otter: bytes ⇄ bits**, while bytes go back and forth on the bus and bits run on the SPI lane. The panels fade and the camera pushes in to `FULL`.
+
+<!-- narration:s01_title -->
+**Narration** (scene time; 58 s of animation, 59.3 s on screen)
+- 1.6 — *(title card)*
+  - spoken: "Slot-otter Classic."
+- 6.0 — It is an 8-bit ISA card that lets an old PC, even one of the very first 8088 machines, use an SD card as an ordinary DOS drive.
+  - spoken: "It is an eight-bit I-S-A card that lets an old PC, even one of the very first eighty eighty-eight machines, use an S-D card as an ordinary DOS drive."
+- 16.0 — To the PC, the card is simply a set of I/O ports. An 8088 or 8086 talks to its hardware through such ports: with one instruction it writes a byte to a port, and with another it reads a byte back.
+  - spoken: "To the PC, the card is simply a set of I-O ports. An eighty eighty-eight or eighty eighty-six talks to its hardware through such ports: with one instruction it writes a byte to a port, and with another it reads a byte back."
+- 30.5 — The SD card knows nothing about ports. In the simple mode used here, it speaks SPI: data travels one bit at a time, in step with a clock signal.
+  - spoken: "The S-D card knows nothing about ports. In the simple mode used here, it speaks S-P-I: data travels one bit at a time, in step with a clock signal."
+- 42.0 — Slot-otter sits in between. Every byte the PC writes becomes a stream of bits for the SD card, and the bits that come back are gathered into a byte the PC can read.
+  - spoken: "Slot-otter sits in between. Every byte the PC writes becomes a stream of bits for the S-D card, and the bits that come back are gathered into a byte the PC can read."
+<!-- /narration -->
+
+## S02 — The x-ray
+
+The photo cross-fades into the x-ray. As the narration names them, the parts are pointed at: the fourteen logic chips outline themselves one after another while a margin label counts *1 … 14 logic chips*; then *oscillator · 16 MHz* and *regulator · 3.3 V*, each a margin label with a leader line. On *"meet each of these chips along the way"* the five groups light up one by one in their S15 colours, each labelled with its job: *listen to the bus*, *gate to the bus*, *bytes to bits*, *make the clock*, *bridge to 3.3 V*. Everything fades before the cut.
+
+<!-- narration:s02_xray -->
+**Narration** (scene time; 28 s of animation, 29.9 s on screen)
+- 3.0 — What makes this card unusual is how it does that. There is no microcontroller on it and no firmware, just fourteen 74-series logic chips, an oscillator and a voltage regulator.
+  - spoken: "What makes this card unusual is how it does that. There is no microcontroller on it and no firmware, just fourteen seventy-four series logic chips, an oscillator and a voltage regulator."
+- 14.0 — So how can a handful of logic chips talk to an SD card? To find out, we will follow a single byte from the PC to the SD card, and another one on its way back, and meet each of these chips along the way.
+  - spoken: "So how can a handful of logic chips talk to an S-D card? To find out, we will follow a single byte from the PC to the S-D card, and another one on its way back, and meet each of these chips along the way."
+<!-- /narration -->
+
+## S03 — Two worlds
+
+Two schematic panels over the dimmed board. **PC**: a CPU, an address band (330h) and eight data wires; the bits of 51h travel along all eight at once. **SD card**: four lanes into the card. The bits of 51h travel one by one on MOSI, each riding on its own SCK pulse; the card's register fills (MSB first) and reads 51h. MISO bits leave the card; /CS lights up as *low (0 V): listening*. Then *this card: bytes → bits → bytes*, and the panels give way to the real board: card edge = *bytes · ISA bus*, microSD socket = *bits · SPI*, the logic chips faintly outlined in between.
+
+<!-- narration:s03_worlds -->
+**Narration** (scene time; 52 s of animation, 55.0 s on screen)
+- 0.4 — But first, let's take a closer look at both sides, starting with the PC.
+  - spoken: "But first, let's take a closer look at both sides, starting with the PC."
+- 4.4 — On the ISA bus, the PC puts all eight bits of a byte on eight wires at once, together with an address that says where the byte should go.
+  - spoken: "On the I-S-A bus, the PC puts all eight bits of a byte on eight wires at once, together with an address that says where the byte should go."
+- 15.2 — The SD card, by contrast, takes in one bit at a time, on a single wire called MOSI.
+  - spoken: "The S-D card, by contrast, takes in one bit at a time, on a single wire called Mosi."
+- 21.8 — A second wire, the clock SCK, tells the card when to read each bit, so eight clock pulses carry one byte.
+  - spoken: "A second wire, the clock S-C-K, tells the card when to read each bit, so eight clock pulses carry one byte."
+- 28.8 — The card's answers come back the same way, bit by bit, on a third wire called MISO.
+  - spoken: "The card's answers come back the same way, bit by bit, on a third wire called Miso."
+- 34.4 — And a fourth wire, chip select, has to be held low, at zero volts, for the card to listen at all.
+  - spoken: "And a fourth wire, chip select, has to be held low, at zero volts, for the card to listen at all."
+- 40.4 — That is the translation this card performs: bytes into bits, and bits back into bytes.
+  - spoken: "That is the translation this card performs: bytes into bits, and bits back into bytes."
+- 45.8 — On the board, bytes arrive at the card edge, and leave as bits through the SD socket.
+  - spoken: "On the board, bytes arrive at the card edge, and leave as bits through the S-D socket."
+<!-- /narration -->
+
+## S04 — The card edge
+
+The gold fingers. CPU card `MOV DX,330h / MOV AL,51h / OUT DX,AL`. A read-out panel: *0101 0001 = 51h, SD command: read one block*; then the bit tokens appear on the address and data fingers and the panel adds *11 0011 0000 = 330h*. Ghosts of the rear (B) fingers: /IOW lit (= 0), /IOR dim (= 1); the pill *"/ = active when low (0 V)"* and the tag *"/IOW = 0: write"*.
+
+<!-- narration:s04_edge -->
+**Narration** (scene time; 29 s of animation, 32.0 s on screen)
+- 1.0 — Now let's follow our byte. The CPU writes 51h to I/O port 330h.
+  - spoken: "Now let's follow our byte. The CPU writes fifty-one hex to I-O port three-thirty hex."
+- 6.4 — That value is no accident: 51h is the first byte of the SD card's command to read one block.
+  - spoken: "That value is no accident: fifty-one hex is the first byte of the S-D card's command to read one block."
+- 13.8 — For a brief moment, the bus carries both the address and the byte.
+  - spoken: "For a brief moment, the bus carries both the address and the byte."
+- 17.2 — At the same time, the CPU pulls a wire called /IOW low. The slash means the wire is active when it is low, and here it tells the cards on the bus that this is a write.
+  - spoken: "At the same time, the CPU pulls a wire called I-O-W low. The slash means the wire is active when it is low, and here it tells the cards on the bus that this is a write."
+<!-- /narration -->
+
+## S05 — Is this for me?
+
+Address lines A9..A2 travel to the 74HCT688 (lines at 0 are dim). Comparator panel: P = address. The DIP switch is redrawn as slide switches with a value legend; Q = switch row; column checks; *all equal → card addressed* (tag on the board too). *What if: OUT 300h*: two columns fail, *not for us*. Finally the four ports 330h–333h.
+
+<!-- narration:s05_comparator -->
+**Narration** (scene time; 37 s of animation, 40.3 s on screen)
+- 0.6 — Every card in the PC sees this address, so our card first has to ask: is this meant for me?
+  - spoken: "Every card in the PC sees this address, so our card first has to ask: is this meant for me?"
+- 6.6 — I/O addresses use ten lines. Eight of them, A9 down to A2, run to a 74HCT688, a chip that compares two 8-bit numbers.
+  - spoken: "I-O addresses use ten lines. Eight of them, A-nine down to A-two, run to a seventy-four H-C-T six eighty-eight, a chip that compares two eight-bit numbers."
+- 16.8 — Its second number comes from a DIP switch, where you set the address the card should answer to.
+  - spoken: "Its second number comes from a dip switch, where you set the address the card should answer to."
+- 22.0 — When all eight bits match, the card knows it is being addressed.
+  - spoken: "When all eight bits match, the card knows it is being addressed."
+- 25.4 — Any other address fails, and the card ignores it.
+  - spoken: "Any other address fails, and the card ignores it."
+- 28.8 — A1 and A0 are not compared at all, so the card answers to four ports in a row: 330h to 333h.
+  - spoken: "A-one and A-zero are not compared at all, so the card answers to four ports in a row: three-thirty to three-thirty-three hex."
+<!-- /narration -->
+
+## S06 — What does the CPU want?
+
+The 74HCT32 (outline only) takes *addressed* and */IOW: write*; the 74HCT139 decoder takes A1 = A0 = 0. A port table builds: 330h *fetch the card's reply* / *send a byte*; 331h–333h in plain words (dimmed while the two 330h actions glow: first *send a byte* in rose, then *fetch the card's reply* in cyan). On the board: *action: send a byte*.
+
+<!-- narration:s06_registers -->
+**Narration** (scene time; 25.5 s of animation, 29.0 s on screen)
+- 1.0 — Next, the card works out what the CPU wants: a read or a write, and on which of its four ports.
+  - spoken: "Next, the card works out what the CPU wants: a read or a write, and on which of its four ports."
+- 6.4 — A decoder combines A1 and A0 with the read and write signals, and turns them into a single action.
+  - spoken: "A decoder combines A-one and A-zero with the read and write signals, and turns them into a single action."
+- 12.6 — Only two of these actions matter for our story. Writing to 330h sends a byte to the SD card,
+  - spoken: "Only two of these actions matter for our story. Writing to three-thirty sends a byte to the S-D card,"
+- 18.8 — and reading from the same port fetches the card's reply.
+  - spoken: "and reading from the same port fetches the card's reply."
+- 22.2 — The other ports handle housekeeping.
+  - spoken: "The other ports handle housekeeping."
+<!-- /narration -->
+
+## S07 — Two shift registers
+
+The bits of 51h flow from the fingers through the 74HCT245 (*the gate: bus → card*) onto the internal bus. Both shift registers are outlined. Panel: the 74HC165 (*byte in at once, bits out one by one*): the byte card splits into cells H..A while /IOW is low (*/IOW low: load*); MOSI lights, *bit 7 → MOSI*. Then the 74HCT595 joins the panel (*bits in one by one, byte out at once*), its cells empty, *waiting for bits on MISO*; MISO lights into U7. Finally *clock?* tags on both chips' clock inputs.
+
+<!-- narration:s07_load -->
+**Narration** (scene time; 56.5 s of animation, 61.2 s on screen)
+- 1.0 — First, the byte has to get onto the card. It enters through a 74HCT245, the card's gate to the bus, which lets data in when the CPU writes, and out when it reads.
+  - spoken: "First, the byte has to get onto the card. It enters through a seventy-four H-C-T two forty-five, the card's gate to the bus, which lets data in when the CPU writes, and out when it reads."
+- 12.4 — Behind the gate, the actual translation is done by two shift registers.
+  - spoken: "Behind the gate, the actual translation is done by two shift registers."
+- 16.6 — The first, a 74HC165, has eight cells that load a whole byte at once and then hand it out one bit at a time. While /IOW is still low, our byte is copied in.
+  - spoken: "The first, a seventy-four H-C one sixty-five, has eight cells that load a whole byte at once and then hand it out one bit at a time. While I-O-W is still low, our byte is copied in."
+- 29.2 — Every clock pulse then pushes the next bit onto MOSI. Bit 7 goes first, and it is already waiting there.
+  - spoken: "Every clock pulse then pushes the next bit onto Mosi. Bit seven goes first, and it is already waiting there."
+- 36.6 — Next to it sits its mirror image, a 74HCT595, which collects the bits coming back from the SD card one at a time, and holds them as a byte.
+  - spoken: "Next to it sits its mirror image, a seventy-four H-C-T five ninety-five, which collects the bits coming back from the S-D card one at a time, and holds them as a byte."
+- 46.8 — Both registers need clock pulses, and the PC doesn't provide them. The card has to make its own clock, and it has to know exactly when to start.
+  - spoken: "Both registers need clock pulses, and the PC doesn't provide them. The card has to make its own clock, and it has to know exactly when to start."
+<!-- /narration -->
+
+## S08 — Waiting for the CPU to let go
+
+Near the two 74HC74s. Tag */IOW low: the 165 is loading*. The flip-flops are outlined (*two flip-flops*) and a timing diagram *waiting for /IOW to end* shows 16 MHz, /IOW, the strobe as seen by the second flip-flop, and the pulse (*CPU lets go* mark). The pulse then travels through the glue gates to the start/stop latch: *start pulse*. Camera widens.
+
+<!-- narration:s08_edge_detect -->
+**Narration** (scene time; 22.5 s of animation, 23.5 s on screen)
+- 0.8 — Starting too early would spoil everything: as long as /IOW is low, the 165 keeps loading, and cannot shift.
+  - spoken: "Starting too early would spoil everything: as long as I-O-W is low, the one sixty-five keeps loading, and cannot shift."
+- 9.0 — So the card waits for the CPU to let go. Two flip-flops watch /IOW, and the moment it is released, they produce a single short pulse.
+  - spoken: "So the card waits for the CPU to let go. Two flip-flops watch I-O-W, and the moment it is released, they produce a single short pulse."
+- 18.6 — That pulse is what starts the clock.
+  - spoken: "That pulse is what starts the clock."
+<!-- /narration -->
+
+## S09 — Exactly eight clocks
+
+The 16 MHz oscillator and the start/stop latch are outlined; *run* on the counter. Counter panel: lamps Q3..Q0, the count, a timing plot (16 MHz, Q0 = SCK, stop). The count runs 0..15 at two ticks per second, *SCK pulses* counts up to 8, *16 ticks → 8 pulses*; at 15 *stop* lights (and *stop at 15* on the board), the next tick clears and the plot runs on into silence. *up* / *down* marks on SCK for the two edges.
+
+<!-- narration:s09_counter -->
+**Narration** (scene time; 38 s of animation, 41.7 s on screen)
+- 0.6 — The clock itself comes from a 16 MHz oscillator and a 4-bit counter, which starts to run as soon as that pulse arrives.
+  - spoken: "The clock itself comes from a sixteen megahertz oscillator and a four-bit counter, which starts to run as soon as that pulse arrives."
+- 9.0 — The counter's lowest bit flips between 0 and 1 on every tick of the oscillator, which gives an 8 MHz clock, SCK. Sixteen ticks make eight pulses.
+  - spoken: "The counter's lowest bit flips between zero and one on every tick of the oscillator, which gives an eight megahertz clock, S-C-K. Sixteen ticks make eight pulses."
+- 19.4 — When the count reaches fifteen, the counter stops itself: eight clock pulses, and then silence.
+  - spoken: "When the count reaches fifteen, the counter stops itself: eight clock pulses, and then silence."
+- 25.4 — Each pulse has two edges, one where the clock goes up and one where it comes down again, and as we will see, the card uses both.
+  - spoken: "Each pulse has two edges, one where the clock goes up and one where it comes down again, and as we will see, the card uses both."
+- 32.6 — Before those pulses can reach the SD card, though, there is one more problem to solve.
+  - spoken: "Before those pulses can reach the S-D card, though, there is one more problem to solve."
+<!-- /narration -->
+
+## S10 — Into the 3.3 V world
+
+The SD corner. Regulator, 74LVC125 and socket outlined. A panel *74LVC125: four buffers, powered at 3.3 V*: /CS, MOSI, SCK `5 V → ▷ → 3.3 V`, then the MISO row `3.3 V ← ◁ ← 3.3 V` into the 595 (*reads anything above 2 V as a 1*), then the /CS row again (*already low, set once at start-up*). The four lanes light with pills /CS → DAT3, MOSI → CMD, SCK → CLK, DAT0 → MISO; the lane being talked about stays bright.
+
+<!-- narration:s10_spi_wires -->
+**Narration** (scene time; 34.5 s of animation, 37.3 s on screen)
+- 0.6 — The SD card runs on 3.3 V, and the PC's 5 V signals would damage it.
+  - spoken: "The S-D card runs on three point three volts, and the PC's five volt signals would damage it."
+- 7.0 — That is why a 74LVC125 buffer sits in between. It runs on 3.3 V itself but accepts 5 V inputs, so the card only ever sees 3.3 V.
+  - spoken: "That is why a seventy-four L-V-C one twenty-five buffer sits in between. It runs on three point three volts itself but accepts five volt inputs, so the card only ever sees three point three volts."
+- 20.2 — In the other direction, MISO comes back at 3.3 V, which the 595 still reads as a 1.
+  - spoken: "In the other direction, Miso comes back at three point three volts, which the five ninety-five still reads as a one."
+- 26.4 — And chip select is already low: the driver set it once at start-up, by reading port 333h.
+  - spoken: "And chip select is already low: the driver set it once at start-up, by reading port three-thirty-three."
+<!-- /narration -->
+
+## S11 — Bits out, bits in
+
+The SPI ring over the dimmed board: 74HC165 → MOSI → SD card → MISO → 74HCT595, SCK on top. Slow motion: clocks 1–2 take 4 s each, 3–4 take 2 s, 5–8 take 0.8 s. On the rising edge the card and the 595 take a bit; on the falling edge the 165 shifts and a 1 enters. Result: the card holds 51h, the 595 FFh (*card received 51h and sent FFh*). Then comets run along the real MOSI, SCK and MISO copper with an LED inset, and *8 clocks = 1 µs*. (Simplification: a real card changes MISO on the falling edge; the film shows the bit leaving when the 595 samples it.)
+
+<!-- narration:s11_shift -->
+**Narration** (scene time; 43.5 s of animation, 44.8 s on screen)
+- 0.4 — Now the eight clocks run, and bits move both ways at once.
+  - spoken: "Now the eight clocks run, and bits move both ways at once."
+- 4.4 — Each time the clock goes up, the SD card reads a bit from MOSI, and the 595 picks up a bit from MISO.
+  - spoken: "Each time the clock goes up, the S-D card reads a bit from Mosi, and the five ninety-five picks up a bit from Miso."
+- 11.6 — And each time it comes down, the 165 moves its next bit into place, so a bit never changes while someone is reading it.
+  - spoken: "And each time it comes down, the one sixty-five moves its next bit into place, so a bit never changes while someone is reading it."
+- 20.0 — While a command is going out, the card has nothing to say yet, so it simply answers with ones.
+  - spoken: "While a command is going out, the card has nothing to say yet, so it simply answers with ones."
+- 25.4 — After eight clocks, the SD card has our byte, 51h, and the 595 holds the card's reply. Sending and receiving happen on the very same clocks: SPI simply swaps two bytes.
+  - spoken: "After eight clocks, the S-D card has our byte, fifty-one hex, and the five ninety-five holds the card's reply. Sending and receiving happen on the very same clocks: S-P-I simply swaps two bytes."
+- 39.4 — And all of this takes just one microsecond.
+  - spoken: "And all of this takes just one microsecond."
+<!-- /narration -->
+
+## S12 — The card answers
+
+The same ring. The rest of the command (`00 00 08 00 E5`: *which block*, *check*) goes out at one byte per second. Then *OUT 330h, FFh (listening)*: FF polls, *00h: OK*, more FF, *FEh: here comes the data*, then EBh in slow motion; the 595 output latch shows EBh (*first byte of the sector*). A byte log shows sent/received.
+
+<!-- narration:s12_answer -->
+**Narration** (scene time; 35.5 s of animation, 38.0 s on screen)
+- 0.4 — The rest of the command follows in exactly the same way: five more bytes, which include the number of the block to read.
+  - spoken: "The rest of the command follows in exactly the same way: five more bytes, which include the number of the block to read."
+- 7.5 — The card then needs a moment. To hear its answer, the driver keeps sending FFh, a byte of all ones, and reads port 330h after each one to see what came back.
+  - spoken: "The card then needs a moment. To hear its answer, the driver keeps sending F-F hex, a byte of all ones, and reads port three-thirty after each one to see what came back."
+- 17.9 — First the card replies "OK", and then "here comes the data".
+  - spoken: "First the card replies: OK, and then: here comes the data."
+- 22.3 — Then the first byte of the block arrives: EBh, the start of a FAT boot sector.
+  - spoken: "Then the first byte of the block arrives: E-B hex, the start of a FAT boot sector."
+- 31.2 — It now waits in the 595, ready for the CPU to collect.
+  - spoken: "It now waits in the five ninety-five, ready for the CPU to collect."
+<!-- /narration -->
+
+## S13 — Back to the CPU
+
+`IN AL, DX` with DX = 330h. The read decoder lights (*read 330h*), the 595 outputs switch on (*595 outputs on*), EBh goes onto the internal bus; the 245 turns around (*the gate: card → bus*) and the bit tokens reach the fingers; the CPU card shows `AL = EBh`.
+
+<!-- narration:s13_readback -->
+**Narration** (scene time; 21 s of animation, 23.5 s on screen)
+- 0.5 — To collect it, the CPU reads port 330h. The decoder recognises the read, and the 595 puts its byte onto the card's internal bus.
+  - spoken: "To collect it, the CPU reads port three-thirty. The decoder recognises the read, and the five ninety-five puts its byte onto the card's internal bus."
+- 9.9 — The 245, our gate, now turns around to face the CPU, and the byte flows out onto the ISA bus.
+  - spoken: "The two forty-five, our gate, now turns around to face the CPU, and the byte flows out onto the I-S-A bus."
+- 16.9 — And there it is: EBh, in the CPU's register AL.
+  - spoken: "And there it is: E-B hex, in the CPU's register A-L."
+<!-- /narration -->
+
+## S14 — A whole sector
+
+Wide view. A strip: command · OK · data starts · 512 data bytes · check, the active phase bright. Bytes stream in, ever faster: one comet on the serial path (J1 → R8 → U21 → MISO → U7), eight comets on D0–D7 → U9 → DB0–DB7 (1 bits bright, 0 bits dim; the first bytes are the boot sector's `EB 3C 90 'MSDOS5.0'`); a counter runs to 512. *≈ 38 KB/s, including the PC's own work* (README figure), then *a file = a list of sectors*. Camera to `FULL`.
+
+<!-- narration:s14_sector -->
+**Narration** (scene time; 27 s of animation, 29.6 s on screen)
+- 0.2 — That was a single byte. A block, or sector, holds 512 of them, plus a few extra bytes for the command, the replies and a checksum.
+  - spoken: "That was a single byte. A block, or sector, holds five hundred and twelve of them, plus a few extra bytes for the command, the replies and a checksum."
+- 9.0 — Every one of them takes the path you have just seen, eight clocks at a time. Including the work the PC itself has to do, that adds up to about 38 kilobytes per second.
+  - spoken: "Every one of them takes the path you have just seen, eight clocks at a time. Including the work the PC itself has to do, that adds up to about thirty-eight kilobytes per second."
+- 19.4 — A file, in the end, is just a list of sectors, and the driver turns them into an ordinary DOS drive.
+  - spoken: "A file, in the end, is just a list of sectors, and the driver turns them into an ordinary DOS drive."
+<!-- /narration -->
+
+## S15 — Fourteen chips, five jobs
+
+The same view as S02. The five groups return; one by one each lights up in its own colour with a label, then stays lit softer: **listeners** (74HCT688, 74HCT32, 74HCT139, chip-select latch 74HC00 U5; amber), **gate** (74HCT245; cyan), **translators** (74HC165, 74HCT595; violet), **clock makers** (2× 74HC74, 74HC08, 74HCT04, 74HC00 U1, 74HC163, with the oscillator; lime), **bridge to 3.3 V** (74LVC125, with the regulator; coral). Within a group, each chip flares as it is named, with its own small label (*688*, *32*, *139*, *CS latch*; *flip-flops*, *counter*, *gates* with leader lines), which fades when the line ends; the oscillator, DIP switch and regulator are outlined with their groups. On *"Fourteen chips, five jobs"* all five glow together. 4 + 1 + 2 + 6 + 1 = 14.
+
+<!-- narration:s15_recap -->
+**Narration** (scene time; 45 s of animation, 48.2 s on screen)
+- 0.6 — Now that we know what every part does, let's look at the card one last time.
+  - spoken: "Now that we know what every part does, let's look at the card one last time."
+- 4.8 — The 688, the 32 and the 139 listen to the bus: together they recognise our address and work out what the CPU wants, while a small latch next to them holds chip select.
+  - spoken: "The six eighty-eight, the thirty-two and the one thirty-nine listen to the bus: together they recognise our address and work out what the CPU wants, while a small latch next to them holds chip select."
+- 16.4 — The 245 is the gate that lets bytes in and out.
+  - spoken: "The two forty-five is the gate that lets bytes in and out."
+- 20.6 — The 165 and the 595 are the translators, turning bytes into bits and bits back into bytes.
+  - spoken: "The one sixty-five and the five ninety-five are the translators, turning bytes into bits and bits back into bytes."
+- 27.2 — Two flip-flops, a counter and a few gates make the clock: exactly eight pulses, started at exactly the right moment.
+  - spoken: "Two flip-flops, a counter and a few gates make the clock: exactly eight pulses, started at exactly the right moment."
+- 35.0 — And the 125 is the bridge to the SD card's 3.3 V world.
+  - spoken: "And the one twenty-five is the bridge to the S-D card's three point three volt world."
+- 40.2 — Fourteen chips, five jobs.
+  - spoken: "Fourteen chips, five jobs."
+<!-- /narration -->
+
+## S16 — Outro
+
+X-ray back to photo (part numbers fade first). End card over a dimmed board: **Slot-otter** · `github.com/ifilot/slot-otter` · licences. Fade to black.
+
+<!-- narration:s16_outro -->
+**Narration** (scene time; 15.5 s of animation, 15.8 s on screen)
+- 1.0 — No processor and no firmware: just logic, turning bytes into bits and bits back into bytes.
+  - spoken: "No processor and no firmware: just logic, turning bytes into bits and bits back into bytes."
+- 7.4 — Slot-otter is open hardware, and its schematics, board and driver are all on GitHub.
+  - spoken: "Slot-otter is open hardware, and its schematics, board and driver are all on GitHub."
+<!-- /narration -->
 
 ---
 
@@ -383,17 +324,17 @@ X-ray back to photo (its part numbers fade first). End card over a dimmed board:
 | Address match | U8 74HCT688: P0..P7 = A2..A9, Q0..Q7 = SW1 (ON = 1; RN1/RN3 pull-downs), /G = AEN, /(P=Q) = **/PORTSEL** |
 | Strobe qualify | U2 74HCT32: A = /PORTSEL + /IOR → U3 1/E; B = /PORTSEL + /IOW → U3 2/E; C = OR of the two edge-detector pulses |
 | Decoders | U3 74HCT139 read half: 1Y0 /RQ_SER_RD, 1Y1 /SER_RD_AND_PULSE, 1Y2 /SDCS_SET, 1Y3 /SDCS_RESET. Write half: 2Y0 /SER_WR, 2Y1 /PULSE, 2Y2 /SDOUT_SET, 2Y3 /SDOUT_RESET |
-| Latches | U5 74HC00: gates C/D = /CS latch (IN 332h release, IN 333h assert); gates A/B = MISO-pull latch → R1 10 k → MISO (no effect: U21 drives MISO) |
+| Latch | U5 74HC00 gates C/D: /CS latch (IN 332h release, IN 333h assert) |
 | Data gate | U9 74HCT245: A = ISA DB0..7, B = internal D0..7, /OE = /PORTSEL, DIR = /SER_RD |
 | Edge detectors | U13 (write) and U10 (read) 74HC74, both stages at 16 MHz; U11 gates D/C AND the strobe with /Q2. The pulse starts at the release and lasts 62.5–125 ns |
 | Clock start | U12 gate 1 inverts U2C; U11 gate A ANDs it with /PULSE → /CLKSTART |
 | Burst | U1 74HC00 gates A/B: SR latch (set /CLKSTART, reset /CLKSTOP) → U4 /MR. U1C: CLKSTOP → /CLKSTOP. U1D: CLK → /CLK |
 | Counter | U4 74HC163, 16 MHz, P inputs grounded, Q0 = **CLK** (SCK, 8 MHz). TC goes high at count 15; the synchronous clear on tick 16 gives the 8th falling edge |
 | Out shift | U6 74HC165: SH/LD = /SER_WR, CLK = /CLK, SER = 5 V, QH = **MOSI**, H..A = D7..D0 |
-| In shift | U7 74HC595: SER = MISO, SRCLK = CLK, RCLK = /CLK, /OE = /SER_RD, QH..QA = D7..D0 |
+| In shift | U7 74HCT595: SER = MISO, SRCLK = CLK, RCLK = /CLK, /OE = /SER_RD, QH..QA = D7..D0 |
 | Read strobe | U11 gate B: /RQ_SER_RD AND /SER_RD_AND_PULSE = /SER_RD |
-| 3.3 V side | U16 AMS1117-3.3; U21 74LVC125 at 3.3 V (all /OE grounded) via R8–R11 3.3 k: MOSI→CMD, CLK→SCK, /CS→DAT3, DAT0→MISO. MISO returns at 3.3 V into 5 V HC inputs (works, but below the HC V_IH spec) |
-| LEDs | U12 inverters: D1 lit while /CS is asserted, D2 while MOSI is low, D3 while MISO is low |
+| 3.3 V side | U16 AMS1117-3.3; U21 74LVC125 at 3.3 V (all /OE grounded) via R8–R11 3.3 k: MOSI→CMD, CLK→SCK, /CS→DAT3, DAT0→MISO. MISO returns at 3.3 V into the 74HCT595 and 74HCT04 (HCT inputs: high from 2.0 V; rev3, previously HC parts that worked by margin) |
+| LEDs | U12 74HCT04 inverters: D1 lit while /CS is asserted, D2 while MOSI is low, D3 while MISO is low |
 | Driver (OTTERSD) | per byte: OUT base+0 (byte or FFh), two settle reads of base+0, IN base+0. OUT base+1 only for the 12 wake-up bursts; IN base+3 once at start-up. CRC checking on (CMD17 CRC7 = E5 for sector 2048) |
 
 SPI mode 0, MSB first: the card and the '595 sample on the rising SCK edge; the

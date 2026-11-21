@@ -1,19 +1,24 @@
 # Slot-otter Classic explainer movie
 
-An animation of about five minutes that follows one byte from the ISA card edge
-of Slot-otter Classic to the SD card and one byte back. It comes in two cuts that
-share every frame: a **silent cut** with captions (`build/slot-otter-classic.mp4`)
-and a **voice-over cut** with a calm narration and subtitles
-(`build/voiceover/slot-otter-classic-voiceover.mp4`). Everything is
-rendered programmatically from the repository's own design data:
+An animation of about ten minutes. It first introduces the card from a high level
+(the PC writes and reads bytes at I/O ports, the SD card speaks SPI, the card bridges
+the two) and takes a closer look at both sides' wires, then follows one byte from the
+ISA card edge of Slot-otter Classic to the SD card and one byte back, and ends with
+a map of the five jobs its fourteen chips do. The narration leads: every scene is
+timed around it. Both cuts share every frame: `build/slot-otter-classic-voiceover.mp4`
+(narration, subtitles burned in) and `build/slot-otter-classic.mp4` (the same without
+audio). Everything is rendered programmatically from the repository's own design data:
 
 - the **photo plate** is an orthographic Cycles render of
   `pcb/release/render/slot-otter-discrete.blend`;
 - the **x-ray board** and every signal path are drawn from
   `pcb/release/isa-sdcard.kicad_pcb` (pulses follow the real copper, pad to pad).
 
-[SCRIPT.md](SCRIPT.md) is the movie script: shots, timing, captions and the
-netlist facts behind them. Each `scenes/sNN_*.py` implements section **SNN**.
+[STORY.md](STORY.md) is the story, act by act, in plain text: start there to change
+what the film says. `scenes/narration.py` holds the narration (written form for the
+subtitles, spoken form for the voice). [SCRIPT.md](SCRIPT.md) is the visual script:
+shots, the generated narration blocks and the netlist facts behind them. Each
+`scenes/sNN_*.py` implements section **SNN**.
 
 ## Setup
 
@@ -30,23 +35,46 @@ plate a Blender 4.5 build with Cycles GPU support.
 
 ```sh
 .venv/bin/python render.py plate            # once: photo plate (~13 min on an RTX 5090)
-.venv/bin/python render.py list             # scenes and durations
-.venv/bin/python render.py check            # camera continuity at cuts, caption overlap and reading speed
-.venv/bin/python render.py still s04 13 17  # frames at t = 13 s and 17 s -> build/stills/
+.venv/bin/python render.py voice            # synthesise the narration (needed before anything renders)
+.venv/bin/python render.py list             # scenes and their on-screen durations
+.venv/bin/python render.py check            # camera continuity and pops at cuts, and label collisions
+                                             # (pills, leader lines, outlines, panels; sampled every 0.25 s)
+.venv/bin/python render.py still s04 13 17  # frames at t = 13 s and 17 s (on-screen time) -> build/stills/
 .venv/bin/python render.py contact s04      # 12-frame contact sheet of one scene
 .venv/bin/python render.py preview s04      # 960x540 @ 30 fps for timing checks
 .venv/bin/python render.py scene s04        # final 1920x1080 @ 60 fps -> build/scenes/
-.venv/bin/python render.py all              # all scenes + build/slot-otter-classic.mp4
+.venv/bin/python render.py all              # all scenes + both cuts in build/
+.venv/bin/python render.py script           # regenerate the narration blocks in SCRIPT.md
 ```
 
-Voice-over cut:
+`render.py voice` also reports, per scene, how much the animation has to slow down
+to fit the narration; keep it near 1.0 by placing each line's start time (in
+`scenes/narration.py`) where its picture happens and giving the scene room.
+
+Publishing (YouTube):
 
 ```sh
-.venv/bin/python render.py voice            # synthesise narration, report per-scene stretch
-.venv/bin/python render.py still s11 10 --vo   # frames at voice-over time
-.venv/bin/python render.py all --vo         # -> build/voiceover/slot-otter-classic-voiceover.mp4
-.venv/bin/python render.py script           # regenerate the caption/voice-over blocks in SCRIPT.md
+.venv/bin/python render.py publish          # everything below, collected in build/publish/
+.venv/bin/python render.py subtitles        # SRT + WebVTT
+.venv/bin/python render.py chapters         # YouTube chapter list (first at 0:00, each >= 10 s)
+.venv/bin/python render.py teaser           # SPI-ring teaser: mp4 + README gif
+.venv/bin/python render.py all --clean --res 3840x2160   # 4K voice-over cut, no burned-in subtitles
 ```
+
+`publish` renders the 1080p frames once (both cuts) and the 4K voice-over cut
+*without* burned-in subtitles (upload it together with `slot-otter-classic.srt`).
+Renders at other sizes and clean renders get a suffix (`-2160p`, `-clean`), so they
+never overwrite the 1080p cuts. The 48 px/mm photo plate is sharp enough for 4K, because photo mode only
+appears in the wide shots.
+
+Frames are drawn with cairo on all CPU cores; drawing, not encoding, is the bottleneck. Above
+1080p (the 4K renders) video is encoded on the GPU (NVENC) when the machine has a usable NVIDIA
+encoder: on an RTX 5090 that is about 1.3x faster than x264, with equal or better quality and
+larger files. It uses only 4 encoder sessions (`OTTER_NVENC_SESSIONS`), so the GPU stays usable
+for other work; several drawing processes feed each session. At 1080p and below x264 on the CPU
+is faster. Machines without NVENC always use x264.
+`render.py` prints the encoder it picks; force one with `--encoder nvenc|x264` before the
+command (`render.py --encoder x264 all`) or `OTTER_ENCODER=x264`.
 
 `all --skip-existing` re-encodes only scenes without an mp4, so after tuning
 one scene delete its file (or run `scene` for it) and then rerun `all`.
@@ -103,7 +131,7 @@ Options: `--ppm` (pixels per mm, default 48), `--samples`, `--device`.
 
 Each scene is a pure function of time, so any frame renders on its own.
 
-- `duration`, `captions` (`(t_in, t_out, text)`) and `cam` (a `CamPath` of
+- `duration` and `cam` (a `CamPath` of
   `(t, view)` keys, where a view is `(centre_x_mm, centre_y_mm, visible_width_mm)`)
   sit at the top of each scene class.
 - `draw(f, t)` paints in board space (board, nets, spotlights, tags);
@@ -121,14 +149,16 @@ Each scene is a pure function of time, so any frame renders on its own.
 
 ```
 movie/
-  SCRIPT.md            movie script (the source of truth for content)
+  STORY.md             the story (the source of truth for what the film says)
+  SCRIPT.md            visual script, generated narration blocks, netlist facts
+  scenes/narration.py  narration: (scene time, subtitle, spoken text) per line
   render.py            CLI: plate, list, still, contact, preview, scene, all
   plate/render_plate.py  Blender script for the photo plate
   otter/               small rendering engine
     pcb.py             .kicad_pcb reader (outline, footprints, pads, tracks, zones)
     netflow.py         copper graphs: pad-to-pad paths and propagation fronts
     stage.py           photo plate, x-ray board, net glow, spotlight, tags
-    widgets.py         captions, bit registers, timing diagrams, tables
+    widgets.py         subtitles, bit registers, timing diagrams, tables
     camera.py, anim.py, draw.py, scene.py, config.py
   scenes/              one module per scene, order in scenes/__init__.py
   build/               generated output (git-ignored)

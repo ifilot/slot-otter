@@ -14,7 +14,7 @@ import math
 import numpy as np
 
 LEAD = 0.15      # speech starts this long after the line's scene time
-GAP = 0.55       # pause after a line before the next one may start
+GAP = 0.4        # pause after a line before the next one may start
 TAIL = 0.9       # pause after the last line of a scene
 SIGMA = 0.4      # rate smoothing (seconds of scene time)
 DS = 1 / 200     # integration step (scene seconds)

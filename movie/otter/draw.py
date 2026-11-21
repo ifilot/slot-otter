@@ -140,9 +140,20 @@ def wrap(ctx, s, max_w, size, bold=False):
     return lines
 
 
+# When a list, screen-space boxes of labels and panels are recorded here
+# (kind, (x0, y0, x1, y1), name, alpha) for `render.py check`.
+LOG = None
+
+
+def log_box(kind, box, name, alpha):
+    if LOG is not None and alpha > 0.2:
+        LOG.append((kind, tuple(box), name, alpha))
+
+
 def panel(ctx, x, y, w, h, alpha=1.0, r=18, fill=C.panel, edge=C.panel_edge, shadow=True):
     if alpha <= 0:
         return
+    log_box('panel', ctx.user_to_device(x, y) + ctx.user_to_device(x + w, y + h), 'panel', alpha)
     if shadow:
         for i, a in ((18, 0.10), (10, 0.12), (4, 0.15)):
             rounded_rect(ctx, x - i * 0.3, y + i * 0.5, w + i * 0.6, h + i * 0.6, r + i)

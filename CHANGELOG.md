@@ -14,6 +14,11 @@
   `pcb/release/slot-otter-classic.kicad_wks`, with the Slot-otter logo in the
   title block. `tools/make_drawing_sheet.py` regenerates it from KiCad's default
   sheet.
+- Add the Slot-otter Classic explainer movie (`movie/`): a narrated ten-minute
+  walk-through that follows one byte from the ISA bus to the SD card and back,
+  rendered frame by frame from the KiCad design and the Blender scene.
+  `movie/render.py publish` builds the 4K YouTube cut, 1080p cuts with burned-in
+  subtitles, SRT/VTT subtitles, YouTube chapters and a teaser.
 
 ## 1.1.5
 
