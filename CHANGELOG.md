@@ -17,6 +17,26 @@
   clean. It does not check for lost clusters or interrupted files.
 - Make build error detection independent of ripgrep.
 - Increment OTTERSD/HWRT to 1.2.0.
+- Slot-otter Classic hardware revision 3: fit a 74HCT595 (U7) and a 74HCT04
+  (U12) instead of the 74HC parts. Both receive MISO from the 3.3 V-powered
+  74LVC125, whose 3.3 V high level is below the 74HC input threshold at 5 V
+  (it worked by margin); HCT inputs guarantee a high level from 2.0 V. The parts
+  are pin-compatible, so copper and footprints are unchanged; the BOM, the
+  value silkscreen, the "rev3" marking, the schematic PDF/SVG, the renders and
+  the web model are updated.
+- Give the Classic schematic and PCB consistent title blocks (title, rev3,
+  date, project URL, licence and OSHWA UID) and a project drawing sheet,
+  `pcb/release/slot-otter-classic.kicad_wks`, with the Slot-otter logo in the
+  title block. `tools/make_drawing_sheet.py` regenerates it from KiCad's default
+  sheet.
+- Add `bracket/bracket-release-card.scad`, a parametric OpenSCAD model of the
+  release-card bracket with an optional thumb socket around the SD window,
+  and its STL export in print orientation.
+- Add the Slot-otter Classic explainer movie (`movie/`): a narrated ten-minute
+  walk-through that follows one byte from the ISA bus to the SD card and back,
+  rendered frame by frame from the KiCad design and the Blender scene.
+  `movie/render.py publish` builds the 4K YouTube cut, 1080p cuts with burned-in
+  subtitles, SRT/VTT subtitles, YouTube chapters and a teaser.
 
 ## 1.1.5
 

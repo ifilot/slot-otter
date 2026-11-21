@@ -5,9 +5,13 @@
 	(uuid "075aea89-321c-44ba-b0b1-8b82a6b1f518")
 	(paper "A3")
 	(title_block
-		(title "ISA-TO-SDCARD")
-		(date "2025-08-17")
-		(rev "rev0")
+		(title "Slot-otter Classic")
+		(date "2026-11-13")
+		(rev "rev3")
+		(company "Slot-otter · github.com/ifilot/slot-otter")
+		(comment 1 "8-bit ISA SD-card interface, discrete 74-series logic")
+		(comment 2 "Hardware: CERN-OHL-S-2.0 · OSHWA certified NL000046")
+		(comment 3 "rev3: U7 74HCT595, U12 74HCT04 (MISO arrives at 3.3 V)")
 	)
 	(lib_symbols
 		(symbol "74xx:74HC00"
@@ -19488,7 +19492,7 @@
 				(justify left)
 			)
 		)
-		(property "Value" "74HC595"
+		(property "Value" "74HCT595"
 			(at 210.9271 93.2306 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -20665,7 +20669,7 @@
 				)
 			)
 		)
-		(property "Value" "74HC04"
+		(property "Value" "74HCT04"
 			(at 317.5 203.2 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -21873,7 +21877,7 @@
 				)
 			)
 		)
-		(property "Value" "74HC04"
+		(property "Value" "74HCT04"
 			(at 373.38 158.242 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -23264,7 +23268,7 @@
 				)
 			)
 		)
-		(property "Value" "74HC04"
+		(property "Value" "74HCT04"
 			(at 133.35 207.01 90)
 			(show_name no)
 			(do_not_autoplace no)
@@ -26405,7 +26409,7 @@
 				)
 			)
 		)
-		(property "Value" "74HC04"
+		(property "Value" "74HCT04"
 			(at 332.74 219.71 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -27669,7 +27673,7 @@
 				)
 			)
 		)
-		(property "Value" "74HC04"
+		(property "Value" "74HCT04"
 			(at 332.74 236.22 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -31679,7 +31683,7 @@
 				)
 			)
 		)
-		(property "Value" "74HC04"
+		(property "Value" "74HCT04"
 			(at 317.5 219.71 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -34032,7 +34036,7 @@
 				)
 			)
 		)
-		(property "Value" "74HC04"
+		(property "Value" "74HCT04"
 			(at 317.5 236.22 0)
 			(show_name no)
 			(do_not_autoplace no)
