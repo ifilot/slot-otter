@@ -1,5 +1,20 @@
 # Release history
 
+## Unreleased
+
+- Slot-otter Classic hardware revision 3: fit a 74HCT595 (U7) and a 74HCT04
+  (U12) instead of the 74HC parts. Both receive MISO from the 3.3 V-powered
+  74LVC125, whose 3.3 V high level is below the 74HC input threshold at 5 V
+  (it worked by margin); HCT inputs guarantee a high level from 2.0 V. The parts
+  are pin-compatible, so copper and footprints are unchanged; the BOM, the
+  value silkscreen, the "rev3" marking, the schematic PDF/SVG, the renders and
+  the web model are updated.
+- Give the Classic schematic and PCB consistent title blocks (title, rev3,
+  date, project URL, licence and OSHWA UID) and a project drawing sheet,
+  `pcb/release/slot-otter-classic.kicad_wks`, with the Slot-otter logo in the
+  title block. `tools/make_drawing_sheet.py` regenerates it from KiCad's default
+  sheet.
+
 ## 1.1.5
 
 - Report the specific writable-mount rejection and preserve its filesystem

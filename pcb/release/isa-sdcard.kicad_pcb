@@ -8,9 +8,13 @@
 	)
 	(paper "A4")
 	(title_block
-		(title "ISA SD CARD")
-		(date "2024-05-26")
-		(rev "rev6")
+		(title "Slot-otter Classic")
+		(date "2026-11-13")
+		(rev "rev3")
+		(company "Slot-otter · github.com/ifilot/slot-otter")
+		(comment 1 "8-bit ISA SD-card interface, discrete 74-series logic")
+		(comment 2 "Hardware: CERN-OHL-S-2.0 · OSHWA certified NL000046")
+		(comment 3 "rev3: U7 74HCT595, U12 74HCT04 (MISO arrives at 3.3 V)")
 	)
 	(layers
 		(0 "F.Cu" signal)
@@ -413,7 +417,7 @@
 				)
 			)
 		)
-		(property "Value" "74HC595"
+		(property "Value" "74HCT595"
 			(at 0 5.9 90)
 			(layer "F.SilkS")
 			(uuid "184c9d35-7599-404b-acd7-48b0be3806b7")
@@ -21719,7 +21723,7 @@
 				)
 			)
 		)
-		(property "Value" "74HC04"
+		(property "Value" "74HCT04"
 			(at 0 5.28 90)
 			(layer "F.SilkS")
 			(uuid "dff42870-19b5-4c5f-85cf-eb9904f08ba9")
@@ -22727,7 +22731,7 @@
 			(justify left bottom)
 		)
 	)
-	(gr_text "rev2"
+	(gr_text "rev3"
 		(at 161.525 42.15 0)
 		(layer "F.SilkS")
 		(uuid "3ffabe96-674d-4755-8e7a-8f5a56beb200")
