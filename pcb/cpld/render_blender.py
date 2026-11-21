@@ -278,11 +278,13 @@ def add_bracket(meshes, pcb, stl):
     bracket.matrix_world = Matrix(((0, .001, 0, target.x + .00722),
                                    (0, 0, .001, target.y - .00395),
                                    (.001, 0, 0, .00630), (0, 0, 0, 1)))
-    material = bpy.data.materials.new('Cream printed bracket')
+    material = bpy.data.materials.new('Anthracite printed bracket')
     material.use_nodes = True
     shader = material.node_tree.nodes.get('Principled BSDF')
-    shader.inputs['Base Color'].default_value = (.64, .57, .37, 1)
-    shader.inputs['Roughness'].default_value = .55
+    anthracite = (.022, .031, .033, 1)       # RAL 7016 anthracite grey (#293133), linear
+    material.diffuse_color = anthracite
+    shader.inputs['Base Color'].default_value = anthracite
+    shader.inputs['Roughness'].default_value = .6
     bracket.data.materials.clear()
     bracket.data.materials.append(material)
     # Report alignment error rather than silently scaling the mesh to fit.

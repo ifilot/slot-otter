@@ -29,6 +29,8 @@
   `pcb/release/slot-otter-classic.kicad_wks`, with the Slot-otter logo in the
   title block. `tools/make_drawing_sheet.py` regenerates it from KiCad's default
   sheet.
+- Show the Slot-otter Forge bracket in anthracite grey (RAL 7016) in the
+  Blender scene, the README renders and the interactive 3D viewer.
 - Add `bracket/bracket-release-card.scad`, a parametric OpenSCAD model of the
   release-card bracket with an optional thumb socket around the SD window,
   and its STL export in print orientation.
