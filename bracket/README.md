@@ -6,7 +6,6 @@ editor and retain the modified mesh as source when sharing changes.
 
 - `bracket-prototype-card.stl`: bracket for the historical prototype.
 - `bracket-release-card.stl`: bracket for the historical discrete-logic card.
-- `bracket-release-card-text.stl`: the text mesh supplied with that bracket.
 - `bracket-release-card.scad`: parametric OpenSCAD reconstruction of
   `bracket-release-card.stl` (same coordinate frame; matches the mesh to
   within curve tessellation), with an optional thumb socket around the SD

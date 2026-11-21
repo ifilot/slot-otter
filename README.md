@@ -4,7 +4,7 @@
 ![Version](https://img.shields.io/github/v/tag/ifilot/slot-otter?label=version)
 [![Hardware license](https://img.shields.io/badge/Hardware-CERN--OHL--S--2.0-blue.svg)](LICENSE.md)
 [![Software license](https://img.shields.io/badge/Software-GPL--3.0--or--later-blue.svg)](LICENSE.md)
-[![OSHWA certified](https://img.shields.io/badge/OSHWA-NL000046-red.svg)](https://certification.oshwa.org/nl000046.html)
+[![OSHWA certified](https://img.shields.io/badge/OSHWA-NL000046-green.svg)](https://certification.oshwa.org/nl000046.html)
 
 An 8-bit ISA card for accessing FAT16- or FAT32-formatted SD cards under MS-DOS.
 
@@ -27,6 +27,12 @@ use the current driver and follow the setup instructions below.
 Click a preview to view the full-resolution image.
 
 [Explore Classic and Forge in the interactive 3D viewer](https://ifilot.github.io/slot-otter/) — rotate and zoom each card in your browser.
+
+**How it works, in ten minutes:** the [Slot-otter Classic explainer](https://www.youtube.com/watch?v=h1xjg9emv7I)
+follows one byte from the ISA bus, through the card's fourteen logic chips,
+to the SD card and back.
+
+<a href="https://www.youtube.com/watch?v=h1xjg9emv7I"><img src="https://img.youtube.com/vi/h1xjg9emv7I/maxresdefault.jpg" alt="Slot-otter Classic explainer video on YouTube" width="640"></a>
 
 A working setup has three parts:
 
@@ -275,7 +281,9 @@ the [Slot-otter Classic](pcb/release/README.md) discrete-logic board and
 [Slot-otter Forge](pcb/cpld/README.md) CPLD board. Both use the same OTTERSD driver,
 I/O port settings and SD card formats, including read and write support.
 
-Classic implements the interface with discrete logic chips.
+Classic implements the interface with discrete logic chips; the
+[explainer video](https://www.youtube.com/watch?v=h1xjg9emv7I) shows, chip by chip, how they turn the PC's bytes into
+SPI bits for the SD card and back.
 On Forge, an ATF1504AS implements the interface logic, with an external 74HCT688
 comparing address lines A2 to A9 against the DIP-switch setting.
 
